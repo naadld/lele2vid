@@ -1,0 +1,45 @@
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+
+# Credentials, Secrets & Tokens (STRICT SECURITY)
+gitinore/
+configs/
+*.json
+!data/sample_words.json
+*.pem
+*.key
+*.token
+*.env
+service_account.json
+
+# Audio cache & wav files
+assets/audio/*.wav
+assets/audio/words/
+assets/audio/test_*.mp3
+bell.wav
+
+# Python cache & artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+
+# Manim & Media Render Outputs
+output/
+media/
+scratch/
+templates/*.mp4
+*.mp4
+*.mov
+*.wav
+
+# OS / Editor artifacts
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
