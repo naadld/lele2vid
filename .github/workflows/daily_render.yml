@@ -30,6 +30,33 @@ jobs:
           python-version: '3.12'
           cache: 'pip'
 
+      # Cache Pip wheels for ultrafast install (including edge-tts, manim, etc.)
+      - name: Cache Pip Wheels
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      # Cache Edge-TTS generated speech audio files
+      - name: Cache Edge-TTS Word Audio
+        uses: actions/cache@v4
+        with:
+          path: assets/audio/words
+          key: ${{ runner.os }}-edge-tts-${{ hashFiles('assets/audio/words/**') }}
+          restore-keys: |
+            ${{ runner.os }}-edge-tts-
+
+      # Cache apt packages
+      - name: Cache APT packages
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives
+          key: ${{ runner.os }}-apt-${{ hashFiles('.github/workflows/daily_render.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-apt-
+
       - name: Install System Dependencies & CJK Fonts
         run: |
           sudo apt-get update
@@ -57,6 +84,7 @@ jobs:
         env:
           RENDER_QUALITY: ${{ github.event.inputs.quality || 'qh' }}
           TARGET_ROW: ${{ github.event.inputs.row_id || '' }}
+          PYTHONPATH: .
         run: |
           CMD="python scripts/run_batch.py --from-sheet --quality $RENDER_QUALITY --upload-gdrive"
           if [ -n "$TARGET_ROW" ]; then
