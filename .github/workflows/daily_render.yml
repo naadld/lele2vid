@@ -7,18 +7,30 @@ on:
   workflow_dispatch:
     inputs:
       quality:
-        description: 'Manim render quality (ql, qm, qh, qk)'
+        description: 'Manim render quality (ql=480p, qm=720p, qh=1080p60, qk=4K)'
         required: false
         default: 'qh'
+        type: choice
+        options:
+          - qh
+          - ql
+          - qm
+          - qk
       row_id:
         description: 'Specific Row ID to render (leave empty to render all Pending)'
         required: false
         default: ''
+        type: string
+      generate_ideas:
+        description: 'Tự động tạo 5 bộ ý tưởng & metadata mới trước khi render'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   render_videos:
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 240
 
     steps:
       - name: Checkout Repository
@@ -48,20 +60,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-edge-tts-
 
-      # Cache apt packages
-      - name: Cache APT packages
-        uses: actions/cache@v4
-        with:
-          path: /var/cache/apt/archives
-          key: ${{ runner.os }}-apt-${{ hashFiles('.github/workflows/daily_render.yml') }}
-          restore-keys: |
-            ${{ runner.os }}-apt-
-
       - name: Install System Dependencies & CJK Fonts
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg libpango1.0-dev pkg-config libcairo2-dev \
-            fonts-noto-cjk fonts-wqy-zenhei fonts-dejavu-core
+            sox libsox-fmt-all fonts-noto-cjk fonts-wqy-zenhei fonts-dejavu-core
 
       - name: Install Python Requirements
         run: |
@@ -78,7 +81,22 @@ jobs:
             echo "Service account credentials configured."
           fi
 
-      - name: Execute Daily Video Render & Upload
+      # Optional: Sinh 5 ý tưởng + Metadata mới nếu được kích hoạt
+      - name: Generate Daily Batches & Metadata
+        if: ${{ github.event.inputs.generate_ideas == 'true' || github.event.inputs.generate_ideas == true }}
+        working-directory: pinyinquiz
+        env:
+          PYTHONPATH: .
+          GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+          GDRIVE_CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
+          GDRIVE_CLIENT_SECRET: ${{ secrets.GDRIVE_CLIENT_SECRET }}
+          GDRIVE_REFRESH_TOKEN: ${{ secrets.GDRIVE_REFRESH_TOKEN }}
+        run: |
+          echo "Generating 5 new HSK batches with social media metadata..."
+          python scripts/generate_daily_batches.py
+
+      # Thực thi kết xuất video Manim và tải lên Google Drive
+      - name: Execute Video Render & Upload
         working-directory: pinyinquiz
         env:
           RENDER_QUALITY: ${{ github.event.inputs.quality || 'qh' }}
@@ -93,8 +111,43 @@ jobs:
           if [ -n "$TARGET_ROW" ]; then
             CMD="$CMD --row-id $TARGET_ROW"
           fi
-          echo "Running: $CMD"
+          echo "Executing: $CMD"
           eval $CMD
+
+      # Gửi thông báo kết quả qua Telegram Bot
+      - name: Send Telegram Notification
+        if: always()
+        working-directory: pinyinquiz
+        env:
+          JOB_STATUS: ${{ job.status }}
+          RENDER_QUALITY: ${{ github.event.inputs.quality || 'qh' }}
+        run: |
+          python -c "
+          import os, requests
+          
+          status = os.getenv('JOB_STATUS', 'UNKNOWN')
+          quality = os.getenv('RENDER_QUALITY', 'qh')
+          status_icon = '✅ THÀNH CÔNG' if status == 'success' else '❌ THẤT BẠI'
+          
+          token = '8984558925:AAHjRpUWbxoi9hvFoZKevoIKaLklCP1hQ-o'
+          chat_id = '-1004392602002'
+          cmd_token = '8798886722:AAFLRQwdonCZIJXuvGm9NbvyyVlETxsWjYw'
+          direct_chat_id = '1187577977'
+          
+          text = f'''🤖 <b>[GitHub Actions] Báo Cáo Render Video PinyinQuiz</b>
+          
+  Trạng thái: <b>{status_icon}</b>
+  Chất lượng: <b>{quality}</b>
+  Nền tảng: <b>GitHub Actions Cloud Runner</b>
+  Thời gian: <b>Hoàn tất quy trình 100% tự động trên Cloud</b>
+  Google Sheet: Đã cập nhật Video Link & Metadata vào tab <code>pinyin</code>.'''
+          
+          for cid, tok in [(chat_id, token), (direct_chat_id, cmd_token)]:
+              try:
+                  requests.post(f'https://api.telegram.org/bot{tok}/sendMessage', data={'chat_id': cid, 'text': text, 'parse_mode': 'HTML'}, timeout=15)
+              except Exception as e:
+                  print(f'Telegram notification error for {cid}: {e}')
+          "
 
       - name: Cleanup Credentials
         if: always()
