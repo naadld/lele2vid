@@ -79,7 +79,7 @@ Mỗi phân hệ (như `pinyinquiz/`) là một gói phần mềm độc lập, 
 ### 4.1. Google Sheets (Cơ sở dữ liệu quản lý)
 - **Spreadsheet ID:** `1b6LNl7JHRiCsjK1w9VuD86GLqAfmSOtDUOm5whrGdH0`
 - **Tab Quản lý:** `pinyin`
-- **Cấu trúc 16 Cột Chuẩn (Đồng bộ với hệ sinh thái LeLe):**
+- **Cấu trúc 16 Cột Chuẩn:**
 
 | Cột | Tên Cột | Mô Tả & Ví Dụ |
 | :--- | :--- | :--- |
@@ -92,19 +92,20 @@ Mỗi phân hệ (như `pinyinquiz/`) là một gói phần mềm độc lập, 
 | **G** | `Word 3` | `面包 \| miàn bāo \| m _ _ _   b _ _ \| Bánh mì` |
 | **H** | `Word 4` | `喝水 \| hē shuǐ \| h _   s _ _ _ \| Uống nước` |
 | **I** | `Word 5` | `吃饭 \| chī fàn \| c _ _   f _ _ \| Ăn cơm` |
-| **J** | `metadata` | Link Google Drive chứa file metadata (Title + Description cho YT Shorts, TikTok, FB Reels) |
-| **K** | `Video` | Đường dẫn trực tiếp file video trên Google Drive sau khi render xong |
-| **L** | `Youtube` | Trạng thái / Link video khi đăng YouTube Shorts |
-| **M** | `Tiktok` | Trạng thái / Link video khi đăng TikTok |
-| **N** | `Facebook` | Trạng thái / Link video khi đăng Facebook Reels |
+| **J** | `metadata` | Đường dẫn Google Drive chứa file metadata (.txt) cho YouTube Shorts, TikTok, Facebook Reels |
+| **K** | `Video` | Đường dẫn Google Drive xem video hoàn thiện |
+| **L** | `Youtube` | Đường dẫn/Trạng thái đăng tự động lên YouTube Shorts |
+| **M** | `Tiktok` | Đường dẫn/Trạng thái đăng tự động lên TikTok |
+| **N** | `Facebook` | Đường dẫn/Trạng thái đăng tự động lên Facebook Reels |
 | **O** | `Created At` | Ngày giờ tạo dữ liệu (`YYYY-MM-DD HH:MM:SS`) |
 | **P** | `Notes` | Ghi chú nguồn tạo batch |
 
-### 4.2. Google Drive (Kho lưu trữ video & metadata)
+### 4.2. Google Drive (Kho lưu trữ video thành phẩm & Metadata)
 - **Target Folder ID:** `1Y240J5-oXA-UDm2IKvp7qCBVsRempbCB`
-- **Phương thức tải lên:** Hỗ trợ ưu tiên **Google OAuth 2.0** kết hợp fallback sang **Google Cloud Service Account**.
-- **File Video:** `#{Số dòng}.{Tên topic}.mp4`
-- **File Metadata:** `#{Số dòng}.{Tên topic}_metadata.txt` (Chứa sẵn Title, Description, Caption & Hashtags tối ưu cho YouTube Shorts, TikTok, Facebook Reels)
+- **Phương thức tải lên:** Hỗ trợ ưu tiên **Google OAuth 2.0** (sử dụng Refresh Token tài khoản cá nhân để hưởng toàn bộ dung lượng Drive) kết hợp fallback sang **Google Cloud Service Account**.
+- **Quy tắc đặt tên file:** 
+  - Video: `#{Số dòng}.{Tên topic}.mp4`
+  - Metadata: `#{Số dòng}.{Tên topic}_metadata.txt`
 
 ---
 
@@ -115,16 +116,17 @@ sequenceDiagram
     autonumber
     participant AI as Antigravity 2.0 / Gemini Spark
     participant GS as Google Sheets (tab: pinyin)
-    participant GH as GitHub Actions / VPS Runner
-    participant ME as Manim Render Engine
+    participant GH as GitHub Actions Cloud Runner
+    participant ME as Manim Render Engine (Cloud)
     participant GD as Google Drive (Folder pinyin)
 
-    Note over AI,GS: 02:00 AM (GMT+7) - Sinh Nội Dung
+    Note over AI,GS: 02:00 AM (GMT+7) - Sinh Nội Dung & Metadata
     AI->>GS: Đọc các từ vựng đã dùng (tránh lặp)
-    AI->>AI: Sinh 5 batch HSK mới (format 4 thành phần)
-    AI->>GS: Ghi thêm 5 dòng mới (Status = 'Pending')
+    AI->>AI: Sinh 5 batch HSK mới & Social Metadata đa nền tảng
+    AI->>GD: Upload file Metadata (.txt)
+    AI->>GS: Ghi 5 dòng mới chuẩn 16 cột (Status = 'Pending', Metadata link)
 
-    Note over GH,GD: 03:00 AM (GMT+7) - Render & Xuất Bản Video
+    Note over GH,GD: 03:00 AM (GMT+7) - Render 100% Trên GitHub Cloud
     GH->>GS: Quét tìm tất cả hàng có Status = 'Pending'
     loop Cho từng Batch Pending
         GH->>GS: Cập nhật Status = 'In Progress'
@@ -132,7 +134,7 @@ sequenceDiagram
         ME-->>GH: Video MP4 hoàn tất
         GH->>GD: Upload video (#số dòng.topic.mp4)
         GD-->>GH: Trả về Web View Link
-        GH->>GS: Cập nhật Status = 'Video', Video File, GDrive Link
+        GH->>GS: Cập nhật Status = 'Video', Video link
     end
 ```
 
