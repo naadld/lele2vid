@@ -15,22 +15,14 @@ on:
         description: 'Manim render quality (ql=480p, qm=720p, qh=1080p60, qk=4K)'
         required: false
         default: 'qh'
-        type: choice
-        options:
-          - qh
-          - ql
-          - qm
-          - qk
       row_id:
         description: 'Specific Row ID to render (leave empty to render all Pending)'
         required: false
         default: ''
-        type: string
       generate_ideas:
-        description: 'Tự động tạo 5 bộ ý tưởng & metadata mới trước khi render'
+        description: 'Tự động tạo 5 bộ ý tưởng & metadata mới (true/false)'
         required: false
-        default: false
-        type: boolean
+        default: 'false'
 
 jobs:
   render_videos:
