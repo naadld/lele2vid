@@ -2,7 +2,9 @@ import os
 import json
 import logging
 from typing import Optional
-from google.oauth2.service_account import Credentials
+from google.oauth2.credentials import Credentials as UserCredentials
+from google.oauth2.service_account import Credentials as ServiceAccountCredentials
+from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 from src.config import config
@@ -12,13 +14,51 @@ logger = logging.getLogger("GDriveUploader")
 TARGET_FOLDER_ID = "1Y240J5-oXA-UDm2IKvp7qCBVsRempbCB"
 
 class GDriveUploader:
-    def __init__(self, credentials_path: str = None, folder_id: str = TARGET_FOLDER_ID):
+    def __init__(self, folder_id: str = TARGET_FOLDER_ID):
         self.folder_id = folder_id
-        self.credentials_path = credentials_path
         self.service = None
         self._authenticate()
 
-    def _get_credentials(self) -> Credentials:
+    def _authenticate(self):
+        # 1. Priority 1: User OAuth 2.0 (Refresh Token) - Bypasses all Service Account Quota limits!
+        client_id = os.getenv("GDRIVE_CLIENT_ID")
+        client_secret = os.getenv("GDRIVE_CLIENT_SECRET")
+        refresh_token = os.getenv("GDRIVE_REFRESH_TOKEN")
+
+        # Also check oauth_credentials.json file if present
+        oauth_file = os.path.join(config.base_dir, "configs", "oauth_credentials.json")
+        if not (client_id and client_secret and refresh_token) and os.path.exists(oauth_file):
+            try:
+                with open(oauth_file, "r") as f:
+                    oauth_data = json.load(f)
+                    client_id = client_id or oauth_data.get("client_id")
+                    client_secret = client_secret or oauth_data.get("client_secret")
+                    refresh_token = refresh_token or oauth_data.get("refresh_token")
+            except Exception as e:
+                logger.warning(f"Could not read oauth_credentials.json: {e}")
+
+        if client_id and client_secret and refresh_token:
+            try:
+                logger.info("Authenticating via Google OAuth 2.0 User Credentials (Personal Quota)...")
+                user_creds = UserCredentials(
+                    token=None,
+                    refresh_token=refresh_token,
+                    token_uri="https://oauth2.googleapis.com/token",
+                    client_id=client_id,
+                    client_secret=client_secret,
+                    scopes=[
+                        "https://www.googleapis.com/auth/drive",
+                        "https://www.googleapis.com/auth/drive.file"
+                    ]
+                )
+                user_creds.refresh(Request())
+                self.service = build("drive", "v3", credentials=user_creds)
+                logger.info(" Google OAuth 2.0 User Authentication Successful!")
+                return
+            except Exception as oe:
+                logger.error(f"Failed to authenticate via OAuth 2.0: {oe}. Falling back to Service Account...")
+
+        # 2. Priority 2: Service Account Credentials (Fallback)
         scopes = [
             "https://www.googleapis.com/auth/drive",
             "https://www.googleapis.com/auth/drive.file"
@@ -28,27 +68,25 @@ class GDriveUploader:
         if env_json and env_json.strip():
             try:
                 info = json.loads(env_json)
-                return Credentials.from_service_account_info(info, scopes=scopes)
+                sa_creds = ServiceAccountCredentials.from_service_account_info(info, scopes=scopes)
+                self.service = build("drive", "v3", credentials=sa_creds)
+                logger.info("Authenticated via Service Account (env).")
+                return
             except Exception as e:
-                logger.warning(f"Failed to parse credentials from env JSON: {e}")
+                logger.warning(f"Failed to parse Service Account from env: {e}")
 
-        search_paths = [self.credentials_path] if self.credentials_path else []
-        search_paths.extend(config.creds_paths)
-
-        for path in search_paths:
+        for path in config.creds_paths:
             if path and os.path.exists(path) and os.path.getsize(path) > 10:
-                return Credentials.from_service_account_file(path, scopes=scopes)
+                sa_creds = ServiceAccountCredentials.from_service_account_file(path, scopes=scopes)
+                self.service = build("drive", "v3", credentials=sa_creds)
+                logger.info(f"Authenticated via Service Account file: {path}")
+                return
 
-        raise FileNotFoundError("No valid Google service account credentials found for GDrive!")
-
-    def _authenticate(self):
-        creds = self._get_credentials()
-        self.service = build("drive", "v3", credentials=creds)
-        logger.info("GDriveUploader authenticated successfully.")
+        raise FileNotFoundError("No valid Google credentials (OAuth 2.0 or Service Account) found!")
 
     def upload_file(self, file_path: str, custom_filename: Optional[str] = None) -> Optional[str]:
         """
-        Uploads a video file to Google Drive folder and returns the web view link.
+        Uploads a video file to Google Drive folder and returns the direct web view link.
         """
         if not os.path.exists(file_path):
             logger.error(f"File not found for upload: {file_path}")
@@ -73,7 +111,8 @@ class GDriveUploader:
 
             file_id = file.get("id")
             web_link = file.get("webViewLink")
-            logger.info(f"Upload successful! File ID: {file_id}, Link: {web_link}")
+            logger.info(f"🎉 Upload successful! File ID: {file_id}")
+            logger.info(f"🔗 Direct File Link: {web_link}")
 
             try:
                 self.service.permissions().create(

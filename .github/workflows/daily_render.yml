@@ -30,7 +30,7 @@ jobs:
           python-version: '3.12'
           cache: 'pip'
 
-      # Cache Pip wheels for ultrafast install (including edge-tts, manim, etc.)
+      # Cache Pip Wheels for ultrafast install
       - name: Cache Pip Wheels
         uses: actions/cache@v4
         with:
@@ -75,9 +75,7 @@ jobs:
           mkdir -p configs
           if [ -n "$GCP_SERVICE_ACCOUNT_JSON" ]; then
             echo "$GCP_SERVICE_ACCOUNT_JSON" > configs/service_account.json
-            echo "Service account credentials configured securely."
-          else
-            echo "::warning ::GCP_SERVICE_ACCOUNT_JSON secret not provided!"
+            echo "Service account credentials configured."
           fi
 
       - name: Execute Daily Video Render & Upload
@@ -85,6 +83,10 @@ jobs:
           RENDER_QUALITY: ${{ github.event.inputs.quality || 'qh' }}
           TARGET_ROW: ${{ github.event.inputs.row_id || '' }}
           PYTHONPATH: .
+          GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+          GDRIVE_CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
+          GDRIVE_CLIENT_SECRET: ${{ secrets.GDRIVE_CLIENT_SECRET }}
+          GDRIVE_REFRESH_TOKEN: ${{ secrets.GDRIVE_REFRESH_TOKEN }}
         run: |
           CMD="python scripts/run_batch.py --from-sheet --quality $RENDER_QUALITY --upload-gdrive"
           if [ -n "$TARGET_ROW" ]; then
