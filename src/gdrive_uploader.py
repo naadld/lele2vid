@@ -20,12 +20,12 @@ class GDriveUploader:
         self._authenticate()
 
     def _authenticate(self):
-        # 1. Priority 1: User OAuth 2.0 (Refresh Token) - Bypasses all Service Account Quota limits!
+        # 1. Priority 1: User OAuth 2.0 (Refresh Token) - Direct User Quota
         client_id = os.getenv("GDRIVE_CLIENT_ID")
         client_secret = os.getenv("GDRIVE_CLIENT_SECRET")
         refresh_token = os.getenv("GDRIVE_REFRESH_TOKEN")
 
-        # Also check oauth_credentials.json file if present
+        # Also check oauth_credentials.json file if present locally
         oauth_file = os.path.join(config.base_dir, "configs", "oauth_credentials.json")
         if not (client_id and client_secret and refresh_token) and os.path.exists(oauth_file):
             try:
@@ -39,17 +39,13 @@ class GDriveUploader:
 
         if client_id and client_secret and refresh_token:
             try:
-                logger.info("Authenticating via Google OAuth 2.0 User Credentials (Personal Quota)...")
+                logger.info("Authenticating via Google OAuth 2.0 User Credentials (aleron.dt@gmail.com)...")
                 user_creds = UserCredentials(
                     token=None,
                     refresh_token=refresh_token,
                     token_uri="https://oauth2.googleapis.com/token",
                     client_id=client_id,
-                    client_secret=client_secret,
-                    scopes=[
-                        "https://www.googleapis.com/auth/drive",
-                        "https://www.googleapis.com/auth/drive.file"
-                    ]
+                    client_secret=client_secret
                 )
                 user_creds.refresh(Request())
                 self.service = build("drive", "v3", credentials=user_creds)
@@ -111,8 +107,8 @@ class GDriveUploader:
 
             file_id = file.get("id")
             web_link = file.get("webViewLink")
-            logger.info(f"🎉 Upload successful! File ID: {file_id}")
-            logger.info(f"🔗 Direct File Link: {web_link}")
+            logger.info(f" Upload successful! File ID: {file_id}")
+            logger.info(f" Direct File Link: {web_link}")
 
             try:
                 self.service.permissions().create(
