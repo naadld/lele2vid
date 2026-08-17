@@ -114,39 +114,49 @@ jobs:
           echo "Executing: $CMD"
           eval $CMD
 
-      # Gửi thông báo kết quả qua Telegram Bot
+      # Gửi thông báo kết quả qua Telegram Bot (Bảo mật 100% qua GitHub Secrets)
       - name: Send Telegram Notification
         if: always()
         working-directory: pinyinquiz
         env:
           JOB_STATUS: ${{ job.status }}
           RENDER_QUALITY: ${{ github.event.inputs.quality || 'qh' }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           python -c "
           import os, requests
           
+          bot_token = os.getenv('TELEGRAM_BOT_TOKEN', '').strip()
+          chat_id = os.getenv('TELEGRAM_CHAT_ID', '').strip()
+          
+          if not (bot_token and chat_id):
+              print('Telegram secrets not configured. Skipping notification.')
+              exit(0)
+              
           status = os.getenv('JOB_STATUS', 'UNKNOWN')
           quality = os.getenv('RENDER_QUALITY', 'qh')
           status_icon = '✅ THÀNH CÔNG' if status == 'success' else '❌ THẤT BẠI'
           
-          token = '8984558925:AAHjRpUWbxoi9hvFoZKevoIKaLklCP1hQ-o'
-          chat_id = '-1004392602002'
-          cmd_token = '8798886722:AAFLRQwdonCZIJXuvGm9NbvyyVlETxsWjYw'
-          direct_chat_id = '1187577977'
-          
           text = f'''🤖 <b>[GitHub Actions] Báo Cáo Render Video PinyinQuiz</b>
           
-  Trạng thái: <b>{status_icon}</b>
-  Chất lượng: <b>{quality}</b>
-  Nền tảng: <b>GitHub Actions Cloud Runner</b>
-  Thời gian: <b>Hoàn tất quy trình 100% tự động trên Cloud</b>
-  Google Sheet: Đã cập nhật Video Link & Metadata vào tab <code>pinyin</code>.'''
+Trạng thái: <b>{status_icon}</b>
+Chất lượng: <b>{quality}</b>
+Nền tảng: <b>GitHub Actions Cloud Runner</b>
+Google Sheet: Đã đồng bộ Video Link & Metadata vào tab <code>pinyin</code>.'''
           
-          for cid, tok in [(chat_id, token), (direct_chat_id, cmd_token)]:
-              try:
-                  requests.post(f'https://api.telegram.org/bot{tok}/sendMessage', data={'chat_id': cid, 'text': text, 'parse_mode': 'HTML'}, timeout=15)
-              except Exception as e:
-                  print(f'Telegram notification error for {cid}: {e}')
+          try:
+              res = requests.post(
+                  f'https://api.telegram.org/bot{bot_token}/sendMessage',
+                  data={'chat_id': chat_id, 'text': text, 'parse_mode': 'HTML'},
+                  timeout=15
+              )
+              if res.status_code == 200:
+                  print('Telegram notification sent successfully.')
+              else:
+                  print(f'Telegram send status: {res.status_code}')
+          except Exception as e:
+              print('Could not send Telegram notification.')
           "
 
       - name: Cleanup Credentials
