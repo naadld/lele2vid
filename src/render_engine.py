@@ -3,6 +3,7 @@ import subprocess
 import glob
 import shutil
 import logging
+from typing import Tuple
 from src.config import config
 from src.audio_generator import ensure_bell_sound
 
@@ -29,6 +30,7 @@ def render_manim_scene(
         python_bin = "manim"
         
     media_dir = os.path.join(config.base_dir, "output", "media")
+    os.makedirs(media_dir, exist_ok=True)
     
     cmd = [
         python_bin,
@@ -69,6 +71,20 @@ def render_manim_scene(
     shutil.copy2(raw_video, final_output_path)
     logger.info(f"Video saved successfully to: {final_output_path}")
     return final_output_path
+
+def render_scene_file(
+    scene_file: str,
+    scene_name: str,
+    quality: str = "qh",
+    custom_output_name: str = None
+) -> Tuple[bool, str]:
+    """Wrapper function returning (success, output_path)."""
+    try:
+        path = render_manim_scene(scene_file, scene_name, quality=quality, output_filename=custom_output_name)
+        return True, path
+    except Exception as e:
+        logger.error(f"Render failed for {scene_name}: {e}")
+        return False, ""
 
 if __name__ == "__main__":
     import sys
