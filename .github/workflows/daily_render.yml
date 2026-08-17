@@ -80,7 +80,7 @@ jobs:
 
       # Optional: Sinh 5 ý tưởng + Metadata mới nếu được kích hoạt
       - name: Generate Daily Batches & Metadata
-        if: ${{ github.event.inputs.generate_ideas == 'true' || github.event.inputs.generate_ideas == true }}
+        if: ${{ inputs.generate_ideas == 'true' || inputs.generate_ideas == true }}
         working-directory: pinyinquiz
         env:
           PYTHONPATH: .
@@ -96,8 +96,8 @@ jobs:
       - name: Execute Video Render & Upload
         working-directory: pinyinquiz
         env:
-          RENDER_QUALITY: ${{ github.event.inputs.quality || 'qh' }}
-          TARGET_ROW: ${{ github.event.inputs.row_id || '' }}
+          RENDER_QUALITY: ${{ inputs.quality || 'qh' }}
+          TARGET_ROW: ${{ inputs.row_id || '' }}
           PYTHONPATH: .
           GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
           GDRIVE_CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
@@ -117,7 +117,7 @@ jobs:
         working-directory: pinyinquiz
         env:
           JOB_STATUS: ${{ job.status }}
-          RENDER_QUALITY: ${{ github.event.inputs.quality || 'qh' }}
+          RENDER_QUALITY: ${{ inputs.quality || 'qh' }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
