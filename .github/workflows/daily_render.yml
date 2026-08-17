@@ -4,15 +4,13 @@ on:
   push:
     branches:
       - main
-    paths-ignore:
-      - '**.md'
   schedule:
     # Runs everyday at 03:00 AM GMT+7 (20:00 UTC previous day)
     - cron: '0 20 * * *'
   workflow_dispatch:
     inputs:
       quality:
-        description: 'Manim render quality (ql=480p, qm=720p, qh=1080p60, qk=4K)'
+        description: 'Manim render quality (ql, qm, qh, qk)'
         required: false
         default: 'qh'
       row_id:
@@ -80,33 +78,42 @@ jobs:
 
       # Optional: Sinh 5 ý tưởng + Metadata mới nếu được kích hoạt
       - name: Generate Daily Batches & Metadata
-        if: ${{ inputs.generate_ideas == 'true' || inputs.generate_ideas == true }}
         working-directory: pinyinquiz
         env:
+          GEN_IDEAS: ${{ github.event.inputs.generate_ideas }}
           PYTHONPATH: .
           GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
           GDRIVE_CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
           GDRIVE_CLIENT_SECRET: ${{ secrets.GDRIVE_CLIENT_SECRET }}
           GDRIVE_REFRESH_TOKEN: ${{ secrets.GDRIVE_REFRESH_TOKEN }}
         run: |
-          echo "Generating 5 new HSK batches with social media metadata..."
-          python scripts/generate_daily_batches.py
+          if [ "$GEN_IDEAS" = "true" ]; then
+            echo "Generating 5 new HSK batches with social media metadata..."
+            python scripts/generate_daily_batches.py
+          else
+            echo "Skipping batch generation (GEN_IDEAS != true)."
+          fi
 
       # Thực thi kết xuất video Manim và tải lên Google Drive
       - name: Execute Video Render & Upload
         working-directory: pinyinquiz
         env:
-          RENDER_QUALITY: ${{ inputs.quality || 'qh' }}
-          TARGET_ROW: ${{ inputs.row_id || '' }}
+          INPUT_QUALITY: ${{ github.event.inputs.quality }}
+          INPUT_ROW: ${{ github.event.inputs.row_id }}
           PYTHONPATH: .
           GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
           GDRIVE_CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
           GDRIVE_CLIENT_SECRET: ${{ secrets.GDRIVE_CLIENT_SECRET }}
           GDRIVE_REFRESH_TOKEN: ${{ secrets.GDRIVE_REFRESH_TOKEN }}
         run: |
-          CMD="python scripts/run_batch.py --from-sheet --quality $RENDER_QUALITY --upload-gdrive"
-          if [ -n "$TARGET_ROW" ]; then
-            CMD="$CMD --row-id $TARGET_ROW"
+          QUALITY="$INPUT_QUALITY"
+          if [ -z "$QUALITY" ]; then
+            QUALITY="qh"
+          fi
+          
+          CMD="python scripts/run_batch.py --from-sheet --quality $QUALITY --upload-gdrive"
+          if [ -n "$INPUT_ROW" ]; then
+            CMD="$CMD --row-id $INPUT_ROW"
           fi
           echo "Executing: $CMD"
           eval $CMD
@@ -117,7 +124,7 @@ jobs:
         working-directory: pinyinquiz
         env:
           JOB_STATUS: ${{ job.status }}
-          RENDER_QUALITY: ${{ inputs.quality || 'qh' }}
+          INPUT_QUALITY: ${{ github.event.inputs.quality }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
@@ -132,7 +139,7 @@ jobs:
               exit(0)
               
           status = os.getenv('JOB_STATUS', 'UNKNOWN')
-          quality = os.getenv('RENDER_QUALITY', 'qh')
+          quality = os.getenv('INPUT_QUALITY', '').strip() or 'qh'
           status_icon = '✅ THÀNH CÔNG' if status == 'success' else '❌ THẤT BẠI'
           
           text = f'''🤖 <b>[GitHub Actions] Báo Cáo Render Video PinyinQuiz</b>
