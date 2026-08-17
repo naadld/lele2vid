@@ -142,12 +142,13 @@ jobs:
           quality = os.getenv('INPUT_QUALITY', '').strip() or 'qh'
           status_icon = '✅ THÀNH CÔNG' if status == 'success' else '❌ THẤT BẠI'
           
-          text = f'''🤖 <b>[GitHub Actions] Báo Cáo Render Video PinyinQuiz</b>
-          
-Trạng thái: <b>{status_icon}</b>
-Chất lượng: <b>{quality}</b>
-Nền tảng: <b>GitHub Actions Cloud Runner</b>
-Google Sheet: Đã đồng bộ Video Link & Metadata vào tab <code>pinyin</code>.'''
+          text = (
+              f'🤖 <b>[GitHub Actions] Báo Cáo Render Video PinyinQuiz</b>\n\n'
+              f'Trạng thái: <b>{status_icon}</b>\n'
+              f'Chất lượng: <b>{quality}</b>\n'
+              f'Nền tảng: <b>GitHub Actions Cloud Runner</b>\n'
+              f'Google Sheet: Đã đồng bộ Video Link & Metadata vào tab <code>pinyin</code>.'
+          )
           
           try:
               res = requests.post(
