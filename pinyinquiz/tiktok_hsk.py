@@ -51,7 +51,7 @@ class HSKQuiz(Scene):
         topic_title = "HSK 1 • ĐỒ ĂN & THỨC UỐNG"
 
         # 1. Background Image
-        bg_path = "assets/images/background.jpg"
+        bg_path = os.path.join(PROJECT_ROOT, "assets/images/background.jpg")
         if os.path.exists(bg_path):
             bg_image = ImageMobject(bg_path)
             bg_image.set_height(config.frame_height)
@@ -120,7 +120,7 @@ class HSKQuiz(Scene):
             stroke_width=1.5
         ).move_to(DOWN * 6.3)
 
-        avatar_path = "assets/images/logo.png"
+        avatar_path = os.path.join(PROJECT_ROOT, "assets/images/logo.png")
         if os.path.exists(avatar_path):
             avatar_img = ImageMobject(avatar_path).set_height(0.85)
             avatar_bg = RoundedRectangle(corner_radius=0.2, width=0.9, height=0.9, fill_color="#0284c7", fill_opacity=0.3, stroke_width=0)
@@ -166,6 +166,8 @@ class HSKQuiz(Scene):
                 color=WHITE,
                 weight=BOLD
             ).move_to(center_card.get_top() + DOWN * 1.3)
+            if hz_text.width > 6.4:
+                hz_text.scale_to_fit_width(6.4)
             
             # 2. Nghĩa tiếng Việt
             meaning_text = Text(
@@ -175,6 +177,8 @@ class HSKQuiz(Scene):
                 color="#94a3b8",
                 weight=SEMIBOLD
             ).next_to(hz_text, DOWN, buff=0.28)
+            if meaning_text.width > 6.4:
+                meaning_text.scale_to_fit_width(6.4)
 
             # 3. Khu vực chạy Pinyin (Ẩn, hiện chữ cái đầu mỗi từ: p _ _ _   g _ _)
             hidden_text = Text(
@@ -184,6 +188,8 @@ class HSKQuiz(Scene):
                 color="#facc15",
                 weight=BOLD
             ).next_to(meaning_text, DOWN, buff=0.6)
+            if hidden_text.width > 6.4:
+                hidden_text.scale_to_fit_width(6.4)
 
             # 4. Countdown 5 giây
             time_label = Text("TIME", font="sans-serif", font_size=30, color="#94a3b8", weight=BOLD)
@@ -214,7 +220,7 @@ class HSKQuiz(Scene):
             self.play(FadeIn(quiz_mobjects, shift=UP*0.2), run_time=0.4)
 
             # 5s countdown với âm thanh tik thuần túy
-            tick_file = "assets/audio/tick.mp3"
+            tick_file = os.path.join(PROJECT_ROOT, "assets/audio/tick.mp3")
             total_seconds = 5
             for s in range(total_seconds, 0, -1):
                 if os.path.exists(tick_file):
@@ -247,23 +253,19 @@ class HSKQuiz(Scene):
                 )
                 self.wait(0.1)
 
-            # HẾT 5s: Chuông thuần túy & Giọng đọc tiếng Trung chuẩn
-            bell_file = "assets/audio/ding.mp3" if os.path.exists("assets/audio/ding.mp3") else "assets/audio/bell.mp3"
+            # HẾT 5s: Chuông thuần túy
+            bell_file = os.path.join(PROJECT_ROOT, "assets/audio/ding.mp3")
+            if not os.path.exists(bell_file):
+                bell_file = os.path.join(PROJECT_ROOT, "assets/audio/bell.mp3")
             if os.path.exists(bell_file):
                 try:
                     self.add_sound(bell_file)
                 except Exception:
                     pass
-            
-            if voice_file and os.path.exists(voice_file):
-                try:
-                    self.add_sound(voice_file)
-                except Exception:
-                    pass
 
             self.play(FadeOut(timer_group), FadeOut(bar_track), FadeOut(active_bar), run_time=0.15)
 
-            # Hiện Pinyin đầy đủ
+            # Hiện Pinyin đầy đủ (tự động làm nhỏ font nếu dài quá để vừa khuôn)
             answer_pinyin = Text(
                 pinyin_full,
                 font="sans-serif",
@@ -271,14 +273,25 @@ class HSKQuiz(Scene):
                 color="#38bdf8",
                 weight=BOLD
             ).move_to(hidden_text.get_center())
+            if answer_pinyin.width > 6.4:
+                answer_pinyin.scale_to_fit_width(6.4)
 
             self.play(
                 Transform(hidden_text, answer_pinyin),
                 run_time=0.45
             )
 
-            # Giữ 2 giây để nghe và đọc
-            self.wait(2.0)
+            # Sau tiếng chuông kết thúc 0.5 giây mới đọc Pinyin (chuông 0.85s, animation 0.6s -> chờ 0.75s)
+            self.wait(0.75)
+
+            if voice_file and os.path.exists(voice_file):
+                try:
+                    self.add_sound(voice_file)
+                except Exception:
+                    pass
+
+            # Giữ 2.2 giây để nghe và đọc
+            self.wait(2.2)
 
             # Clear card
             self.play(
@@ -290,30 +303,48 @@ class HSKQuiz(Scene):
                 run_time=0.35
             )
 
-        # End Screen CTA - Gọn gàng trong khung
+        # End Screen CTA - Channel logo ở giữa khung trên của box chữ
         end_card = RoundedRectangle(
             corner_radius=0.45,
             width=7.6,
-            height=5.2,
+            height=5.8,
             fill_color="#090d16",
             fill_opacity=0.94,
             stroke_color="#38bdf8",
             stroke_width=2.0
         ).move_to(UP * 0.3)
 
+        logo_path = os.path.join(PROJECT_ROOT, "assets/images/logo.png")
+        if os.path.exists(logo_path):
+            logo_img = ImageMobject(logo_path).set_height(1.3)
+            logo_bg = RoundedRectangle(
+                corner_radius=0.3,
+                width=1.45,
+                height=1.45,
+                fill_color="#0b1120",
+                fill_opacity=1.0,
+                stroke_color="#38bdf8",
+                stroke_width=2.0
+            )
+            logo_badge = Group(logo_bg, logo_img)
+        else:
+            logo_badge = Dot(radius=0.6, color="#0284c7")
+
         end_title = Text("BẠN ĐOÁN ĐÚNG MẤY CÂU?", font=VIETNAMESE_FONT, font_size=34, color="#fbbf24", weight=BOLD)
         end_sub1 = Text("Comment số điểm bên dưới nhé! 👇", font=VIETNAMESE_FONT, font_size=25, color=WHITE)
         end_sub2 = Text("Follow kênh lelehoctiengtrung", font=VIETNAMESE_FONT, font_size=25, color="#38bdf8", weight=BOLD)
         end_sub3 = Text("để luyện tập mỗi ngày! ✨", font=VIETNAMESE_FONT, font_size=24, color="#cbd5e1")
         
-        end_group = VGroup(end_title, end_sub1, end_sub2, end_sub3).arrange(DOWN, buff=0.28)
-        if end_group.width > 6.8:
-            end_group.scale_to_fit_width(6.8)
-        end_group.move_to(end_card.get_center())
+        end_text_group = VGroup(end_title, end_sub1, end_sub2, end_sub3).arrange(DOWN, buff=0.25)
+        if end_text_group.width > 6.8:
+            end_text_group.scale_to_fit_width(6.8)
+            
+        end_content = Group(logo_badge, end_text_group).arrange(DOWN, buff=0.35)
+        end_content.move_to(end_card.get_center())
         
-        self.play(FadeIn(end_card), FadeIn(end_group), run_time=0.5)
+        self.play(FadeIn(end_card), FadeIn(end_content), run_time=0.5)
         self.wait(2.5)
-        self.play(FadeOut(end_card), FadeOut(end_group), FadeOut(header_pill), FadeOut(header_mode), FadeOut(footer_base), run_time=0.5)
+        self.play(FadeOut(end_card), FadeOut(end_content), FadeOut(header_pill), FadeOut(header_mode), FadeOut(footer_base), run_time=0.5)
 
 if __name__ == "__main__":
     pass

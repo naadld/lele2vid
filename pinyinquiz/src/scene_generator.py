@@ -182,6 +182,8 @@ class {scene_name}(Scene):
                 color=WHITE,
                 weight=BOLD
             ).move_to(center_card.get_top() + DOWN * 1.3)
+            if hz_text.width > 6.4:
+                hz_text.scale_to_fit_width(6.4)
             
             # 2. Nghĩa tiếng Việt
             meaning_text = Text(
@@ -191,8 +193,10 @@ class {scene_name}(Scene):
                 color="#94a3b8",
                 weight=SEMIBOLD
             ).next_to(hz_text, DOWN, buff=0.28)
+            if meaning_text.width > 6.4:
+                meaning_text.scale_to_fit_width(6.4)
 
-            # 3. Khu vực chạy Pinyin
+            # 3. Khu vực chạy Pinyin (Ẩn)
             hidden_text = Text(
                 hidden_py,
                 font="sans-serif",
@@ -200,6 +204,8 @@ class {scene_name}(Scene):
                 color="#facc15",
                 weight=BOLD
             ).next_to(meaning_text, DOWN, buff=0.6)
+            if hidden_text.width > 6.4:
+                hidden_text.scale_to_fit_width(6.4)
 
             # 4. Countdown 5 giây
             time_label = Text("TIME", font="sans-serif", font_size=30, color="#94a3b8", weight=BOLD)
@@ -265,7 +271,7 @@ class {scene_name}(Scene):
                 )
                 self.wait(0.1)
 
-            # HẾT 5s: Chuông & Giọng đọc
+            # HẾT 5s: Chuông báo kết thúc đếm ngược
             bell_file = "{os.path.join(config.base_dir, 'assets/audio/ding.mp3')}"
             if not os.path.exists(bell_file):
                 bell_file = "{config.bell_audio_path}"
@@ -274,16 +280,10 @@ class {scene_name}(Scene):
                     self.add_sound(bell_file)
                 except Exception:
                     pass
-            
-            if voice_file and os.path.exists(voice_file):
-                try:
-                    self.add_sound(voice_file)
-                except Exception:
-                    pass
 
             self.play(FadeOut(timer_group), FadeOut(bar_track), FadeOut(active_bar), run_time=0.15)
 
-            # Hiện Pinyin đầy đủ
+            # Hiện Pinyin đầy đủ (tự động co nhỏ font nếu dài quá để vừa khuôn)
             answer_pinyin = Text(
                 pinyin_full,
                 font="sans-serif",
@@ -291,14 +291,26 @@ class {scene_name}(Scene):
                 color="#38bdf8",
                 weight=BOLD
             ).move_to(hidden_text.get_center())
+            if answer_pinyin.width > 6.4:
+                answer_pinyin.scale_to_fit_width(6.4)
 
             self.play(
                 Transform(hidden_text, answer_pinyin),
                 run_time=0.45
             )
 
-            # Giữ 2 giây
-            self.wait(2.0)
+            # Sau tiếng chuông kết thúc 0.5 giây mới đọc Pinyin (chuông kéo dài 0.85s, animation chạy 0.6s -> chờ thêm 0.75s để đúng 0.5s sau tiếng chuông)
+            self.wait(0.75)
+
+            # Phát âm Pinyin (tốc độ chậm rãi, rõ ràng)
+            if voice_file and os.path.exists(voice_file):
+                try:
+                    self.add_sound(voice_file)
+                except Exception:
+                    pass
+
+            # Giữ 2.2 giây để người xem nghe rõ và đọc theo
+            self.wait(2.2)
 
             # Clear card
             self.play(
@@ -310,30 +322,48 @@ class {scene_name}(Scene):
                 run_time=0.35
             )
 
-        # End Screen CTA - Thiết kế vừa vặn, không tràn khung
+        # End Screen CTA - Channel logo ở giữa khung trên của box chữ
         end_card = RoundedRectangle(
             corner_radius=0.45,
             width=7.6,
-            height=5.2,
+            height=5.8,
             fill_color="#090d16",
             fill_opacity=0.94,
             stroke_color="#38bdf8",
             stroke_width=2.0
         ).move_to(UP * 0.3)
 
+        logo_path = "{os.path.join(config.base_dir, 'assets/images/logo.png')}"
+        if os.path.exists(logo_path):
+            logo_img = ImageMobject(logo_path).set_height(1.3)
+            logo_bg = RoundedRectangle(
+                corner_radius=0.3,
+                width=1.45,
+                height=1.45,
+                fill_color="#0b1120",
+                fill_opacity=1.0,
+                stroke_color="#38bdf8",
+                stroke_width=2.0
+            )
+            logo_badge = Group(logo_bg, logo_img)
+        else:
+            logo_badge = Dot(radius=0.6, color="#0284c7")
+
         end_title = Text("BẠN ĐOÁN ĐÚNG MẤY CÂU?", font=VIETNAMESE_FONT, font_size=34, color="#fbbf24", weight=BOLD)
         end_sub1 = Text("Comment số điểm bên dưới nhé! 👇", font=VIETNAMESE_FONT, font_size=25, color=WHITE)
         end_sub2 = Text("Follow kênh lelehoctiengtrung", font=VIETNAMESE_FONT, font_size=25, color="#38bdf8", weight=BOLD)
         end_sub3 = Text("để luyện tập mỗi ngày! ✨", font=VIETNAMESE_FONT, font_size=24, color="#cbd5e1")
         
-        end_group = VGroup(end_title, end_sub1, end_sub2, end_sub3).arrange(DOWN, buff=0.28)
-        if end_group.width > 6.8:
-            end_group.scale_to_fit_width(6.8)
-        end_group.move_to(end_card.get_center())
+        end_text_group = VGroup(end_title, end_sub1, end_sub2, end_sub3).arrange(DOWN, buff=0.25)
+        if end_text_group.width > 6.8:
+            end_text_group.scale_to_fit_width(6.8)
+            
+        end_content = Group(logo_badge, end_text_group).arrange(DOWN, buff=0.35)
+        end_content.move_to(end_card.get_center())
         
-        self.play(FadeIn(end_card), FadeIn(end_group), run_time=0.5)
+        self.play(FadeIn(end_card), FadeIn(end_content), run_time=0.5)
         self.wait(2.5)
-        self.play(FadeOut(end_card), FadeOut(end_group), FadeOut(header_pill), FadeOut(header_mode), FadeOut(footer_base), run_time=0.5)
+        self.play(FadeOut(end_card), FadeOut(end_content), FadeOut(header_pill), FadeOut(header_mode), FadeOut(footer_base), run_time=0.5)
 '''
     return code
 

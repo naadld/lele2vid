@@ -1,5 +1,6 @@
 from manim import *
 import os
+from src.config import config
 
 # TikTok 9:16 Vertical Video (1080x1920)
 config.pixel_width = 1080
@@ -76,7 +77,7 @@ class ModernPinyinQuizScene(Scene):
         topic_title = self.batch_data.get("topic", "HSK 1-2 • Từ Vựng")
 
         # 1. Background Image
-        bg_path = "assets/images/background.jpg"
+        bg_path = os.path.join(config.base_dir, "assets/images/background.jpg")
         if os.path.exists(bg_path):
             bg_image = ImageMobject(bg_path)
             bg_image.set_height(config.frame_height)
@@ -156,8 +157,8 @@ class ModernPinyinQuizScene(Scene):
         ).move_to(DOWN * 6.3)
 
         # Mascot Avatar
-        avatar_path = "assets/images/logo.png" if os.path.exists("assets/images/logo.png") else None
-        if avatar_path:
+        avatar_path = os.path.join(config.base_dir, "assets/images/logo.png")
+        if os.path.exists(avatar_path):
             avatar_img = ImageMobject(avatar_path).set_height(0.85)
             avatar_bg = RoundedRectangle(corner_radius=0.2, width=0.9, height=0.9, fill_color="#0284c7", fill_opacity=0.3, stroke_width=0)
             avatar_group = Group(avatar_bg, avatar_img).move_to(footer_card.get_left() + RIGHT * 0.75)
@@ -207,6 +208,8 @@ class ModernPinyinQuizScene(Scene):
                 color=WHITE,
                 weight=BOLD
             ).move_to(center_card.get_top() + DOWN * 1.1)
+            if meaning_text.width > 6.4:
+                meaning_text.scale_to_fit_width(6.4)
             
             # Part of speech
             pos_text = Text(
@@ -215,6 +218,8 @@ class ModernPinyinQuizScene(Scene):
                 font_size=28,
                 color="#94a3b8"
             ).next_to(meaning_text, DOWN, buff=0.25)
+            if pos_text.width > 6.4:
+                pos_text.scale_to_fit_width(6.4)
 
             # Hidden Pinyin
             hidden_text = Text(
@@ -224,6 +229,8 @@ class ModernPinyinQuizScene(Scene):
                 color="#facc15",
                 weight=BOLD
             ).next_to(pos_text, DOWN, buff=0.55)
+            if hidden_text.width > 6.4:
+                hidden_text.scale_to_fit_width(6.4)
 
             # Time Countdown
             time_label = Text("TIME", font="sans-serif", font_size=30, color="#94a3b8", weight=BOLD)
@@ -281,7 +288,9 @@ class ModernPinyinQuizScene(Scene):
                 )
 
             # Bell sound at 0s
-            bell_file = "assets/audio/ding.mp3" if os.path.exists("assets/audio/ding.mp3") else "assets/audio/bell.mp3"
+            bell_file = os.path.join(config.base_dir, "assets/audio/ding.mp3")
+            if not os.path.exists(bell_file):
+                bell_file = config.bell_audio_path
             if os.path.exists(bell_file):
                 try:
                     self.add_sound(bell_file)
@@ -299,6 +308,8 @@ class ModernPinyinQuizScene(Scene):
                 color="#38bdf8",
                 weight=BOLD
             ).move_to(hidden_text.get_center())
+            if answer_main.width > 6.4:
+                answer_main.scale_to_fit_width(6.4)
 
             pinyin_sub = Text(
                 f"/{pinyin_full}/",
@@ -307,6 +318,8 @@ class ModernPinyinQuizScene(Scene):
                 color="#94a3b8",
                 slant=ITALIC
             ).next_to(answer_main, DOWN, buff=0.3)
+            if pinyin_sub.width > 6.4:
+                pinyin_sub.scale_to_fit_width(6.4)
 
             example_group = VGroup()
             if ex_hz:
@@ -314,6 +327,8 @@ class ModernPinyinQuizScene(Scene):
                 ex_py_txt = Text(ex_py, font="sans-serif", font_size=23, color="#cbd5e1")
                 ex_vi_txt = Text(f"({ex_vi})", font="sans-serif", font_size=23, color="#94a3b8")
                 example_group = VGroup(ex_hz_txt, ex_py_txt, ex_vi_txt).arrange(DOWN, buff=0.12)
+                if example_group.width > 6.4:
+                    example_group.scale_to_fit_width(6.4)
                 example_group.next_to(pinyin_sub, DOWN, buff=0.4)
 
             self.play(
@@ -323,7 +338,8 @@ class ModernPinyinQuizScene(Scene):
                 run_time=0.45
             )
 
-            self.wait(2.2)
+            # Sau tiếng chuông kết thúc 0.5 giây
+            self.wait(0.75)
 
             # Clear card
             self.play(
@@ -340,20 +356,42 @@ class ModernPinyinQuizScene(Scene):
         # End CTA
         end_card = RoundedRectangle(
             corner_radius=0.45,
-            width=7.4,
-            height=4.8,
+            width=7.6,
+            height=5.8,
             fill_color="#090d16",
             fill_opacity=0.92,
             stroke_color="#38bdf8",
             stroke_width=2.0
         ).move_to(UP * 0.3)
 
-        end_title = Text("BẠN ĐOÁN ĐÚNG MẤY CÂU?", font="sans-serif", font_size=40, color="#fbbf24", weight=BOLD)
-        end_sub1 = Text("Comment số điểm của bạn bên dưới nha! 👇", font="sans-serif", font_size=27, color=WHITE)
-        end_sub2 = Text("Follow Lê Lệ Học Tiếng Trung để học mỗi ngày! ✨", font="sans-serif", font_size=25, color="#38bdf8")
+        logo_path = os.path.join(config.base_dir, "assets/images/logo.png")
+        if os.path.exists(logo_path):
+            logo_img = ImageMobject(logo_path).set_height(1.3)
+            logo_bg = RoundedRectangle(
+                corner_radius=0.3,
+                width=1.45,
+                height=1.45,
+                fill_color="#0b1120",
+                fill_opacity=1.0,
+                stroke_color="#38bdf8",
+                stroke_width=2.0
+            )
+            logo_badge = Group(logo_bg, logo_img)
+        else:
+            logo_badge = Dot(radius=0.6, color="#0284c7")
+
+        end_title = Text("BẠN ĐOÁN ĐÚNG MẤY CÂU?", font="sans-serif", font_size=34, color="#fbbf24", weight=BOLD)
+        end_sub1 = Text("Comment số điểm của bạn bên dưới nha! 👇", font="sans-serif", font_size=25, color=WHITE)
+        end_sub2 = Text("Follow Lê Lệ Học Tiếng Trung", font="sans-serif", font_size=25, color="#38bdf8", weight=BOLD)
+        end_sub3 = Text("để luyện tập mỗi ngày! ✨", font="sans-serif", font_size=24, color="#cbd5e1")
         
-        end_group = VGroup(end_title, end_sub1, end_sub2).arrange(DOWN, buff=0.35).move_to(end_card.get_center())
+        end_text_group = VGroup(end_title, end_sub1, end_sub2, end_sub3).arrange(DOWN, buff=0.25)
+        if end_text_group.width > 6.8:
+            end_text_group.scale_to_fit_width(6.8)
+            
+        end_content = Group(logo_badge, end_text_group).arrange(DOWN, buff=0.35)
+        end_content.move_to(end_card.get_center())
         
-        self.play(FadeIn(end_card), FadeIn(end_group), run_time=0.5)
-        self.wait(2.2)
-        self.play(FadeOut(end_card), FadeOut(end_group), FadeOut(header_pill), FadeOut(header_mode), FadeOut(footer_base), run_time=0.5)
+        self.play(FadeIn(end_card), FadeIn(end_content), run_time=0.5)
+        self.wait(2.5)
+        self.play(FadeOut(end_card), FadeOut(end_content), FadeOut(header_pill), FadeOut(header_mode), FadeOut(footer_base), run_time=0.5)

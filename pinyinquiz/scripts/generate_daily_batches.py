@@ -10,6 +10,8 @@ if PROJECT_ROOT not in sys.path:
 
 from src.gsheet_manager import GSheetManager
 from src.pinyin_utils import prepare_word_tuple
+from src.metadata_generator import save_and_upload_metadata
+from src.gdrive_uploader import GDriveUploader
 
 # Comprehensive HSK 1 - HSK 3 Vocabulary Bank
 VOCAB_BANK = [
@@ -89,10 +91,16 @@ VOCAB_BANK = [
 
 def generate_daily_rows(count: int = 5) -> List[List[str]]:
     """
-    Generate non-repeating vocabulary rows for the daily batch.
+    Generate non-repeating vocabulary rows for the daily batch with social media metadata.
     """
     mgr = GSheetManager()
     all_rows = mgr.get_all_rows()
+    
+    gdrive_uploader = None
+    try:
+        gdrive_uploader = GDriveUploader()
+    except Exception as e:
+        print(f"GDriveUploader notice: {e}")
     
     # Track existing used words to prevent duplication
     used_words = set()
@@ -115,12 +123,24 @@ def generate_daily_rows(count: int = 5) -> List[List[str]]:
             "Pending"
         ]
         
+        parsed_words = []
         for w_item in words:
             hz, py, mean = w_item
+            parsed_words.append({"hanzi": hz, "pinyin": py, "meaning": mean})
             h, fp, hp = prepare_word_tuple(hz, py)
             row.append(f"{h} | {fp} | {hp} | {mean}")
             
-        row.extend(["", "", now_str, "Tự động sinh bởi Daily Batch Creator"])
+        # 1. Tự động sinh Metadata (Title + Description cho YT Shorts, TikTok, FB Reels)
+        metadata_link = save_and_upload_metadata(
+            batch_id=str(idx),
+            topic=topic,
+            level=level,
+            words=parsed_words,
+            gdrive_uploader=gdrive_uploader
+        )
+        
+        # Col 10: metadata, Col 11: Video, Col 12: Youtube, Col 13: Tiktok, Col 14: Facebook, Col 15: Created At, Col 16: Notes
+        row.extend([metadata_link, "", "", "", "", now_str, "Tự động sinh bởi Daily Batch Creator"])
         new_rows.append(row)
 
     return new_rows
@@ -132,7 +152,7 @@ def main():
     
     if new_rows:
         mgr.worksheet.append_rows(new_rows)
-        print(f" Successfully added {len(new_rows)} new Pending batches (5 words each) to tab '{mgr.tab_name}'!")
+        print(f" Successfully added {len(new_rows)} new Pending batches with metadata to tab '{mgr.tab_name}'!")
     else:
         print("No new batches generated.")
 

@@ -12,9 +12,9 @@ SPREADSHEET_ID = "1b6LNl7JHRiCsjK1w9VuD86GLqAfmSOtDUOm5whrGdH0"
 SHEET_TAB_NAME = "pinyin"
 
 POSSIBLE_CREDS_PATHS = [
-    "/media/vpsg16gb/Workspace/Projects/lelehoctiengtrung/Pipeline_lelehoctiengtrung/gitignore/service_account.json",
-    "/media/vpsg16gb/Workspace/Projects/lelehoctiengtrung/Pipeline_lelehoctiengtrung/lele-step10-karaoke/service_account.json",
-    "/media/vpsg16gb/Workspace/Projects/goctoiphapluat/user_oauth2.json",
+    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "configs", "service_account.json"),
+    os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "configs", "service_account.json"),
+    "/media/vpsg16gb/HaRiDisk/CHANNELS/lelehoctiengtrung/pinyinquiz/configs/service_account.json",
     os.path.expanduser("~/.config/gspread/service_account.json"),
     "configs/service_account.json"
 ]

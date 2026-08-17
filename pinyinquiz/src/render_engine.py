@@ -1,4 +1,5 @@
 import os
+import sys
 import subprocess
 import glob
 import shutil
@@ -25,9 +26,13 @@ def render_manim_scene(
     ensure_bell_sound()
     os.makedirs(config.output_videos_dir, exist_ok=True)
     
-    python_bin = os.path.join(config.base_dir, ".venv", "bin", "manim")
+    python_bin = os.path.join(os.path.dirname(sys.executable), "manim")
     if not os.path.exists(python_bin):
-        python_bin = "manim"
+        python_bin = os.path.join(config.base_dir, ".venv", "bin", "manim")
+    if not os.path.exists(python_bin):
+        python_bin = os.path.join(os.path.dirname(config.base_dir), ".venv", "bin", "manim")
+    if not os.path.exists(python_bin):
+        python_bin = shutil.which("manim") or "manim"
         
     media_dir = os.path.join(config.base_dir, "output", "media")
     os.makedirs(media_dir, exist_ok=True)
@@ -35,6 +40,7 @@ def render_manim_scene(
     cmd = [
         python_bin,
         f"-{quality}",
+        "--disable_caching",
         scene_file,
         scene_name,
         "--media_dir", media_dir

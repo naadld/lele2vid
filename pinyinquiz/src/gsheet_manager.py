@@ -18,8 +18,11 @@ STANDARD_COLUMNS = [
     "Word 3",
     "Word 4",
     "Word 5",
-    "Video File",
-    "GDrive Link",
+    "metadata",
+    "Video",
+    "Youtube",
+    "Tiktok",
+    "Facebook",
     "Created At",
     "Notes"
 ]
@@ -75,7 +78,7 @@ class GSheetManager:
 
     def init_header(self):
         """Set up standard column headers in row 1."""
-        self.worksheet.update("A1:M1", [STANDARD_COLUMNS])
+        self.worksheet.update("A1:P1", [STANDARD_COLUMNS])
         logger.info(f"Initialized headers on tab '{self.tab_name}'")
 
     def get_all_rows(self) -> List[Dict[str, Any]]:
@@ -118,22 +121,41 @@ class GSheetManager:
                     "topic": row_dict.get("Topic", "HSK 1-2 • TỪ VỰNG CƠ BẢN"),
                     "level": row_dict.get("Level", "HSK 1-2"),
                     "words": words,
+                    "metadata": row_dict.get("metadata", ""),
                     "raw_data": row_dict
                 })
 
         return pending_batches
 
-    def update_batch_status(self, row_index: int, status: str, video_file: str = "", gdrive_link: str = ""):
-        """Update batch status, video filename and drive link."""
+    def update_batch_status(self, row_index: int, status: str, video_link: str = "", metadata_link: str = ""):
+        """Update batch status, video GDrive link and metadata GDrive link."""
         try:
+            # Col 4: Status
             self.worksheet.update_cell(row_index, 4, status)
-            if video_file:
-                self.worksheet.update_cell(row_index, 10, video_file)
-            if gdrive_link:
-                self.worksheet.update_cell(row_index, 11, gdrive_link)
+            # Col 10: metadata
+            if metadata_link:
+                self.worksheet.update_cell(row_index, 10, metadata_link)
+            # Col 11: Video (Google Drive Link)
+            if video_link:
+                self.worksheet.update_cell(row_index, 11, video_link)
             logger.info(f"Updated row {row_index} status -> {status}")
         except Exception as e:
             logger.error(f"Failed to update row {row_index}: {e}")
+
+    def update_social_status(self, row_index: int, platform: str, url_or_status: str):
+        """Update social posting status / URL (youtube: 12, tiktok: 13, facebook: 14)."""
+        col_map = {
+            "youtube": 12,
+            "tiktok": 13,
+            "facebook": 14
+        }
+        col = col_map.get(platform.lower())
+        if col:
+            try:
+                self.worksheet.update_cell(row_index, col, url_or_status)
+                logger.info(f"Updated row {row_index} {platform} -> {url_or_status}")
+            except Exception as e:
+                logger.error(f"Failed to update {platform} for row {row_index}: {e}")
 
 if __name__ == "__main__":
     manager = GSheetManager()

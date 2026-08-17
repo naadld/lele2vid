@@ -16,8 +16,9 @@ class AppConfig:
     creds_paths: List[str] = field(default_factory=lambda: [
         os.path.join(BASE_DIR, "configs", "service_account.json"),
         os.path.join(BASE_DIR, "service_account.json"),
-        "/media/vpsg16gb/Workspace/lelehoctiengtrung_pinyin/configs/service_account.json",
-        "/media/vpsg16gb/Workspace/Projects/lelehoctiengtrung/Pipeline_lelehoctiengtrung/gitignore/service_account.json",
+        os.path.join(os.path.dirname(BASE_DIR), "configs", "service_account.json"),
+        os.path.join(os.path.dirname(BASE_DIR), "service_account.json"),
+        "/media/vpsg16gb/HaRiDisk/CHANNELS/lelehoctiengtrung/pinyinquiz/configs/service_account.json",
         os.path.expanduser("~/.config/gspread/service_account.json")
     ])
     

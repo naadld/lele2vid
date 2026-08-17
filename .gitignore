@@ -6,36 +6,46 @@ env/
 
 # Credentials, Secrets & Tokens (STRICT SECURITY)
 gitinore/
+**/gitinore/
 configs/
+**/configs/
 *.json
-!data/sample_words.json
+!**/data/sample_words.json
 *.pem
 *.key
 *.token
 *.env
 service_account.json
+**/service_account.json
+oauth_credentials.json
+**/oauth_credentials.json
 
 # Audio cache & wav files
-assets/audio/*.wav
-assets/audio/words/
-assets/audio/test_*.mp3
+*.wav
+**/assets/audio/*.wav
+**/assets/audio/words/
+**/assets/audio/test_*.mp3
 bell.wav
 
 # Python cache & artifacts
 __pycache__/
+**/__pycache__/
 *.py[cod]
 *$py.class
 *.so
 .pytest_cache/
+**/.pytest_cache/
 
 # Manim & Media Render Outputs
 output/
+**/output/
 media/
+**/media/
 scratch/
-templates/*.mp4
+**/scratch/
+**/templates/*.mp4
 *.mp4
 *.mov
-*.wav
 
 # OS / Editor artifacts
 .DS_Store

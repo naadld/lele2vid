@@ -15,6 +15,7 @@ from src.scene_generator import create_scene_file
 from src.render_engine import render_scene_file
 from src.audio_generator import ensure_bell_sound, ensure_tick_sound
 from src.gdrive_uploader import GDriveUploader
+from src.metadata_generator import save_and_upload_metadata
 
 logging.basicConfig(
     level=logging.INFO,
@@ -118,13 +119,27 @@ def run_batch_job(from_sheet: bool = True, target_id: str = None, sample: bool =
                 except Exception as ue:
                     logger.error(f"GDrive upload error: {ue}")
 
+            # Ensure metadata exists & uploaded
+            metadata_link = batch.get("metadata", "")
+            if not metadata_link:
+                try:
+                    metadata_link = save_and_upload_metadata(
+                        batch_id=str(row_id),
+                        topic=topic,
+                        level=level,
+                        words=words,
+                        gdrive_uploader=gdrive_uploader
+                    )
+                except Exception as me:
+                    logger.error(f"Metadata generation error: {me}")
+
             if gsheet_mgr and row_index > 0:
-                # Update status to 'Video' as requested by user
+                # Update status to 'Video', Video column to GDrive link, metadata to metadata link
                 gsheet_mgr.update_batch_status(
                     row_index=row_index,
                     status="Video",
-                    video_file=final_video_name,
-                    gdrive_link=gdrive_link
+                    video_link=gdrive_link,
+                    metadata_link=metadata_link
                 )
 
             logger.info(f" Batch [{row_id}] finished successfully -> {video_path}")
