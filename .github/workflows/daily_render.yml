@@ -1,6 +1,11 @@
 name: Daily Pinyin TikTok Video Render
 
 on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
   schedule:
     # Runs everyday at 03:00 AM GMT+7 (20:00 UTC previous day)
     - cron: '0 20 * * *'
