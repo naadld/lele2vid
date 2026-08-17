@@ -28,25 +28,41 @@ class GSheetManager:
     def __init__(self, credentials_path: str = None, spreadsheet_id: str = None, tab_name: str = None):
         self.spreadsheet_id = spreadsheet_id or config.spreadsheet_id
         self.tab_name = tab_name or config.sheet_tab_name
-        self.credentials_path = credentials_path or self._find_valid_creds()
+        self.credentials_path = credentials_path
         self.client = None
         self.spreadsheet = None
         self.worksheet = None
         self._authenticate()
 
-    def _find_valid_creds(self) -> str:
-        for path in config.creds_paths:
-            if os.path.exists(path) and os.path.getsize(path) > 10:
-                return path
-        raise FileNotFoundError("No valid Google service account credentials found!")
-
-    def _authenticate(self):
-        logger.info(f"Loaded credentials from {self.credentials_path}")
+    def _get_credentials(self) -> Credentials:
         scopes = [
             "https://www.googleapis.com/auth/spreadsheets",
             "https://www.googleapis.com/auth/drive"
         ]
-        credentials = Credentials.from_service_account_file(self.credentials_path, scopes=scopes)
+        
+        # 1. Try env variable JSON content
+        env_json = os.getenv("GCP_SERVICE_ACCOUNT_JSON") or os.getenv("SERVICE_ACCOUNT_JSON")
+        if env_json and env_json.strip():
+            try:
+                info = json.loads(env_json)
+                logger.info("Loaded credentials directly from GCP_SERVICE_ACCOUNT_JSON environment variable.")
+                return Credentials.from_service_account_info(info, scopes=scopes)
+            except Exception as e:
+                logger.warning(f"Failed to parse credentials from env JSON: {e}")
+
+        # 2. Try credentials path or fallback paths
+        search_paths = [self.credentials_path] if self.credentials_path else []
+        search_paths.extend(config.creds_paths)
+        
+        for path in search_paths:
+            if path and os.path.exists(path) and os.path.getsize(path) > 10:
+                logger.info(f"Loaded credentials from file: {path}")
+                return Credentials.from_service_account_file(path, scopes=scopes)
+                
+        raise FileNotFoundError(f"No valid Google service account credentials found! Checked: {search_paths}")
+
+    def _authenticate(self):
+        credentials = self._get_credentials()
         self.client = gspread.authorize(credentials)
         self.spreadsheet = self.client.open_by_key(self.spreadsheet_id)
         

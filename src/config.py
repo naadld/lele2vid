@@ -2,17 +2,22 @@ import os
 from dataclasses import dataclass, field
 from typing import List
 
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 @dataclass
 class AppConfig:
+    base_dir: str = BASE_DIR
+    
     # Spreadsheet Settings
     spreadsheet_id: str = "1b6LNl7JHRiCsjK1w9VuD86GLqAfmSOtDUOm5whrGdH0"
     sheet_tab_name: str = "pinyin"
     
-    # Credential Paths
+    # Credential Paths (relative to base_dir and fallback paths)
     creds_paths: List[str] = field(default_factory=lambda: [
+        os.path.join(BASE_DIR, "configs", "service_account.json"),
+        os.path.join(BASE_DIR, "service_account.json"),
         "/media/vpsg16gb/Workspace/lelehoctiengtrung_pinyin/configs/service_account.json",
         "/media/vpsg16gb/Workspace/Projects/lelehoctiengtrung/Pipeline_lelehoctiengtrung/gitignore/service_account.json",
-        "/media/vpsg16gb/Workspace/Projects/lelehoctiengtrung/Pipeline_lelehoctiengtrung/lele-step10-karaoke/service_account.json",
         os.path.expanduser("~/.config/gspread/service_account.json")
     ])
     
@@ -32,10 +37,9 @@ class AppConfig:
     transition_wait_seconds: float = 0.5
     
     # Paths
-    base_dir: str = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    assets_audio_dir: str = os.path.join(base_dir, "assets", "audio")
-    output_videos_dir: str = os.path.join(base_dir, "output", "videos")
-    generated_scenes_dir: str = os.path.join(base_dir, "output", "generated_scenes")
-    bell_audio_path: str = os.path.join(assets_audio_dir, "bell.mp3")
+    assets_audio_dir: str = os.path.join(BASE_DIR, "assets", "audio")
+    output_videos_dir: str = os.path.join(BASE_DIR, "output", "videos")
+    generated_scenes_dir: str = os.path.join(BASE_DIR, "output", "generated_scenes")
+    bell_audio_path: str = os.path.join(BASE_DIR, "assets", "audio", "bell.mp3")
 
 config = AppConfig()

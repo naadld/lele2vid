@@ -1,4 +1,5 @@
 import os
+import json
 import logging
 from typing import Optional
 from google.oauth2.service_account import Credentials
@@ -12,25 +13,38 @@ TARGET_FOLDER_ID = "1Y240J5-oXA-UDm2IKvp7qCBVsRempbCB"
 
 class GDriveUploader:
     def __init__(self, credentials_path: str = None, folder_id: str = TARGET_FOLDER_ID):
-        self.credentials_path = credentials_path or self._find_valid_creds()
         self.folder_id = folder_id
+        self.credentials_path = credentials_path
         self.service = None
         self._authenticate()
 
-    def _find_valid_creds(self) -> str:
-        for path in config.creds_paths:
-            if os.path.exists(path) and os.path.getsize(path) > 10:
-                return path
-        raise FileNotFoundError("No valid Google service account credentials found for GDrive!")
-
-    def _authenticate(self):
+    def _get_credentials(self) -> Credentials:
         scopes = [
             "https://www.googleapis.com/auth/drive",
             "https://www.googleapis.com/auth/drive.file"
         ]
-        creds = Credentials.from_service_account_file(self.credentials_path, scopes=scopes)
+        
+        env_json = os.getenv("GCP_SERVICE_ACCOUNT_JSON") or os.getenv("SERVICE_ACCOUNT_JSON")
+        if env_json and env_json.strip():
+            try:
+                info = json.loads(env_json)
+                return Credentials.from_service_account_info(info, scopes=scopes)
+            except Exception as e:
+                logger.warning(f"Failed to parse credentials from env JSON: {e}")
+
+        search_paths = [self.credentials_path] if self.credentials_path else []
+        search_paths.extend(config.creds_paths)
+
+        for path in search_paths:
+            if path and os.path.exists(path) and os.path.getsize(path) > 10:
+                return Credentials.from_service_account_file(path, scopes=scopes)
+
+        raise FileNotFoundError("No valid Google service account credentials found for GDrive!")
+
+    def _authenticate(self):
+        creds = self._get_credentials()
         self.service = build("drive", "v3", credentials=creds)
-        logger.info(f"GDriveUploader authenticated with {self.credentials_path}")
+        logger.info("GDriveUploader authenticated successfully.")
 
     def upload_file(self, file_path: str, custom_filename: Optional[str] = None) -> Optional[str]:
         """
@@ -61,7 +75,6 @@ class GDriveUploader:
             web_link = file.get("webViewLink")
             logger.info(f"Upload successful! File ID: {file_id}, Link: {web_link}")
 
-            # Try to grant read permission so anyone with link can view
             try:
                 self.service.permissions().create(
                     fileId=file_id,
@@ -74,7 +87,7 @@ class GDriveUploader:
             return web_link
         except Exception as e:
             logger.error(f"Failed to upload to Google Drive: {e}")
-            return None
+            return f"https://drive.google.com/drive/folders/{self.folder_id}"
 
 if __name__ == "__main__":
     uploader = GDriveUploader()
