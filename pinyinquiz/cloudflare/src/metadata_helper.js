@@ -81,23 +81,22 @@ Bạn tự tin đúng bao nhiêu câu? Comment kết quả bên dưới cùng L�
 
 #lelehoctiengtrung #tiengtrung #hoctiengtrung #pinyin #${levelTag.toLowerCase()} #reelsvn #hsk`;
 
-  // Formatted Text Summary
-  const formattedText = `===================================================================
-METADATA CHO VIDEO: ${topic} (${level})
-===================================================================
+  // Formatted Text Summary (Never start with = to avoid Sheet formula error)
+  const formattedText = `📝 METADATA CHO VIDEO: ${topic} (${level})
+───────────────────────────────────────────────────────────────────
 
-=== 1. YOUTUBE SHORTS ===
+【 1. YOUTUBE SHORTS 】
 Tiêu đề (Title):
 ${ytTitle}
 
 Mô tả (Description):
 ${ytDescription}
 
-=== 2. TIKTOK ===
+【 2. TIKTOK 】
 Caption & Hashtags:
 ${tiktokCaption}
 
-=== 3. FACEBOOK REELS ===
+【 3. FACEBOOK REELS 】
 Caption & Hashtags:
 ${fbCaption}
 `;
@@ -122,26 +121,35 @@ ${fbCaption}
  * otherwise dynamically generate from topic, level, words.
  */
 export function getBatchMetadata(metadataCell, topic, level, words = []) {
-  if (metadataCell && typeof metadataCell === "string" && metadataCell.includes("=== 1. YOUTUBE SHORTS ===")) {
+  if (metadataCell && typeof metadataCell === "string" && !metadataCell.startsWith("http") && !metadataCell.startsWith("#ERROR")) {
     let ytTitle = "";
     let ytDescription = "";
     let tiktokCaption = "";
     let fbCaption = "";
 
-    const ytMatch = metadataCell.match(/=== 1\. YOUTUBE SHORTS ===\s*Tiêu đề \(Title\):\s*\n([^\n]+)\s*\nMô tả \(Description\):\s*\n([\s\S]*?)(?==== 2\. TIKTOK ===|$)/i);
+    // Pattern 1: 【 1. YOUTUBE SHORTS 】 or === 1. YOUTUBE SHORTS ===
+    const ytMatch = metadataCell.match(/(?:【\s*1\.\s*YOUTUBE SHORTS\s*】|===\s*1\.\s*YOUTUBE SHORTS\s*===)\s*(?:Tiêu đề \(Title\):)?\s*\n([^\n]+)\s*(?:Mô tả \(Description\):)?\s*\n([\s\S]*?)(?=(?:【\s*2\.\s*TIKTOK\s*】|===\s*2\.\s*TIKTOK\s*===)|$)/i);
     if (ytMatch) {
       ytTitle = (ytMatch[1] || "").trim();
       ytDescription = (ytMatch[2] || "").trim();
     }
 
-    const ttMatch = metadataCell.match(/=== 2\. TIKTOK ===\s*Caption & Hashtags:\s*\n([\s\S]*?)(?==== 3\. FACEBOOK REELS ===|$)/i);
+    const ttMatch = metadataCell.match(/(?:【\s*2\.\s*TIKTOK\s*】|===\s*2\.\s*TIKTOK\s*===)\s*(?:Caption & Hashtags:)?\s*\n([\s\S]*?)(?=(?:【\s*3\.\s*FACEBOOK REELS\s*】|===\s*3\.\s*FACEBOOK REELS\s*===)|$)/i);
     if (ttMatch) {
       tiktokCaption = (ttMatch[1] || "").trim();
     }
 
-    const fbMatch = metadataCell.match(/=== 3\. FACEBOOK REELS ===\s*Caption & Hashtags:\s*\n([\s\S]*?)$/i);
+    const fbMatch = metadataCell.match(/(?:【\s*3\.\s*FACEBOOK REELS\s*】|===\s*3\.\s*FACEBOOK REELS\s*===)\s*(?:Caption & Hashtags:)?\s*\n([\s\S]*?)$/i);
     if (fbMatch) {
       fbCaption = (fbMatch[1] || "").trim();
+    }
+
+    // Pattern 2: [YouTube]: ... [TikTok]: ...
+    if (!ytTitle && metadataCell.includes("[YouTube]:")) {
+      const ytSimpleMatch = metadataCell.match(/\[YouTube\]:\s*([^\n]+)/i);
+      if (ytSimpleMatch) ytTitle = ytSimpleMatch[1].trim();
+      const ttSimpleMatch = metadataCell.match(/\[TikTok\]:\s*([^\n]+)/i);
+      if (ttSimpleMatch) tiktokCaption = ttSimpleMatch[1].trim();
     }
 
     const fallback = generateSocialMetadata(topic, level, words);

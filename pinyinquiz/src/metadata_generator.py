@@ -78,24 +78,22 @@ Bạn đoán đúng được bao nhiêu từ trên {len(words)} từ? Hãy comme
     # 3. Facebook Reels Metadata
     fb_caption = f"Thử tài phản xạ đoán Pinyin tiếng Trung {level} - Chủ đề {clean_topic}! {chosen_emoji}\nBạn tự tin đúng bao nhiêu câu? Comment kết quả bên dưới cùng Lê Lê nha! ✨\n\n#lelehoctiengtrung #tiengtrung #hoctiengtrung #pinyin #{level_tag.lower()} #reelsvn #hsk"
 
-    # Combined Full Text for GDrive upload
-    full_text = f"""===================================================================
-METADATA CHO VIDEO: {topic} ({level})
-Ngày tạo: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-===================================================================
+    # Combined Full Text for Sheet Cell storage (Never start with = to avoid Sheet formula error)
+    full_text = f"""📝 METADATA CHO VIDEO: {topic} ({level})
+───────────────────────────────────────────────────────────────────
 
-=== 1. YOUTUBE SHORTS ===
+【 1. YOUTUBE SHORTS 】
 Tiêu đề (Title):
 {yt_title}
 
 Mô tả (Description):
 {yt_description.strip()}
 
-=== 2. TIKTOK ===
+【 2. TIKTOK 】
 Caption & Hashtags:
 {tiktok_caption}
 
-=== 3. FACEBOOK REELS ===
+【 3. FACEBOOK REELS 】
 Caption & Hashtags:
 {fb_caption}
 """
