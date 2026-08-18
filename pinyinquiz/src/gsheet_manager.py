@@ -157,6 +157,55 @@ class GSheetManager:
 
         return pending_batches
 
+    def get_batch_by_id(self, target_id: str) -> Optional[Dict[str, Any]]:
+        """Retrieve a specific row by ID (# column or row index)."""
+        clean_target = str(target_id).replace("#", "").strip()
+        for attempt in range(1, 4):
+            try:
+                rows = self.worksheet.get_all_values()
+                break
+            except Exception as e:
+                if attempt == 3:
+                    logger.error(f"Failed to get values: {e}")
+                    return None
+                time.sleep(attempt * 2)
+
+        if not rows or len(rows) < 2:
+            return None
+
+        headers = rows[0]
+        for row_idx, row in enumerate(rows[1:], start=2):
+            row_dict = {headers[i]: row[i] if i < len(row) else "" for i in range(len(headers))}
+            row_id = str(row_dict.get("#", "")).replace("#", "").strip()
+            if row_id == clean_target or str(row_idx) == clean_target:
+                words = []
+                for w_idx in range(1, 6):
+                    w_key = f"Word {w_idx}"
+                    w_val = row_dict.get(w_key, "").strip()
+                    if w_val:
+                        parts = [p.strip() for p in w_val.split("|")]
+                        hanzi = parts[0]
+                        pinyin = parts[1] if len(parts) > 1 else ""
+                        hidden = parts[2] if len(parts) > 2 else ""
+                        meaning = parts[3] if len(parts) > 3 else ""
+                        words.append({
+                            "hanzi": hanzi,
+                            "pinyin": pinyin,
+                            "hidden_pinyin": hidden,
+                            "meaning": meaning or hanzi
+                        })
+
+                return {
+                    "row_index": row_idx,
+                    "id": row_dict.get("#", str(row_idx)),
+                    "topic": row_dict.get("Topic", "HSK 1-2 • TỪ VỰNG CƠ BẢN"),
+                    "level": row_dict.get("Level", "HSK 1-2"),
+                    "words": words,
+                    "metadata": row_dict.get("metadata", ""),
+                    "raw_data": row_dict
+                }
+        return None
+
     def update_batch_status(self, row_index: int, status: str, video_link: str = "", metadata_link: str = ""):
         """Update batch status, video GDrive link and metadata GDrive link."""
         try:

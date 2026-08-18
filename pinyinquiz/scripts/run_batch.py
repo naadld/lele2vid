@@ -108,11 +108,15 @@ def run_batch_job(from_sheet: bool = True, target_id: str = None, sample: bool =
     if from_sheet:
         logger.info("Connecting to Google Sheets...")
         gsheet_mgr = GSheetManager()
-        all_pending = gsheet_mgr.get_pending_batches()
         if target_id:
-            batches_to_process = [b for b in all_pending if str(b["id"]) == str(target_id)]
+            batch = gsheet_mgr.get_batch_by_id(target_id)
+            if batch:
+                batches_to_process = [batch]
+                logger.info(f"Targeted specific batch #{target_id}: '{batch.get('topic')}'")
+            else:
+                logger.warning(f"Could not find Batch with ID #{target_id} on Google Sheets.")
         else:
-            batches_to_process = all_pending
+            batches_to_process = gsheet_mgr.get_pending_batches()
     elif sample:
         batches_to_process = [{
             "row_index": 0,

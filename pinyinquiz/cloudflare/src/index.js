@@ -385,7 +385,7 @@ async function handleTelegramUpdate(update, env, config) {
     else if (action === "render_ideate") {
       alertText = `Đang kích hoạt Render Video #${rowId}...`;
       await answerTelegramCallback(botToken, cbId, alertText, false);
-      const ghRes = await triggerGitHubRenderWorkflow(env);
+      const ghRes = await triggerGitHubRenderWorkflow(env, { row_id: rowId });
       if (chatId && msgId) {
         const updatedText = (
           `🎬 <b>[Đã Kích Hoạt Render Video] #${rowId}: ${rowInfo.topic}</b>\n\n` +
@@ -496,16 +496,21 @@ async function handleTelegramUpdate(update, env, config) {
     return;
   }
 
-  // 3. /render: Kích hoạt pipeline render toàn bộ các dòng "Pending" -> "Video"
+  // 3. /render: Kích hoạt pipeline render toàn bộ các dòng "Pending" (hoặc dòng cụ thể)
   if (command === "/render") {
+    const rawTarget = rawText.split(" ")[1] || "";
+    const targetRowId = rawTarget.replace("#", "").trim();
+
     await sendTelegramMessage(
       botToken,
       chatId,
-      `⏳ <b>Đang kích hoạt GitHub Actions để render tất cả dòng Pending...</b>`
+      targetRowId
+        ? `⏳ <b>Đang kích hoạt GitHub Actions để render riêng dòng #${targetRowId}...</b>`
+        : `⏳ <b>Đang kích hoạt GitHub Actions để render tất cả dòng Pending...</b>`
     );
 
     try {
-      const ghRes = await triggerGitHubRenderWorkflow(env);
+      const ghRes = await triggerGitHubRenderWorkflow(env, { row_id: targetRowId });
       await sendTelegramMessage(
         botToken,
         chatId,
