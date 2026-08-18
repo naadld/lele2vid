@@ -431,6 +431,7 @@ export class GoogleSheetsClient {
    * - Error (bị lỗi khi đăng bài)
    */
   async getStatusSummary() {
+    const rows = (await this.getSheetValues(`${this.tabName}!A2:P500`)) || [];
     let pendingCount = 0;
     let videoCount = 0;
     let readyCount = 0;
