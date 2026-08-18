@@ -1,4 +1,5 @@
 import os
+import time
 import json
 import logging
 from typing import List, Dict, Any, Optional
@@ -67,8 +68,20 @@ class GSheetManager:
     def _authenticate(self):
         credentials = self._get_credentials()
         self.client = gspread.authorize(credentials)
-        self.spreadsheet = self.client.open_by_key(self.spreadsheet_id)
         
+        # Retry with exponential backoff on 503 or transient network errors
+        max_retries = 4
+        for attempt in range(1, max_retries + 1):
+            try:
+                self.spreadsheet = self.client.open_by_key(self.spreadsheet_id)
+                break
+            except Exception as e:
+                if attempt == max_retries:
+                    logger.error(f"Failed to open spreadsheet after {max_retries} attempts: {e}")
+                    raise
+                logger.warning(f"Attempt {attempt} to open spreadsheet failed ({e}). Retrying in {attempt * 2}s...")
+                time.sleep(attempt * 2)
+
         try:
             self.worksheet = self.spreadsheet.worksheet(self.tab_name)
         except gspread.exceptions.WorksheetNotFound:
@@ -82,12 +95,29 @@ class GSheetManager:
         logger.info(f"Initialized headers on tab '{self.tab_name}'")
 
     def get_all_rows(self) -> List[Dict[str, Any]]:
-        """Fetch all rows as dictionaries."""
-        return self.worksheet.get_all_records()
+        """Fetch all rows as dictionaries with retry."""
+        for attempt in range(1, 4):
+            try:
+                return self.worksheet.get_all_records()
+            except Exception as e:
+                if attempt == 3:
+                    logger.error(f"Failed to fetch all rows: {e}")
+                    return []
+                time.sleep(attempt * 2)
+        return []
 
     def get_pending_batches(self) -> List[Dict[str, Any]]:
         """Retrieve rows with Status == 'Pending'."""
-        rows = self.worksheet.get_all_values()
+        for attempt in range(1, 4):
+            try:
+                rows = self.worksheet.get_all_values()
+                break
+            except Exception as e:
+                if attempt == 3:
+                    logger.error(f"Failed to get values: {e}")
+                    return []
+                time.sleep(attempt * 2)
+
         if not rows or len(rows) < 2:
             return []
 

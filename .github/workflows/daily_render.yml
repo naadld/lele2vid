@@ -1,12 +1,12 @@
-name: Daily Pinyin TikTok Video Render
+name: Hourly Pinyin TikTok Video Render Pipeline
 
 on:
   push:
     branches:
       - main
   schedule:
-    # Runs everyday at 03:00 AM GMT+7 (20:00 UTC previous day)
-    - cron: '0 20 * * *'
+    # Runs every 1 hour (at minute 0 of every hour, 24 times a day)
+    - cron: '0 * * * *'
   workflow_dispatch:
     inputs:
       quality:
@@ -64,7 +64,11 @@ jobs:
       - name: Install Python Requirements
         run: |
           python -m pip install --upgrade pip
-          pip install -r pinyinquiz/requirements.txt
+          if [ -f pinyinquiz/requirements.txt ]; then
+            pip install -r pinyinquiz/requirements.txt
+          elif [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          fi
 
       - name: Setup Service Account Credentials
         env:
@@ -96,6 +100,7 @@ jobs:
 
       # Thực thi kết xuất video Manim và tải lên Google Drive
       - name: Execute Video Render & Upload
+        id: render_step
         working-directory: pinyinquiz
         env:
           INPUT_QUALITY: ${{ github.event.inputs.quality }}
@@ -118,7 +123,7 @@ jobs:
           echo "Executing: $CMD"
           eval $CMD
 
-      # Gửi thông báo kết quả qua Telegram Bot (Bảo mật 100% qua GitHub Secrets)
+      # Gửi thông báo kết quả qua Telegram Bot (Chỉ thông báo khi có video thực sự được render hoặc có lỗi)
       - name: Send Telegram Notification
         if: always()
         working-directory: pinyinquiz
@@ -129,7 +134,7 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           python -c "
-          import os, requests
+          import os, glob, requests
           
           bot_token = os.getenv('TELEGRAM_BOT_TOKEN', '').strip()
           chat_id = os.getenv('TELEGRAM_CHAT_ID', '').strip()
@@ -140,13 +145,23 @@ jobs:
               
           status = os.getenv('JOB_STATUS', 'UNKNOWN')
           quality = os.getenv('INPUT_QUALITY', '').strip() or 'qh'
-          status_icon = '✅ THÀNH CÔNG' if status == 'success' else '❌ THẤT BẠI'
+          
+          rendered_videos = glob.glob('output/videos/*.mp4')
+          num_videos = len(rendered_videos)
+          
+          # Neu khong co video nao render va workflow chay thanh cong (khong co Pending) -> Bo qua de tranh spam
+          if num_videos == 0 and status == 'success':
+              print('No pending videos to render. Skipping Telegram notification to avoid spam.')
+              exit(0)
+              
+          status_icon = f'✅ THÀNH CÔNG ({num_videos} video)' if status == 'success' else '❌ THẤT BẠI'
           
           text = (
               f'🤖 <b>[GitHub Actions] Báo Cáo Render Video PinyinQuiz</b>\n\n'
               f'Trạng thái: <b>{status_icon}</b>\n'
+              f'Số lượng video render: <b>{num_videos}</b>\n'
               f'Chất lượng: <b>{quality}</b>\n'
-              f'Nền tảng: <b>GitHub Actions Cloud Runner</b>\n'
+              f'Nền tảng: <b>GitHub Actions Cloud Runner (Mỗi 1 tiếng)</b>\n'
               f'Google Sheet: Đã đồng bộ Video Link & Metadata vào tab <code>pinyin</code>.'
           )
           

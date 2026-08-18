@@ -1,6 +1,7 @@
 import os
 import sys
 import random
+import logging
 from datetime import datetime
 from typing import List, Tuple, Dict, Any
 
@@ -12,8 +13,15 @@ from src.gsheet_manager import GSheetManager
 from src.pinyin_utils import prepare_word_tuple
 from src.metadata_generator import save_and_upload_metadata
 from src.gdrive_uploader import GDriveUploader
+from src.llm_client import generate_hsk_topics_with_llm
 
-# Comprehensive HSK 1 - HSK 3 Vocabulary Bank
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s"
+)
+logger = logging.getLogger("DailyBatchCreator")
+
+# Comprehensive HSK 1 - HSK 3 Vocabulary Bank (Fallback if LLM is offline)
 VOCAB_BANK = [
     # HSK 1
     ("HSK 1 • Gia Đình & Xưng Hô", "HSK 1", [
@@ -91,7 +99,7 @@ VOCAB_BANK = [
 
 def generate_daily_rows(count: int = 5) -> List[List[str]]:
     """
-    Generate non-repeating vocabulary rows for the daily batch with social media metadata.
+    Generate non-repeating vocabulary rows for daily batches with LLM (vpsg24gb:20130) + metadata.
     """
     mgr = GSheetManager()
     all_rows = mgr.get_all_rows()
@@ -100,7 +108,7 @@ def generate_daily_rows(count: int = 5) -> List[List[str]]:
     try:
         gdrive_uploader = GDriveUploader()
     except Exception as e:
-        print(f"GDriveUploader notice: {e}")
+        logger.warning(f"GDriveUploader notice: {e}")
     
     # Track existing used words to prevent duplication
     used_words = set()
@@ -111,18 +119,48 @@ def generate_daily_rows(count: int = 5) -> List[List[str]]:
                 used_words.add(w)
 
     current_max_id = len(all_rows)
-    selected_pools = random.sample(VOCAB_BANK, min(count, len(VOCAB_BANK)))
-    new_rows = []
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    new_rows = []
+
+    # 1. Try generating with LLM (vpsg24gb:20130)
+    llm_topics = generate_hsk_topics_with_llm(existing_words=list(used_words), count=count)
+    
+    if llm_topics and len(llm_topics) >= count:
+        logger.info(f"✨ Using {len(llm_topics)} newly generated topics from LLM (vpsg24gb:20130)")
+        for idx, item in enumerate(llm_topics[:count], start=current_max_id + 1):
+            topic = item.get("topic", f"HSK 1-2 • Chủ Đề #{idx}")
+            level = item.get("level", "HSK 1-2")
+            words = item.get("words", [])
+            
+            row = [str(idx), topic, level, "Pending"]
+            parsed_words = []
+            
+            for w in words:
+                hz = w.get("hanzi", "")
+                py = w.get("pinyin", "")
+                mean = w.get("meaning", "")
+                parsed_words.append({"hanzi": hz, "pinyin": py, "meaning": mean})
+                h, fp, hp = prepare_word_tuple(hz, py)
+                row.append(f"{h} | {fp} | {hp} | {mean}")
+                
+            metadata_link = save_and_upload_metadata(
+                batch_id=str(idx),
+                topic=topic,
+                level=level,
+                words=parsed_words,
+                gdrive_uploader=gdrive_uploader
+            )
+            row.extend([metadata_link, "", "", "", "", now_str, "Tự động sinh bởi LLM (vpsg24gb:20130)"])
+            new_rows.append(row)
+            
+        return new_rows
+
+    # 2. Fallback to VOCAB_BANK if LLM is unavailable
+    logger.info("⚠️ Falling back to built-in VOCAB_BANK pools...")
+    selected_pools = random.sample(VOCAB_BANK, min(count, len(VOCAB_BANK)))
 
     for idx, (topic, level, words) in enumerate(selected_pools, start=current_max_id + 1):
-        row = [
-            str(idx),
-            topic,
-            level,
-            "Pending"
-        ]
-        
+        row = [str(idx), topic, level, "Pending"]
         parsed_words = []
         for w_item in words:
             hz, py, mean = w_item
@@ -130,7 +168,6 @@ def generate_daily_rows(count: int = 5) -> List[List[str]]:
             h, fp, hp = prepare_word_tuple(hz, py)
             row.append(f"{h} | {fp} | {hp} | {mean}")
             
-        # 1. Tự động sinh Metadata (Title + Description cho YT Shorts, TikTok, FB Reels)
         metadata_link = save_and_upload_metadata(
             batch_id=str(idx),
             topic=topic,
@@ -138,23 +175,21 @@ def generate_daily_rows(count: int = 5) -> List[List[str]]:
             words=parsed_words,
             gdrive_uploader=gdrive_uploader
         )
-        
-        # Col 10: metadata, Col 11: Video, Col 12: Youtube, Col 13: Tiktok, Col 14: Facebook, Col 15: Created At, Col 16: Notes
-        row.extend([metadata_link, "", "", "", "", now_str, "Tự động sinh bởi Daily Batch Creator"])
+        row.extend([metadata_link, "", "", "", "", now_str, "Tự động sinh bởi VOCAB_BANK"])
         new_rows.append(row)
 
     return new_rows
 
 def main():
-    print("=== Daily Batch Creator (02:00 GMT+7) ===")
+    logger.info("=== Daily Batch Creator with LLM (vpsg24gb:20130) ===")
     mgr = GSheetManager()
     new_rows = generate_daily_rows(count=5)
     
     if new_rows:
         mgr.worksheet.append_rows(new_rows)
-        print(f" Successfully added {len(new_rows)} new Pending batches with metadata to tab '{mgr.tab_name}'!")
+        logger.info(f"🎉 Successfully added {len(new_rows)} new Pending batches with metadata to tab '{mgr.tab_name}'!")
     else:
-        print("No new batches generated.")
+        logger.info("No new batches generated.")
 
 if __name__ == "__main__":
     main()
