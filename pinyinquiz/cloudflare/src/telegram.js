@@ -3,7 +3,7 @@
  */
 
 /**
- * Send HTML message to Telegram Chat
+ * Send HTML message to Telegram Chat with automatic plain-text fallback
  */
 export async function sendTelegramMessage(botToken, chatId, text, options = {}) {
   if (!botToken || !chatId) {
@@ -26,7 +26,25 @@ export async function sendTelegramMessage(botToken, chatId, text, options = {}) 
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)
     });
-    return await res.json();
+    const data = await res.json();
+    if (!data.ok) {
+      console.warn("Telegram sendMessage error:", data);
+      // Fallback: retry with plain text if HTML entity parsing failed
+      if (data.description && data.description.includes("parse entities")) {
+        const plainText = text.replace(/<[^>]*>/g, "");
+        const retryRes = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: plainText,
+            disable_web_page_preview: true
+          })
+        });
+        return await retryRes.json();
+      }
+    }
+    return data;
   } catch (err) {
     console.error("Failed to send Telegram message:", err);
     return null;
@@ -81,7 +99,22 @@ export async function editTelegramMessageCaption(botToken, chatId, messageId, ca
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)
     });
-    return await res.json();
+    const data = await res.json();
+    if (!data.ok && data.description && data.description.includes("parse entities")) {
+      const plainCaption = caption.replace(/<[^>]*>/g, "");
+      const retryRes = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: chatId,
+          message_id: messageId,
+          caption: plainCaption,
+          reply_markup: replyMarkup !== null ? replyMarkup : undefined
+        })
+      });
+      return await retryRes.json();
+    }
+    return data;
   } catch (err) {
     console.error("Failed to edit message caption:", err);
     return null;
@@ -101,7 +134,7 @@ export function getHelpMessage() {
    👉 Tạo <b>1 bộ ý tưởng mới</b> (1 dòng) với trạng thái <b>Pending</b>.
 
 🔹 <code>/render</code>:
-   👉 Kích hoạt GitHub Action render tất cả dòng <b>Pending</b> ➔ Tạo video vào GDrive ➔ Gửi video kèm nút kiểm duyệt lên Telegram ➔ Set trạng thái <b>Video</b>.
+   👉 Kích hoạt GitHub Action render tất cả dòng <b>Pending</b> ➔ Tạo video vào GDrive ➔ Set trạng thái <b>Video</b>.
 
 🔹 <code>/publish</code>:
    👉 Đăng đúng <b>1 video duy nhất</b> (ưu tiên retry dòng <b>Error</b> thiếu kênh, sau đó đăng dòng <b>Ready</b> đã duyệt).
@@ -114,7 +147,7 @@ export function getHelpMessage() {
 
 ━━━━━━━━━━━━━━━━━━━━━
 🕒 <b>LỊCH HOẠT ĐỘNG HÀNG NGÀY:</b>
-• <b>01:00 Sáng</b> (UTC 18:00): Tự động sản xuất ý tưởng, render video & bắn sang Telegram kèm 4 nút kiểm duyệt (Approve / Reset / Delete / Cancel).
+• <b>01:00 Sáng</b> (UTC 18:00): Tự động sản xuất ý tưởng, render video & sẵn sàng duyệt.
 • <b>07:00 Sáng</b> (UTC 00:00): Tự động retry lỗi Error & đăng 1 video <b>Ready</b> lên 3 nền tảng qua Buffer.
 • <b>13:00 Chiều</b> (UTC 06:00): Tự động retry lỗi Error & đăng 1 video <b>Ready</b> tiếp theo lên 3 nền tảng qua Buffer.
 ━━━━━━━━━━━━━━━━━━━━━`;

@@ -64,6 +64,10 @@ export function pinyinToHiddenPinyin(fullPinyin, revealMode = "first_char_each_s
   return resultSyllables.join("   ");
 }
 
+export function generateHiddenPinyin(fullPinyin) {
+  return pinyinToHiddenPinyin(fullPinyin);
+}
+
 /**
  * Prepare word tuple object with hanzi, full pinyin, hidden pinyin, and meaning.
  */

@@ -43,8 +43,8 @@ export function getConfig(env) {
 
     // 2. Agnes AI (4 keys)
     agnesApiKeys: parseKeyList(env.AGNES_API_KEYS || env.AGNES_API_KEY),
-    agnesBaseUrl: env.AGNES_BASE_URL || "https://api.agnes.ai/v1",
-    agnesModel: env.AGNES_MODEL || "gpt-4o-mini",
+    agnesBaseUrl: env.AGNES_BASE_URL || "https://apihub.agnes-ai.com/v1",
+    agnesModel: env.AGNES_MODEL || "agnes-2.0-flash",
 
     // 3. Cloudflare Workers AI (1 native)
     aiModel: env.AI_MODEL || "@cf/meta/llama-3.3-70b-instruct"
