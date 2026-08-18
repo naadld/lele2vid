@@ -141,6 +141,7 @@ export default {
         return new Response(JSON.stringify({
           configuredToken: maskedToken,
           chatId: config.telegramChatId || env.TELEGRAM_CHAT_ID || "MISSING",
+          hasWebhookSecret: !!config.telegramWebhookSecret,
           getMe: meRes,
           webhookInfo: whRes,
           setWebhookResult: setWhRes,
@@ -330,11 +331,11 @@ export default {
 
       try {
         const update = await request.json();
-        ctx.waitUntil(handleTelegramUpdate(update, env, config));
+        await handleTelegramUpdate(update, env, config);
         return new Response("OK", { status: 200 });
       } catch (err) {
         console.error("Error processing Telegram update:", err);
-        return new Response("Bad Request", { status: 400 });
+        return new Response(JSON.stringify({ error: err.message, stack: err.stack }), { status: 500, headers: { "Content-Type": "application/json" } });
       }
     }
 

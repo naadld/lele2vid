@@ -202,80 +202,53 @@ export function parseAIResponseJson(rawText) {
  */
 async function callGeminiAPI(apiKey, requestedModel, systemPrompt, userPrompt) {
   const rawModel = (requestedModel || "gemini-3.6-flash").trim();
-  const modelCandidates = [
-    rawModel,
-    "gemini-3.6-flash",
-    "gemini-3.5-flash",
-    "gemini-3.5-flash-lite",
-    "gemini-2.5-flash"
-  ];
-  const uniqueModels = [...new Set(modelCandidates.filter(Boolean))];
+  const cleanModel = rawModel.replace(/^models\//, "");
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent?key=${apiKey}`;
 
-  let lastError = null;
-
-  for (const model of uniqueModels) {
-    try {
-      const cleanModel = model.replace(/^models\//, "");
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent?key=${apiKey}`;
-
-      const response = await fetch(url, {
-        method: "POST",
-        signal: AbortSignal.timeout(6000),
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          systemInstruction: {
-            parts: [{ text: systemPrompt }]
-          },
-          contents: [
-            {
-              role: "user",
-              parts: [{ text: userPrompt }]
-            }
-          ],
-          generationConfig: {
-            temperature: 0.7,
-            responseMimeType: "application/json"
-          }
-        })
-      });
-
-      if (!response.ok) {
-        const errText = await response.text();
-        const err = new Error(`[Model: ${cleanModel}] (${response.status}): ${errText.substring(0, 180)}`);
-        // If quota exceeded (429) or invalid key/location error (400), don't waste time trying other sub-models on this same key
-        if (response.status === 429 || (response.status === 400 && !errText.includes("not found"))) {
-          throw err;
+  const response = await fetch(url, {
+    method: "POST",
+    signal: AbortSignal.timeout(4000),
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      systemInstruction: {
+        parts: [{ text: systemPrompt }]
+      },
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: userPrompt }]
         }
-        lastError = err;
-        continue;
+      ],
+      generationConfig: {
+        temperature: 0.7,
+        responseMimeType: "application/json"
       }
+    })
+  });
 
-      const data = await response.json();
-      const candidate = data.candidates?.[0];
-      const parts = candidate?.content?.parts || [];
-
-      // Separate actual content from thinking parts in Gemini 2.5 / 2.0 / 3.x
-      const textParts = parts.filter(p => !p.thought && p.text).map(p => p.text);
-      const rawText = textParts.length > 0 
-        ? textParts.join("\n") 
-        : parts.map(p => p.text || "").join("\n");
-
-      const parsed = parseAIResponseJson(rawText);
-      if (parsed && parsed.length > 0) {
-        return { data: parsed, modelUsed: cleanModel };
-      }
-    } catch (err) {
-      console.warn(`[Gemini Sub-Candidate] ${err.message}`);
-      lastError = err;
-      if (err.message.includes("429") || err.message.includes("User location") || err.message.includes("API key not valid")) {
-        break; // Rotate to next key immediately
-      }
-    }
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`[Model: ${cleanModel}] (${response.status}): ${errText.substring(0, 150)}`);
   }
 
-  throw lastError || new Error("Gemini API call failed");
+  const data = await response.json();
+  const candidate = data.candidates?.[0];
+  const parts = candidate?.content?.parts || [];
+
+  // Separate actual content from thinking parts in Gemini 2.5 / 2.0 / 3.x
+  const textParts = parts.filter(p => !p.thought && p.text).map(p => p.text);
+  const rawText = textParts.length > 0 
+    ? textParts.join("\n") 
+    : parts.map(p => p.text || "").join("\n");
+
+  const parsed = parseAIResponseJson(rawText);
+  if (parsed && parsed.length > 0) {
+    return { data: parsed, modelUsed: cleanModel };
+  }
+
+  throw new Error("Không thể phân tích định dạng JSON từ phản hồi Gemini.");
 }
 
 /**
@@ -284,62 +257,46 @@ async function callGeminiAPI(apiKey, requestedModel, systemPrompt, userPrompt) {
 async function callAgnesAPI(apiKey, baseUrl, requestedModel, systemPrompt, userPrompt) {
   const cleanBase = (baseUrl || "https://apihub.agnes-ai.com/v1").replace(/\/+$/, "");
   const url = `${cleanBase}/chat/completions`;
-
   const rawModel = (requestedModel || "agnes-2.0-flash").trim();
-  const modelCandidates = [
-    rawModel,
-    "agnes-2.0-flash",
-    "agnes-2.5-flash",
-    "agnes-2.5-pro-alpha"
-  ];
-  const uniqueModels = [...new Set(modelCandidates.filter(Boolean))];
 
-  let lastError = null;
+  const response = await fetch(url, {
+    method: "POST",
+    signal: AbortSignal.timeout(5000),
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: rawModel,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt }
+      ],
+      temperature: 0.7
+    })
+  });
 
-  for (const model of uniqueModels) {
-    try {
-      const response = await fetch(url, {
-        method: "POST",
-        signal: AbortSignal.timeout(8000),
-        headers: {
-          "Authorization": `Bearer ${apiKey}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          model: model,
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt }
-          ],
-          temperature: 0.7
-        })
-      });
-
-      if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(`(${response.status}): ${errText.substring(0, 180)}`);
-      }
-
-      const data = await response.json();
-      const choice = data.choices?.[0];
-      let rawText = choice?.message?.content;
-
-      if (Array.isArray(rawText)) {
-        rawText = rawText.map(item => item.text || item.content || "").join("\n");
-      } else if (!rawText && choice?.message?.reasoning_content) {
-        rawText = choice.message.reasoning_content;
-      }
-
-      const parsed = parseAIResponseJson(rawText);
-      if (parsed && parsed.length > 0) {
-        return { data: parsed, modelUsed: model };
-      }
-    } catch (err) {
-      lastError = err;
-    }
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`(${response.status}): ${errText.substring(0, 150)}`);
   }
 
-  throw lastError || new Error("Agnes AI call failed");
+  const data = await response.json();
+  const choice = data.choices?.[0];
+  let rawText = choice?.message?.content;
+
+  if (Array.isArray(rawText)) {
+    rawText = rawText.map(item => item.text || item.content || "").join("\n");
+  } else if (!rawText && choice?.message?.reasoning_content) {
+    rawText = choice.message.reasoning_content;
+  }
+
+  const parsed = parseAIResponseJson(rawText);
+  if (parsed && parsed.length > 0) {
+    return { data: parsed, modelUsed: rawModel };
+  }
+
+  throw new Error("Không thể phân tích định dạng JSON từ phản hồi Agnes AI.");
 }
 
 /**
