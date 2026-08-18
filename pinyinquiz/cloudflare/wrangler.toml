@@ -22,7 +22,7 @@ SHEET_TAB_NAME = "pinyin"
 GITHUB_REPO_OWNER = "naadld"
 GITHUB_REPO_NAME = "lele2vid"
 GITHUB_WORKFLOW_FILE = "daily_render.yml"
-AI_MODEL = "@cf/meta/llama-3.3-70b-instruct"
+AI_MODEL = "@cf/meta/llama-3.1-8b-instruct"
 
 # Secrets to be configured via `wrangler secret put <KEY>`:
 # - TELEGRAM_BOT_TOKEN

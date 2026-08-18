@@ -67,7 +67,34 @@ export default {
       }
     }
 
-    // 3. Manual Ideation API Endpoint (1 batch)
+    // 3. Debug AI Endpoint
+    if (url.pathname === "/api/debug-ai") {
+      const debugLogs = [];
+      const originalLog = console.log;
+      const originalWarn = console.warn;
+      console.log = (...args) => debugLogs.push("[LOG] " + args.join(" "));
+      console.warn = (...args) => debugLogs.push("[WARN] " + args.join(" "));
+
+      try {
+        const { generateBatchesWithMultiAI } = await import("./ai_ideation.js");
+        const res = await generateBatchesWithMultiAI(env, config, {}, 1);
+        console.log = originalLog;
+        console.warn = originalWarn;
+        return new Response(JSON.stringify({
+          geminiKeysCount: config.geminiApiKeys?.length || 0,
+          agnesKeysCount: config.agnesApiKeys?.length || 0,
+          provider: res.provider,
+          result: res,
+          logs: debugLogs
+        }, null, 2), { headers: { "Content-Type": "application/json" } });
+      } catch (err) {
+        console.log = originalLog;
+        console.warn = originalWarn;
+        return new Response(JSON.stringify({ error: err.message, stack: err.stack, logs: debugLogs }, null, 2), { status: 500, headers: { "Content-Type": "application/json" } });
+      }
+    }
+
+    // 4. Manual Ideation API Endpoint (1 batch)
     if (url.pathname === "/api/ideate" && request.method === "POST") {
       try {
         const result = await handleIdeateSingleBatch(env, config);
@@ -455,14 +482,21 @@ export async function handlePublishSingleBatch(env, config, source = "Manual") {
     facebook: publishRes.fbStatus
   });
 
+  const isYtOk = publishRes.youtubeStatus && publishRes.youtubeStatus.toLowerCase().startsWith("pub");
+  const isTtOk = publishRes.tiktokStatus && publishRes.tiktokStatus.toLowerCase().startsWith("pub");
+  const isFbOk = publishRes.fbStatus && publishRes.fbStatus.toLowerCase().startsWith("pub");
+
   return {
     success: true,
     batchId: batch.id,
     topic: batch.topic,
     finalStatus: publishRes.finalStatus,
-    isYtOk: publishRes.isYtOk,
-    isTtOk: publishRes.isTtOk,
-    isFbOk: publishRes.isFbOk,
+    isYtOk,
+    isTtOk,
+    isFbOk,
+    youtubeStatus: publishRes.youtubeStatus,
+    tiktokStatus: publishRes.tiktokStatus,
+    fbStatus: publishRes.fbStatus,
     results: publishRes.results,
     errors: publishRes.errors
   };

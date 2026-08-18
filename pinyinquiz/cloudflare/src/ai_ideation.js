@@ -2,9 +2,9 @@
  * Multi-AI Ideation Engine for LeLe Hoc Tieng Trung
  * 
  * Hierarchy:
- * 1. Google AI Studio (6 keys rotating with model fallback on 503 overload)
+ * 1. Google AI Studio (6 keys rotating with model fallback)
  * 2. Agnes AI (4 keys rotating, apihub.agnes-ai.com)
- * 3. Cloudflare Workers AI (@cf/meta/llama-3.3-70b-instruct)
+ * 3. Cloudflare Workers AI (@cf/meta/llama-3.1-8b-instruct)
  * 4. Built-in High-Quality HSK Vocab Bank (Zero-fail fallback)
  */
 
@@ -170,15 +170,14 @@ function parseAIResponseJson(rawText) {
 }
 
 /**
- * 1. Call Google AI Studio (Format mới: x-goog-api-key Header + system_instruction)
+ * 1. Call Google AI Studio
  */
 async function callGeminiAPI(apiKey, requestedModel, systemPrompt, userPrompt) {
   const modelCandidates = [
     requestedModel,
-    "gemini-flash-latest",
     "gemini-3.6-flash",
-    "gemini-2.0-flash",
-    "gemini-1.5-flash"
+    "gemini-3.5-flash",
+    "gemini-flash-latest"
   ].filter(Boolean);
 
   let lastError = null;
@@ -186,14 +185,13 @@ async function callGeminiAPI(apiKey, requestedModel, systemPrompt, userPrompt) {
   for (const model of modelCandidates) {
     try {
       const cleanModel = model.replace(/^models\//, "");
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent?key=${apiKey}`;
 
       const response = await fetch(url, {
         method: "POST",
-        signal: AbortSignal.timeout(5000),
+        signal: AbortSignal.timeout(6000),
         headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": apiKey
+          "Content-Type": "application/json"
         },
         body: JSON.stringify({
           system_instruction: {
@@ -290,7 +288,8 @@ async function callAgnesAPI(apiKey, baseUrl, requestedModel, systemPrompt, userP
 async function callCloudflareAI(env, model, systemPrompt, userPrompt) {
   if (!env.AI) return null;
 
-  const response = await env.AI.run(model || "@cf/meta/llama-3.3-70b-instruct", {
+  const cfModel = model || "@cf/meta/llama-3.1-8b-instruct";
+  const response = await env.AI.run(cfModel, {
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt }
@@ -364,11 +363,12 @@ export async function generateBatchesWithMultiAI(env, config, vocabHistory = {},
   // 3. Try Cloudflare Workers AI if Gemini and Agnes are unavailable
   if (!resultTopics && env.AI) {
     try {
-      console.log(`[AI-Pool] Trying Cloudflare Workers AI (${config.aiModel})...`);
-      const cfResult = await callCloudflareAI(env, config.aiModel, systemPrompt, userPrompt);
+      const cfModel = config.aiModel || "@cf/meta/llama-3.1-8b-instruct";
+      console.log(`[AI-Pool] Trying Cloudflare Workers AI (${cfModel})...`);
+      const cfResult = await callCloudflareAI(env, cfModel, systemPrompt, userPrompt);
       if (cfResult && Array.isArray(cfResult) && cfResult.length > 0) {
         resultTopics = cfResult.slice(0, count);
-        providerUsed = `Cloudflare Workers AI (${config.aiModel})`;
+        providerUsed = `Cloudflare Workers AI (${cfModel})`;
         console.log(`✨ Successfully generated with ${providerUsed}!`);
       }
     } catch (err) {
@@ -422,7 +422,7 @@ export function formatTopicsToSheetRows(topics, providerUsed, startId = 1) {
   topics.forEach((t, idx) => {
     const rowId = startId + idx;
     const meta = generateSocialMetadata(t.topic, t.level, t.words);
-    const metaJsonStr = JSON.stringify(meta);
+    const metaText = meta.formatted_text || "";
 
     // Format 5 words into "hanzi | pinyin | hidden_pinyin | meaning"
     const wordCols = [];
@@ -445,7 +445,7 @@ export function formatTopicsToSheetRows(topics, providerUsed, startId = 1) {
       wordCols[2] || "",              // Col G: Word 3
       wordCols[3] || "",              // Col H: Word 4
       wordCols[4] || "",              // Col I: Word 5
-      metaJsonStr,                    // Col J: Metadata
+      metaText,                       // Col J: Metadata (Clean formatted text)
       "",                             // Col K: Video (GDrive Link)
       "",                             // Col L: Youtube
       "",                             // Col M: Tiktok

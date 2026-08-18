@@ -56,6 +56,7 @@ export async function getBufferChannels(token, organizationId = "") {
         id
         name
         service
+        type
       }
     }
   `;
@@ -83,7 +84,7 @@ export async function getBufferChannels(token, organizationId = "") {
 /**
  * Publish video to a specific Buffer channel using GraphQL createPost mutation
  */
-export async function createBufferGraphQLPost(token, channelId, text, videoUrl = "") {
+export async function createBufferGraphQLPost(token, channelId, text, videoUrl = "", metadata = null) {
   const mutation = `
     mutation CreatePost($input: CreatePostInput!) {
       createPost(input: $input) {
@@ -93,6 +94,9 @@ export async function createBufferGraphQLPost(token, channelId, text, videoUrl =
             status
             channelId
           }
+        }
+        ... on MutationError {
+          message
         }
       }
     }
@@ -116,6 +120,10 @@ export async function createBufferGraphQLPost(token, channelId, text, videoUrl =
     ];
   }
 
+  if (metadata) {
+    inputPayload.metadata = metadata;
+  }
+
   const response = await fetch(BUFFER_GRAPHQL_ENDPOINT, {
     method: "POST",
     headers: {
@@ -133,7 +141,12 @@ export async function createBufferGraphQLPost(token, channelId, text, videoUrl =
     throw new Error(resData.errors.map(e => e.message).join(", "));
   }
 
-  return resData.data?.createPost;
+  const createPostResult = resData.data?.createPost;
+  if (createPostResult?.message) {
+    throw new Error(createPostResult.message);
+  }
+
+  return createPostResult;
 }
 
 /**
@@ -169,9 +182,9 @@ export async function publishBatchToBuffer(env, batch) {
 
   if (channels.length === 0) {
     channels = [
-      { id: "6a83de24ccaf649a67c8d55c", name: "Lê Lê học tiếng Trung", service: "facebook" },
-      { id: "6a83dc5bccaf649a67c8b30f", name: "lelehoctiengtrung", service: "tiktok" },
-      { id: "6a83dda0ccaf649a67c8cb92", name: "Lê Lê và Hán Ngữ", service: "youtube" }
+      { id: "6a83de24ccaf649a67c8d55c", name: "Lê Lê học tiếng Trung", service: "facebook", type: "page" },
+      { id: "6a83dc5bccaf649a67c8b30f", name: "lelehoctiengtrung", service: "tiktok", type: "account" },
+      { id: "6a83dda0ccaf649a67c8cb92", name: "Lê Lê và Hán Ngữ", service: "youtube", type: "channel" }
     ];
   }
 
@@ -192,19 +205,28 @@ export async function publishBatchToBuffer(env, batch) {
   for (const ch of channels) {
     const service = ch.service.toLowerCase();
 
-    // 1. YouTube
+    // 1. YouTube Shorts (Requires distinct title & categoryId: 27)
     if (service === "youtube") {
       if (isChannelPublished(youtubeStatus)) {
         console.log(`YouTube channel already published for #${batch.id}. Skipping.`);
         continue;
       }
       try {
-        const caption = `${meta.youtube.title}\n\n${meta.youtube.description}`;
-        await createBufferGraphQLPost(token, ch.id, caption, directVideoUrl);
+        const description = meta.youtube.description;
+        const ytMetadata = {
+          youtube: {
+            title: meta.youtube.title,
+            categoryId: "27", // Education category
+            privacy: "public",
+            madeForKids: false
+          }
+        };
+        await createBufferGraphQLPost(token, ch.id, description, directVideoUrl, ytMetadata);
         youtubeStatus = `Published (${nowStr})`;
         results.push({ channel: "YouTube", status: "success" });
       } catch (err) {
         console.error("YouTube Post Error:", err);
+        youtubeStatus = `Error: ${err.message.substring(0, 60)}`;
         errors.push({ channel: "YouTube", error: err.message });
       }
     }
@@ -217,16 +239,17 @@ export async function publishBatchToBuffer(env, batch) {
       }
       try {
         const caption = meta.tiktok.caption;
-        await createBufferGraphQLPost(token, ch.id, caption, directVideoUrl);
+        await createBufferGraphQLPost(token, ch.id, caption, directVideoUrl, null);
         tiktokStatus = `Published (${nowStr})`;
         results.push({ channel: "TikTok", status: "success" });
       } catch (err) {
         console.error("TikTok Post Error:", err);
+        tiktokStatus = `Error: ${err.message.substring(0, 60)}`;
         errors.push({ channel: "TikTok", error: err.message });
       }
     }
 
-    // 3. Facebook
+    // 3. Facebook Reels (Requires type: 'reel')
     else if (service === "facebook") {
       if (isChannelPublished(fbStatus)) {
         console.log(`Facebook channel already published for #${batch.id}. Skipping.`);
@@ -234,11 +257,17 @@ export async function publishBatchToBuffer(env, batch) {
       }
       try {
         const caption = meta.facebook.caption;
-        await createBufferGraphQLPost(token, ch.id, caption, directVideoUrl);
+        const fbMetadata = {
+          facebook: {
+            type: "reel"
+          }
+        };
+        await createBufferGraphQLPost(token, ch.id, caption, directVideoUrl, fbMetadata);
         fbStatus = `Published (${nowStr})`;
         results.push({ channel: "Facebook", status: "success" });
       } catch (err) {
         console.error("Facebook Post Error:", err);
+        fbStatus = `Error: ${err.message.substring(0, 60)}`;
         errors.push({ channel: "Facebook", error: err.message });
       }
     }
@@ -258,12 +287,8 @@ export async function publishBatchToBuffer(env, batch) {
     youtubeStatus,
     tiktokStatus,
     fbStatus,
-    isYtOk,
-    isTtOk,
-    isFbOk,
-    successCount: results.length,
-    errorCount: errors.length,
     results,
-    errors
+    errors,
+    fullyPublished: isYtOk && isTtOk && isFbOk
   };
 }

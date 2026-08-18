@@ -47,6 +47,6 @@ export function getConfig(env) {
     agnesModel: env.AGNES_MODEL || "agnes-2.0-flash",
 
     // 3. Cloudflare Workers AI (1 native)
-    aiModel: env.AI_MODEL || "@cf/meta/llama-3.3-70b-instruct"
+    aiModel: env.AI_MODEL || "@cf/meta/llama-3.1-8b-instruct"
   };
 }
