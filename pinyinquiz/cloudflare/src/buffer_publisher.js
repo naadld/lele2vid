@@ -3,12 +3,13 @@
  * Official Endpoint: https://api.buffer.com
  */
 
-import { generateSocialMetadata } from "./metadata_helper.js";
+import { generateSocialMetadata, getBatchMetadata } from "./metadata_helper.js";
 
 const BUFFER_GRAPHQL_ENDPOINT = "https://api.buffer.com";
 
 /**
- * Convert standard Google Drive view link to direct download link
+ * Convert standard Google Drive view link to direct streaming MP4 download link
+ * Using drive.usercontent.google.com which returns HTTP 200 with video/mp4
  */
 export function convertGDriveToDirectUrl(gdriveUrl) {
   if (!gdriveUrl || typeof gdriveUrl !== "string") return "";
@@ -16,7 +17,7 @@ export function convertGDriveToDirectUrl(gdriveUrl) {
   const match = gdriveUrl.match(/\/d\/([a-zA-Z0-9_-]+)/) || gdriveUrl.match(/id=([a-zA-Z0-9_-]+)/);
   if (match && match[1]) {
     const fileId = match[1];
-    return `https://drive.google.com/uc?export=download&id=${fileId}`;
+    return `https://drive.usercontent.google.com/download?id=${fileId}&export=download&authuser=0`;
   }
   return gdriveUrl;
 }
@@ -188,11 +189,11 @@ export async function publishBatchToBuffer(env, batch) {
     ];
   }
 
-  const meta = generateSocialMetadata(batch.topic, batch.level, batch.words);
+  const meta = getBatchMetadata(batch.metadata, batch.topic, batch.level, batch.words);
   const directVideoUrl = convertGDriveToDirectUrl(batch.videoUrl);
   const nowStr = new Date().toISOString().substring(0, 16).replace("T", " ");
 
-  console.log(`Publishing Batch #${batch.id} (${batch.topic})...`);
+  console.log(`Publishing Batch #${batch.id} (${batch.topic}) - Video: ${directVideoUrl ? "YES" : "NO"}...`);
 
   // Existing statuses
   let youtubeStatus = batch.youtube || "";

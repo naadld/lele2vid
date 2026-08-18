@@ -161,27 +161,26 @@ def run_batch_job(from_sheet: bool = True, target_id: str = None, sample: bool =
                 except Exception as ue:
                     logger.error(f"GDrive upload error: {ue}")
 
-            # Ensure metadata exists & uploaded
-            metadata_link = batch.get("metadata", "")
-            if not metadata_link:
+            # Ensure metadata exists directly as formatted text in Column J
+            metadata_text = batch.get("metadata", "")
+            if not metadata_text or metadata_text.startswith("http") or not "=== 1. YOUTUBE SHORTS ===" in metadata_text:
                 try:
-                    metadata_link = save_and_upload_metadata(
+                    metadata_text = save_and_upload_metadata(
                         batch_id=str(row_id),
                         topic=topic,
                         level=level,
-                        words=words,
-                        gdrive_uploader=gdrive_uploader
+                        words=words
                     )
                 except Exception as me:
                     logger.error(f"Metadata generation error: {me}")
 
             if gsheet_mgr and row_index > 0:
-                # Update status to 'Video', Video column to GDrive link, metadata to metadata link
+                # Update status to 'Video', Video column to GDrive link, metadata directly into cell
                 gsheet_mgr.update_batch_status(
                     row_index=row_index,
                     status="Video",
                     video_link=gdrive_link,
-                    metadata_link=metadata_link
+                    metadata_link=metadata_text
                 )
 
             # Send video directly to Telegram bot chat with moderation buttons

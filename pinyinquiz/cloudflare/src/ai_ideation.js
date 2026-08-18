@@ -2,16 +2,16 @@
  * Multi-AI Ideation Engine for LeLe Hoc Tieng Trung
  * 
  * Hierarchy:
- * 1. Google AI Studio (6 keys rotating with model fallback)
- * 2. Agnes AI (4 keys rotating, apihub.agnes-ai.com)
- * 3. Cloudflare Workers AI (@cf/meta/llama-3.1-8b-instruct)
+ * 1. Google AI Studio (6 keys rotating with model fallback: gemini-2.5-flash, gemini-2.0-flash, gemini-1.5-flash)
+ * 2. Agnes AI (4 keys rotating: gpt-4o-mini, gemini-2.5-flash, deepseek-chat)
+ * 3. Cloudflare Workers AI (@cf/meta/llama-3.3-70b-instruct, @cf/meta/llama-3.1-8b-instruct, @cf/qwen/qwen2.5-72b-instruct)
  * 4. Built-in High-Quality HSK Vocab Bank (Zero-fail fallback)
  */
 
 import { generateHiddenPinyin } from "./pinyin_helper.js";
 import { generateSocialMetadata } from "./metadata_helper.js";
 
-// Built-in verified HSK 1-2 curated topics bank
+// Built-in verified HSK 1-2 curated topics bank (Fallback)
 const BUILTIN_VOCAB_BANK = [
   {
     topic: "HSK 1 • Đồ Ăn Quen Thuộc",
@@ -136,53 +136,83 @@ CẤU TRÚC JSON MẪU:
 ]`;
 }
 
-function parseAIResponseJson(rawText) {
+/**
+ * Universal JSON response parser with multi-format normalization
+ */
+export function parseAIResponseJson(rawText) {
   if (!rawText) return null;
   let text = String(rawText).trim();
-  // Strip markdown ```json ... ```
-  text = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
-  
-  let parsed = null;
+
+  // Strip markdown code fences
+  text = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+
+  const normalizeResult = (obj) => {
+    if (!obj) return null;
+    if (Array.isArray(obj)) {
+      return obj.filter(item => item && (item.words || item.topic));
+    }
+    if (typeof obj === "object") {
+      if (Array.isArray(obj.topics)) return obj.topics;
+      if (Array.isArray(obj.batches)) return obj.batches;
+      if (Array.isArray(obj.data)) return obj.data;
+      if (Array.isArray(obj.results)) return obj.results;
+      if (Array.isArray(obj.words) || obj.topic) return [obj];
+      const values = Object.values(obj);
+      if (values.length > 0 && values.some(v => v && (v.words || v.topic))) {
+        return values.filter(v => v && (v.words || v.topic));
+      }
+    }
+    return null;
+  };
+
+  // 1. Direct parse
+  try {
+    const direct = JSON.parse(text);
+    const normalized = normalizeResult(direct);
+    if (normalized && normalized.length > 0) return normalized;
+  } catch (e) {}
+
+  // 2. Extract JSON Array [ ... ]
   try {
     const arrayMatch = text.match(/\[\s*\{[\s\S]*\}\s*\]/);
     if (arrayMatch) {
-      parsed = JSON.parse(arrayMatch[0]);
-    } else {
-      const objMatch = text.match(/\{[\s\S]*\}/);
-      if (objMatch) {
-        parsed = [JSON.parse(objMatch[0])];
-      } else {
-        parsed = JSON.parse(text);
-      }
+      const arr = JSON.parse(arrayMatch[0]);
+      const normalized = normalizeResult(arr);
+      if (normalized && normalized.length > 0) return normalized;
     }
-  } catch (err) {
-    try {
-      parsed = JSON.parse(text);
-    } catch (e) {
-      return null;
-    }
-  }
+  } catch (e) {}
 
-  if (parsed && !Array.isArray(parsed)) {
-    parsed = [parsed];
-  }
-  return parsed;
+  // 3. Extract JSON Object { ... }
+  try {
+    const objMatch = text.match(/\{[\s\S]*\}/);
+    if (objMatch) {
+      const obj = JSON.parse(objMatch[0]);
+      const normalized = normalizeResult(obj);
+      if (normalized && normalized.length > 0) return normalized;
+    }
+  } catch (e) {}
+
+  return null;
 }
 
 /**
- * 1. Call Google AI Studio
+ * 1. Call Google AI Studio (Gemini v1beta REST API)
+ * Fully compatible with Gemini 2.5 / 2.0 / 1.5 Flash models and multi-part / thinking responses.
  */
 async function callGeminiAPI(apiKey, requestedModel, systemPrompt, userPrompt) {
+  const rawModel = (requestedModel || "gemini-3.6-flash").trim();
   const modelCandidates = [
-    requestedModel,
+    rawModel,
     "gemini-3.6-flash",
     "gemini-3.5-flash",
-    "gemini-flash-latest"
-  ].filter(Boolean);
+    "gemini-3.5-flash-lite",
+    "gemini-2.5-flash"
+  ];
+  const uniqueModels = [...new Set(modelCandidates.filter(Boolean))];
 
   let lastError = null;
 
-  for (const model of modelCandidates) {
+  for (const model of uniqueModels) {
     try {
       const cleanModel = model.replace(/^models\//, "");
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent?key=${apiKey}`;
@@ -194,7 +224,7 @@ async function callGeminiAPI(apiKey, requestedModel, systemPrompt, userPrompt) {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          system_instruction: {
+          systemInstruction: {
             parts: [{ text: systemPrompt }]
           },
           contents: [
@@ -212,17 +242,35 @@ async function callGeminiAPI(apiKey, requestedModel, systemPrompt, userPrompt) {
 
       if (!response.ok) {
         const errText = await response.text();
-        throw new Error(`(${response.status}): ${errText.substring(0, 150)}`);
+        const err = new Error(`[Model: ${cleanModel}] (${response.status}): ${errText.substring(0, 180)}`);
+        // If quota exceeded (429) or invalid key/location error (400), don't waste time trying other sub-models on this same key
+        if (response.status === 429 || (response.status === 400 && !errText.includes("not found"))) {
+          throw err;
+        }
+        lastError = err;
+        continue;
       }
 
       const data = await response.json();
-      const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      const candidate = data.candidates?.[0];
+      const parts = candidate?.content?.parts || [];
+
+      // Separate actual content from thinking parts in Gemini 2.5 / 2.0 / 3.x
+      const textParts = parts.filter(p => !p.thought && p.text).map(p => p.text);
+      const rawText = textParts.length > 0 
+        ? textParts.join("\n") 
+        : parts.map(p => p.text || "").join("\n");
+
       const parsed = parseAIResponseJson(rawText);
       if (parsed && parsed.length > 0) {
         return { data: parsed, modelUsed: cleanModel };
       }
     } catch (err) {
+      console.warn(`[Gemini Sub-Candidate] ${err.message}`);
       lastError = err;
+      if (err.message.includes("429") || err.message.includes("User location") || err.message.includes("API key not valid")) {
+        break; // Rotate to next key immediately
+      }
     }
   }
 
@@ -230,25 +278,28 @@ async function callGeminiAPI(apiKey, requestedModel, systemPrompt, userPrompt) {
 }
 
 /**
- * 2. Call Agnes AI (apihub.agnes-ai.com)
+ * 2. Call Agnes AI (apihub.agnes-ai.com / OpenAI-compatible API Gateway)
  */
 async function callAgnesAPI(apiKey, baseUrl, requestedModel, systemPrompt, userPrompt) {
   const cleanBase = (baseUrl || "https://apihub.agnes-ai.com/v1").replace(/\/+$/, "");
   const url = `${cleanBase}/chat/completions`;
 
+  const rawModel = (requestedModel || "agnes-2.0-flash").trim();
   const modelCandidates = [
-    requestedModel,
+    rawModel,
     "agnes-2.0-flash",
-    "agnes-2.5-flash"
-  ].filter(Boolean);
+    "agnes-2.5-flash",
+    "agnes-2.5-pro-alpha"
+  ];
+  const uniqueModels = [...new Set(modelCandidates.filter(Boolean))];
 
   let lastError = null;
 
-  for (const model of modelCandidates) {
+  for (const model of uniqueModels) {
     try {
       const response = await fetch(url, {
         method: "POST",
-        signal: AbortSignal.timeout(5000),
+        signal: AbortSignal.timeout(8000),
         headers: {
           "Authorization": `Bearer ${apiKey}`,
           "Content-Type": "application/json"
@@ -265,11 +316,19 @@ async function callAgnesAPI(apiKey, baseUrl, requestedModel, systemPrompt, userP
 
       if (!response.ok) {
         const errText = await response.text();
-        throw new Error(`(${response.status}): ${errText.substring(0, 150)}`);
+        throw new Error(`(${response.status}): ${errText.substring(0, 180)}`);
       }
 
       const data = await response.json();
-      const rawText = data.choices?.[0]?.message?.content;
+      const choice = data.choices?.[0];
+      let rawText = choice?.message?.content;
+
+      if (Array.isArray(rawText)) {
+        rawText = rawText.map(item => item.text || item.content || "").join("\n");
+      } else if (!rawText && choice?.message?.reasoning_content) {
+        rawText = choice.message.reasoning_content;
+      }
+
       const parsed = parseAIResponseJson(rawText);
       if (parsed && parsed.length > 0) {
         return { data: parsed, modelUsed: model };
@@ -283,31 +342,63 @@ async function callAgnesAPI(apiKey, baseUrl, requestedModel, systemPrompt, userP
 }
 
 /**
- * 3. Call Cloudflare Workers AI
+ * 3. Call Cloudflare Workers AI (Native binding)
  */
 async function callCloudflareAI(env, model, systemPrompt, userPrompt) {
   if (!env.AI) return null;
 
-  const cfModel = model || "@cf/meta/llama-3.1-8b-instruct";
-  const response = await env.AI.run(cfModel, {
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt }
-    ],
-    temperature: 0.7,
-    max_tokens: 2048
-  });
+  const rawModel = (model || "@cf/meta/llama-3.3-70b-instruct").trim();
+  const modelCandidates = [
+    rawModel,
+    "@cf/meta/llama-3.3-70b-instruct",
+    "@cf/meta/llama-3.1-8b-instruct",
+    "@cf/qwen/qwen2.5-72b-instruct",
+    "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b"
+  ];
+  const uniqueModels = [...new Set(modelCandidates.filter(Boolean))];
 
-  let rawOutput = response.response || response.result || "";
-  if (typeof rawOutput !== "string") {
-    rawOutput = JSON.stringify(rawOutput);
+  for (const cfModel of uniqueModels) {
+    try {
+      console.log(`[AI-Pool] Trying Cloudflare Workers AI with model: ${cfModel}`);
+      const response = await env.AI.run(cfModel, {
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt }
+        ],
+        temperature: 0.7,
+        max_tokens: 2048
+      });
+
+      let rawOutput = "";
+      if (typeof response === "string") {
+        rawOutput = response;
+      } else if (response?.response) {
+        rawOutput = response.response;
+      } else if (response?.result?.response) {
+        rawOutput = response.result.response;
+      } else if (response?.choices?.[0]?.message?.content) {
+        rawOutput = response.choices[0].message.content;
+      } else if (response?.text) {
+        rawOutput = response.text;
+      } else {
+        rawOutput = JSON.stringify(response);
+      }
+
+      const parsed = parseAIResponseJson(rawOutput);
+      if (parsed && parsed.length > 0) {
+        return { data: parsed, modelUsed: cfModel };
+      }
+    } catch (err) {
+      console.warn(`⚠️ Cloudflare Workers AI (${cfModel}) failed: ${err.message}`);
+    }
   }
-  return parseAIResponseJson(rawOutput);
+
+  return null;
 }
 
 /**
  * Multi-Provider Key Rotation & Failover Orchestrator
- * (6 Google AI Studio + 4 Agnes AI + 1 Cloudflare AI + Vocab Bank)
+ * (Google AI Studio + Agnes AI + Cloudflare Workers AI + Curated Vocab Bank)
  */
 export async function generateBatchesWithMultiAI(env, config, vocabHistory = {}, count = 1) {
   const systemPrompt = buildSystemPrompt(vocabHistory, count);
@@ -316,7 +407,7 @@ export async function generateBatchesWithMultiAI(env, config, vocabHistory = {},
   let resultTopics = null;
   let providerUsed = "Fallback VOCAB_BANK";
 
-  // 1. Try Google AI Studio Keys (6 keys rotating)
+  // 1. Try Google AI Studio Keys (Rotating pool)
   if (config.geminiApiKeys && config.geminiApiKeys.length > 0) {
     const shuffledGeminiKeys = [...config.geminiApiKeys].sort(() => 0.5 - Math.random());
     
@@ -338,7 +429,7 @@ export async function generateBatchesWithMultiAI(env, config, vocabHistory = {},
     }
   }
 
-  // 2. Try Agnes AI Keys (4 keys rotating) if Gemini not successful
+  // 2. Try Agnes AI Keys if Gemini not successful
   if (!resultTopics && config.agnesApiKeys && config.agnesApiKeys.length > 0) {
     const shuffledAgnesKeys = [...config.agnesApiKeys].sort(() => 0.5 - Math.random());
 
@@ -361,14 +452,13 @@ export async function generateBatchesWithMultiAI(env, config, vocabHistory = {},
   }
 
   // 3. Try Cloudflare Workers AI if Gemini and Agnes are unavailable
-  if (!resultTopics && env.AI) {
+  if (!resultTopics && env && env.AI) {
     try {
-      const cfModel = config.aiModel || "@cf/meta/llama-3.1-8b-instruct";
-      console.log(`[AI-Pool] Trying Cloudflare Workers AI (${cfModel})...`);
-      const cfResult = await callCloudflareAI(env, cfModel, systemPrompt, userPrompt);
-      if (cfResult && Array.isArray(cfResult) && cfResult.length > 0) {
-        resultTopics = cfResult.slice(0, count);
-        providerUsed = `Cloudflare Workers AI (${cfModel})`;
+      const cfModel = config.aiModel || "@cf/meta/llama-3.3-70b-instruct";
+      const cfRes = await callCloudflareAI(env, cfModel, systemPrompt, userPrompt);
+      if (cfRes && Array.isArray(cfRes.data) && cfRes.data.length > 0) {
+        resultTopics = cfRes.data.slice(0, count);
+        providerUsed = `Cloudflare Workers AI (${cfRes.modelUsed})`;
         console.log(`✨ Successfully generated with ${providerUsed}!`);
       }
     } catch (err) {
@@ -386,10 +476,11 @@ export async function generateBatchesWithMultiAI(env, config, vocabHistory = {},
 
   // Auto-enrich each word with hidden_pinyin
   const enrichedTopics = resultTopics.map(topicItem => {
-    const words = (topicItem.words || []).map(w => {
-      const hanzi = w.hanzi || "";
-      const pinyin = w.pinyin || "";
-      const meaning = w.meaning || "";
+    const rawWords = topicItem.words || [];
+    const words = rawWords.map(w => {
+      const hanzi = (w.hanzi || "").trim();
+      const pinyin = (w.pinyin || "").trim();
+      const meaning = (w.meaning || "").trim();
       const hidden_pinyin = w.hidden_pinyin || generateHiddenPinyin(pinyin);
       return {
         hanzi,

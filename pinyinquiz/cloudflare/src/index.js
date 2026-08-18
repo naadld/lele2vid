@@ -21,9 +21,9 @@
 import { getConfig } from "./config.js";
 import { GoogleSheetsClient } from "./google_sheets.js";
 import { generateBatchesWithMultiAI, formatTopicsToSheetRows } from "./ai_ideation.js";
-import { triggerGitHubRenderWorkflow } from "./github_trigger.js";
+import { triggerGitHubRenderWorkflow, triggerGitHubQCWorkflow } from "./github_trigger.js";
 import { publishBatchToBuffer } from "./buffer_publisher.js";
-import { sendTelegramMessage, answerTelegramCallback, editTelegramMessageCaption, getHelpMessage } from "./telegram.js";
+import { sendTelegramMessage, answerTelegramCallback, editTelegramMessageCaption, editTelegramMessageText, getHelpMessage } from "./telegram.js";
 
 export default {
   /**
@@ -94,6 +94,94 @@ export default {
       }
     }
 
+    // 3b. Dedicated Gemini Test Endpoint
+    if (url.pathname === "/api/test-gemini") {
+      const geminiKeys = config.geminiApiKeys || [];
+      const testModels = [
+        config.geminiModel,
+        "gemini-2.5-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-3.5-flash",
+        "gemini-2.5-pro",
+        "gemini-1.5-flash"
+      ].filter(Boolean);
+      const uniqueModels = [...new Set(testModels)];
+
+      const results = [];
+
+      for (let i = 0; i < geminiKeys.length; i++) {
+        const key = geminiKeys[i];
+        const keyMasked = `${key.substring(0, 8)}...${key.substring(key.length - 4)}`;
+        const keyResult = { keyIndex: i + 1, key: keyMasked, availableModels: [], modelTests: [] };
+
+        // 1. Query available models list from Google
+        try {
+          const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
+          if (listRes.ok) {
+            const listData = await listRes.json();
+            keyResult.availableModels = (listData.models || [])
+              .filter(m => m.supportedGenerationMethods?.includes("generateContent"))
+              .map(m => m.name.replace("models/", ""));
+          } else {
+            const errText = await listRes.text();
+            keyResult.listModelsError = `(${listRes.status}): ${errText.substring(0, 150)}`;
+          }
+        } catch (err) {
+          keyResult.listModelsError = err.message;
+        }
+
+        // 2. Test generateContent on candidate models
+        for (const m of uniqueModels) {
+          const cleanModel = m.replace(/^models\//, "");
+          const testUrl = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent?key=${key}`;
+          try {
+            const genRes = await fetch(testUrl, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                systemInstruction: { parts: [{ text: "Bạn là chuyên gia tiếng Trung." }] },
+                contents: [{ role: "user", parts: [{ text: "Tạo 1 bộ từ vựng HSK 1 gồm 5 từ dạng JSON chuẩn: [{\"topic\": \"HSK 1 • Đồ Ăn\", \"level\": \"HSK 1\", \"words\": [{\"hanzi\": \"米饭\", \"pinyin\": \"mǐ fàn\", \"meaning\": \"Cơm\"}]}]" }] }],
+                generationConfig: { temperature: 0.7, responseMimeType: "application/json" }
+              })
+            });
+
+            if (genRes.ok) {
+              const genData = await genRes.json();
+              const parts = genRes.ok ? (genData.candidates?.[0]?.content?.parts || []) : [];
+              const nonThought = parts.filter(p => !p.thought && p.text).map(p => p.text).join("");
+              keyResult.modelTests.push({
+                model: cleanModel,
+                status: genRes.status,
+                success: true,
+                outputPreview: nonThought.substring(0, 200) || (parts[0]?.text || "").substring(0, 200)
+              });
+              break; // Found working model for this key
+            } else {
+              const errBody = await genRes.text();
+              keyResult.modelTests.push({
+                model: cleanModel,
+                status: genRes.status,
+                success: false,
+                error: errBody.substring(0, 200)
+              });
+            }
+          } catch (err) {
+            keyResult.modelTests.push({
+              model: cleanModel,
+              success: false,
+              error: err.message
+            });
+          }
+        }
+
+        results.push(keyResult);
+      }
+
+      return new Response(JSON.stringify({ geminiKeysCount: geminiKeys.length, results }, null, 2), {
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+
     // 4. Manual Ideation API Endpoint (1 batch)
     if (url.pathname === "/api/ideate" && request.method === "POST") {
       try {
@@ -103,6 +191,58 @@ export default {
         });
       } catch (err) {
         return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+      }
+    }
+
+    // 4b. Preview Publish Payload Endpoint
+    if (url.pathname === "/api/test-publish-preview") {
+      try {
+        const gsheet = new GoogleSheetsClient(
+          config.gcpClientEmail,
+          config.gcpPrivateKey,
+          config.spreadsheetId,
+          config.sheetTabName
+        );
+        const { getBatchMetadata } = await import("./metadata_helper.js");
+        const { convertGDriveToDirectUrl, getBufferChannels } = await import("./buffer_publisher.js");
+
+        const allRows = await gsheet.getSheetValues(`${config.sheetTabName}!A1:P5`);
+        const sampleRow = allRows[1] || [];
+        const words = [];
+        for (let wIdx = 4; wIdx <= 8; wIdx++) {
+          const wVal = sampleRow[wIdx] || "";
+          if (wVal) {
+            const parts = wVal.split("|").map(s => s.trim());
+            words.push({ hanzi: parts[0] || "", pinyin: parts[1] || "", hidden_pinyin: parts[2] || "", meaning: parts[3] || parts[0] || "" });
+          }
+        }
+
+        const topic = sampleRow[1] || "HSK 1 • Mẫu";
+        const level = sampleRow[2] || "HSK 1";
+        const metadataCell = sampleRow[9] || "";
+        const rawVideoUrl = sampleRow[10] || "";
+        const directVideoUrl = convertGDriveToDirectUrl(rawVideoUrl);
+        const meta = getBatchMetadata(metadataCell, topic, level, words);
+
+        let channels = [];
+        try {
+          channels = await getBufferChannels(config.bufferAccessToken || env.BUFFER_ACCESS_TOKEN || "Bhk_Gab-6Gm44FiruBCtoLJlV7SsuaZmVcTl3pDYRmo");
+        } catch (e) {
+          channels = [{ error: e.message }];
+        }
+
+        return new Response(JSON.stringify({
+          batchId: sampleRow[0],
+          topic,
+          level,
+          rawVideoUrl,
+          directVideoUrl,
+          metaFromCell: Boolean(metadataCell && metadataCell.includes("=== 1. YOUTUBE SHORTS ===")),
+          parsedMetadata: meta,
+          bufferChannels: channels
+        }, null, 2), { headers: { "Content-Type": "application/json" } });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message, stack: err.stack }), { status: 500, headers: { "Content-Type": "application/json" } });
       }
     }
 
@@ -240,8 +380,39 @@ async function handleTelegramUpdate(update, env, config) {
       statusLabel = "⏸️ ĐÃ HỦY (Giữ nguyên trạng thái Video)";
       alertText = `Đã giữ nguyên trạng thái Video #${rowId} (chưa duyệt).`;
     }
+    // 🎬 Render Ngay từ nút /ideate
+    else if (action === "render_ideate") {
+      alertText = `Đang kích hoạt Render Video #${rowId}...`;
+      await answerTelegramCallback(botToken, cbId, alertText, false);
+      const ghRes = await triggerGitHubRenderWorkflow(env);
+      if (chatId && msgId) {
+        const updatedText = (
+          `🎬 <b>[Đã Kích Hoạt Render Video] #${rowId}: ${rowInfo.topic}</b>\n\n` +
+          `📊 <b>Trạng thái:</b> <code>Pending ➔ In Progress</code>\n` +
+          `🚀 <b>GitHub Actions:</b> ${ghRes.success ? "✅ Đã kích hoạt workflow" : "⚠️ " + ghRes.error}\n` +
+          `🕒 <i>Khi render xong và lưu vào GDrive, bot sẽ tự động gửi video kèm các nút kiểm duyệt (Approve / Reset / Delete) để bạn duyệt!</i>`
+        );
+        await editTelegramMessageText(botToken, chatId, msgId, updatedText, { inline_keyboard: [] });
+      }
+      return;
+    }
+    // ❌ Cancel từ nút /ideate
+    else if (action === "cancel_ideate") {
+      alertText = `Đã hủy ý tưởng #${rowId}.`;
+      await gsheet.deleteBatchRow(rowInfo.rowNumber);
+      await answerTelegramCallback(botToken, cbId, alertText, false);
+      if (chatId && msgId) {
+        const updatedText = (
+          `❌ <b>[Đã Hủy Ý Tưởng] #${rowId}: ${rowInfo.topic}</b>\n\n` +
+          `📊 <b>Trạng thái:</b> <code>Đã xóa khỏi hàng đợi (Deleted)</code>\n` +
+          `🕒 <i>Cập nhật lúc: ${new Date().toISOString().substring(0, 16).replace("T", " ")}</i>`
+        );
+        await editTelegramMessageText(botToken, chatId, msgId, updatedText, { inline_keyboard: [] });
+      }
+      return;
+    }
 
-    // Answer callback popup
+    // Answer callback popup for moderation buttons
     await answerTelegramCallback(botToken, cbId, alertText, false);
 
     // Update message caption to reflect decision
@@ -285,13 +456,25 @@ async function handleTelegramUpdate(update, env, config) {
 
     try {
       const res = await handleIdeateSingleBatch(env, config);
-      const msg = `🎉 <b>Đã Tạo 1 Bộ Ý Tưởng Mới!</b>\n\n` +
-        `🆔 <b>ID Dòng:</b> #${res.rowId}\n` +
-        `📌 <b>Chủ đề:</b> ${res.topic} (${res.level})\n` +
-        `🤖 <b>AI Sử Dụng:</b> ${res.provider}\n` +
+      const wordListText = (res.words || []).map((w, i) => `${i + 1}. <b>${w.hanzi}</b> (<code>${w.pinyin}</code>): ${w.meaning}`).join("\n");
+      const msg = `🎉 <b>ĐÃ TẠO 1 BỘ Ý TƯỞNG MỚI!</b>\n\n` +
+        `🆔 <b>ID Dòng:</b> <code>#${res.rowId}</code>\n` +
+        `📌 <b>Chủ đề:</b> <b>${res.topic}</b> (<code>${res.level}</code>)\n` +
+        `🤖 <b>AI Sử Dụng:</b> <code>${res.provider}</code>\n` +
         `📊 <b>Trạng thái:</b> <code>Pending</code>\n\n` +
-        `<i>Dòng đã được thêm vào Google Sheet. Gõ <code>/render</code> khi bạn muốn tạo video!</i>`;
-      await sendTelegramMessage(botToken, chatId, msg);
+        `📚 <b>Danh sách từ vựng:</b>\n${wordListText}\n\n` +
+        `👇 <i>Vui lòng chọn thao tác tiếp theo:</i>`;
+
+      const replyMarkup = {
+        inline_keyboard: [
+          [
+            { text: "🎬 Render", callback_data: `render_ideate:${res.rowId}` },
+            { text: "❌ Cancel", callback_data: `cancel_ideate:${res.rowId}` }
+          ]
+        ]
+      };
+
+      await sendTelegramMessage(botToken, chatId, msg, { reply_markup: replyMarkup });
     } catch (err) {
       await sendTelegramMessage(
         botToken,
@@ -324,6 +507,33 @@ async function handleTelegramUpdate(update, env, config) {
         botToken,
         chatId,
         `❌ <b>Lỗi kích hoạt GitHub Action:</b>\n<code>${err.message}</code>`
+      );
+    }
+    return;
+  }
+
+  // 3b. /qc: Kích hoạt Auto-QC Gatekeeper kiểm tra tất cả dòng "Video" -> "Ready"
+  if (command === "/qc" || command === "/autoqc") {
+    await sendTelegramMessage(
+      botToken,
+      chatId,
+      `⏳ <b>Đang kích hoạt Auto-QC Gatekeeper trên GitHub Actions...</b>\n<i>(Kiểm tra chữ Giản thể, bố cục tràn khung & âm thanh của các video chưa duyệt)</i>`
+    );
+
+    try {
+      const ghRes = await triggerGitHubQCWorkflow(env);
+      await sendTelegramMessage(
+        botToken,
+        chatId,
+        `✅ <b>Kích Hoạt Auto-QC Thành Công!</b>\n\n` +
+        `🚀 <b>Tiến trình:</b> ${ghRes.message}\n` +
+        `<i>Hệ thống sẽ tải các video 'Video', mổ xẻ kiểm tra và tự động đổi sang 'Ready' (nếu đạt) hoặc 'Pending' (nếu lỗi). Kết quả chi tiết sẽ báo về bot!</i>`
+      );
+    } catch (err) {
+      await sendTelegramMessage(
+        botToken,
+        chatId,
+        `❌ <b>Lỗi kích hoạt Auto-QC:</b>\n<code>${err.message}</code>`
       );
     }
     return;
@@ -420,9 +630,16 @@ export async function handleIdeateSingleBatch(env, config) {
   );
 
   // 1. Get vocabulary history for smart anti-duplication
-  const vocabHistory = await gsheet.getVocabHistory();
-  const allRows = await gsheet.getSheetValues(`${config.sheetTabName}!A2:A500`);
-  const currentMaxId = allRows.length;
+  let vocabHistory = {};
+  let currentMaxId = 0;
+
+  try {
+    vocabHistory = await gsheet.getVocabHistory();
+    const allRows = await gsheet.getSheetValues(`${config.sheetTabName}!A2:A500`);
+    currentMaxId = allRows.length;
+  } catch (e) {
+    console.warn(`[GSheet Warning] Could not fetch sheet history (${e.message}). Proceeding with empty history.`);
+  }
 
   // 2. Generate 1 topic via Multi-AI rotation (count = 1)
   const { topics: generatedTopics, provider: providerUsed } = await generateBatchesWithMultiAI(
@@ -442,6 +659,7 @@ export async function handleIdeateSingleBatch(env, config) {
     rowId: currentMaxId + 1,
     topic: topicObj.topic || `Chủ Đề #${currentMaxId + 1}`,
     level: topicObj.level || "HSK 1-2",
+    words: topicObj.words || [],
     provider: providerUsed
   };
 }

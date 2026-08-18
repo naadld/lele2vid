@@ -114,6 +114,13 @@ Caption & Hashtags:
         "formatted_text": full_text
     }
 
+def get_formatted_metadata_text(topic: str, level: str, words: List[Dict[str, str]]) -> str:
+    """
+    Generate clean, standardized social media metadata directly for Google Sheet Cell.
+    """
+    meta_dict = generate_social_metadata(topic, level, words)
+    return meta_dict["formatted_text"]
+
 def save_and_upload_metadata(
     batch_id: str,
     topic: str,
@@ -122,32 +129,7 @@ def save_and_upload_metadata(
     gdrive_uploader = None
 ) -> str:
     """
-    Generate metadata, save local text file, and upload to Google Drive if uploader available.
-    Returns Google Drive URL or local file path.
+    Backward-compatible helper: Returns formatted metadata text directly for cell storage.
     """
-    meta_dict = generate_social_metadata(topic, level, words)
-    raw_text = meta_dict["formatted_text"]
-    
-    # Save local copy in output/metadata/
-    meta_dir = os.path.join(config.base_dir, "output", "metadata")
-    os.makedirs(meta_dir, exist_ok=True)
-    
-    clean_topic = sanitize_filename(topic)
-    filename = f"#{batch_id}.{clean_topic}_metadata.txt"
-    file_path = os.path.join(meta_dir, filename)
-    
-    with open(file_path, "w", encoding="utf-8") as f:
-        f.write(raw_text)
-    logger.info(f"Saved local metadata file: {file_path}")
-    
-    # Upload to Google Drive
-    if gdrive_uploader:
-        try:
-            drive_url = gdrive_uploader.upload_file(file_path, filename)
-            if drive_url:
-                logger.info(f"Uploaded metadata to GDrive: {drive_url}")
-                return drive_url
-        except Exception as e:
-            logger.error(f"Failed to upload metadata to GDrive: {e}")
-            
-    return file_path
+    return get_formatted_metadata_text(topic, level, words)
+

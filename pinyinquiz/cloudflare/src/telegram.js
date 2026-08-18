@@ -122,6 +122,54 @@ export async function editTelegramMessageCaption(botToken, chatId, messageId, ca
 }
 
 /**
+ * Edit Telegram Message Text
+ */
+export async function editTelegramMessageText(botToken, chatId, messageId, text, replyMarkup = null) {
+  if (!botToken || !chatId || !messageId) return null;
+
+  const url = `https://api.telegram.org/bot${botToken}/editMessageText`;
+  const body = {
+    chat_id: chatId,
+    message_id: messageId,
+    text: text,
+    parse_mode: "HTML",
+    disable_web_page_preview: true
+  };
+
+  if (replyMarkup !== null) {
+    body.reply_markup = replyMarkup;
+  }
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (!data.ok && data.description && data.description.includes("parse entities")) {
+      const plainText = text.replace(/<[^>]*>/g, "");
+      const retryRes = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: chatId,
+          message_id: messageId,
+          text: plainText,
+          disable_web_page_preview: true,
+          reply_markup: replyMarkup !== null ? replyMarkup : undefined
+        })
+      });
+      return await retryRes.json();
+    }
+    return data;
+  } catch (err) {
+    console.error("Failed to edit message text:", err);
+    return null;
+  }
+}
+
+/**
  * Build help / start menu message
  */
 export function getHelpMessage() {
@@ -131,10 +179,13 @@ export function getHelpMessage() {
 💡 <b>DANH SÁCH LỆNH ĐIỀU KHIỂN:</b>
 ━━━━━━━━━━━━━━━━━━━━━
 🔹 <code>/ideate</code>:
-   👉 Tạo <b>1 bộ ý tưởng mới</b> (1 dòng) với trạng thái <b>Pending</b>.
+   👉 Tạo <b>1 bộ ý tưởng mới</b> (1 dòng) với trạng thái <b>Pending</b> (kèm nút Render / Cancel).
 
 🔹 <code>/render</code>:
    👉 Kích hoạt GitHub Action render tất cả dòng <b>Pending</b> ➔ Tạo video vào GDrive ➔ Set trạng thái <b>Video</b>.
+
+🔹 <code>/qc</code>:
+   👉 Kích hoạt <b>Auto-QC Gatekeeper</b>: Tải và mổ xẻ video để tự động duyệt các dòng <b>Video</b> ➔ <b>Ready</b> (hoặc trả về Pending nếu lỗi).
 
 🔹 <code>/publish</code>:
    👉 Đăng đúng <b>1 video duy nhất</b> (ưu tiên retry dòng <b>Error</b> thiếu kênh, sau đó đăng dòng <b>Ready</b> đã duyệt).
@@ -146,9 +197,11 @@ export function getHelpMessage() {
    👉 Xem lại hướng dẫn này.
 
 ━━━━━━━━━━━━━━━━━━━━━
-🕒 <b>LỊCH HOẠT ĐỘNG HÀNG NGÀY:</b>
-• <b>01:00 Sáng</b> (UTC 18:00): Tự động sản xuất ý tưởng, render video & sẵn sàng duyệt.
-• <b>07:00 Sáng</b> (UTC 00:00): Tự động retry lỗi Error & đăng 1 video <b>Ready</b> lên 3 nền tảng qua Buffer.
-• <b>13:00 Chiều</b> (UTC 06:00): Tự động retry lỗi Error & đăng 1 video <b>Ready</b> tiếp theo lên 3 nền tảng qua Buffer.
+🕒 <b>LỊCH HOẠT ĐỘNG TỰ ĐỘNG HÀNG NGÀY:</b>
+• <b>01:00 Sáng</b> (UTC 18:00): Tự động sản xuất ý tưởng, render video & gửi về bot chờ duyệt.
+• <b>06:30 Sáng</b> (UTC 23:30): <b>Auto-QC Gatekeeper</b> quét & duyệt tự động video chưa kịp bấm ➔ <code>Ready</code>.
+• <b>07:00 Sáng</b> (UTC 00:00): Tự động retry lỗi Error & đăng 1 video <b>Ready</b> lên YouTube, TikTok, Reels.
+• <b>12:30 Trưa</b> (UTC 05:30): <b>Auto-QC Gatekeeper</b> quét & duyệt tiếp video còn lại ➔ <code>Ready</code>.
+• <b>13:00 Chiều</b> (UTC 06:00): Tự động retry lỗi Error & đăng 1 video <b>Ready</b> tiếp theo.
 ━━━━━━━━━━━━━━━━━━━━━`;
 }

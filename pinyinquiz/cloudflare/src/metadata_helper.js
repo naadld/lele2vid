@@ -116,3 +116,50 @@ ${fbCaption}
     formatted_text: formattedText
   };
 }
+
+/**
+ * Extract social metadata from Column J text if present,
+ * otherwise dynamically generate from topic, level, words.
+ */
+export function getBatchMetadata(metadataCell, topic, level, words = []) {
+  if (metadataCell && typeof metadataCell === "string" && metadataCell.includes("=== 1. YOUTUBE SHORTS ===")) {
+    let ytTitle = "";
+    let ytDescription = "";
+    let tiktokCaption = "";
+    let fbCaption = "";
+
+    const ytMatch = metadataCell.match(/=== 1\. YOUTUBE SHORTS ===\s*Tiêu đề \(Title\):\s*\n([^\n]+)\s*\nMô tả \(Description\):\s*\n([\s\S]*?)(?==== 2\. TIKTOK ===|$)/i);
+    if (ytMatch) {
+      ytTitle = (ytMatch[1] || "").trim();
+      ytDescription = (ytMatch[2] || "").trim();
+    }
+
+    const ttMatch = metadataCell.match(/=== 2\. TIKTOK ===\s*Caption & Hashtags:\s*\n([\s\S]*?)(?==== 3\. FACEBOOK REELS ===|$)/i);
+    if (ttMatch) {
+      tiktokCaption = (ttMatch[1] || "").trim();
+    }
+
+    const fbMatch = metadataCell.match(/=== 3\. FACEBOOK REELS ===\s*Caption & Hashtags:\s*\n([\s\S]*?)$/i);
+    if (fbMatch) {
+      fbCaption = (fbMatch[1] || "").trim();
+    }
+
+    const fallback = generateSocialMetadata(topic, level, words);
+    return {
+      youtube: {
+        title: ytTitle || fallback.youtube.title,
+        description: ytDescription || fallback.youtube.description
+      },
+      tiktok: {
+        caption: tiktokCaption || fallback.tiktok.caption
+      },
+      facebook: {
+        caption: fbCaption || fallback.facebook.caption
+      },
+      formatted_text: metadataCell
+    };
+  }
+
+  return generateSocialMetadata(topic, level, words);
+}
+

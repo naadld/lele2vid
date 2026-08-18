@@ -1,0 +1,75 @@
+name: Auto-QC Gatekeeper Pipeline (Pre-Publish Inspection)
+
+on:
+  schedule:
+    # 06:30 AM VN (23:30 UTC) - 30 mins before 07:00 AM VN publishing cron
+    - cron: '30 23 * * *'
+    # 12:30 PM VN (05:30 UTC) - 30 mins before 13:00 PM VN publishing cron
+    - cron: '30 5 * * *'
+  workflow_dispatch:
+    inputs:
+      row_id:
+        description: 'Specific Row ID to QC (leave empty to inspect all Video rows)'
+        required: false
+        default: ''
+
+jobs:
+  qc_inspection:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install System Dependencies (FFmpeg & LibGL)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg libgl1-mesa-glx libglib2.0-0
+
+      - name: Install Python Requirements
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f pinyinquiz/requirements.txt ]; then
+            pip install -r pinyinquiz/requirements.txt
+          elif [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          fi
+
+      - name: Setup Service Account Credentials
+        env:
+          GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+        run: |
+          mkdir -p pinyinquiz/configs
+          if [ -n "$GCP_SERVICE_ACCOUNT_JSON" ]; then
+            echo "$GCP_SERVICE_ACCOUNT_JSON" > pinyinquiz/configs/service_account.json
+            echo "Service account credentials configured."
+          fi
+
+      - name: Run Auto-QC Inspector
+        working-directory: pinyinquiz
+        env:
+          INPUT_ROW: ${{ github.event.inputs.row_id }}
+          PYTHONPATH: .
+          GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          CMD="python scripts/run_qc.py"
+          if [ -n "$INPUT_ROW" ]; then
+            CMD="$CMD --row-id $INPUT_ROW"
+          fi
+          echo "Executing: $CMD"
+          eval $CMD
+
+      - name: Cleanup Credentials
+        if: always()
+        run: |
+          rm -f pinyinquiz/configs/service_account.json
+          echo "Credentials cleaned up. Auto-QC Gatekeeper finished."

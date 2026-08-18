@@ -41,12 +41,12 @@ export function getConfig(env) {
     geminiApiKeys: parseKeyList(env.GEMINI_API_KEYS || env.GEMINI_API_KEY),
     geminiModel: env.GEMINI_MODEL || "gemini-3.6-flash",
 
-    // 2. Agnes AI (4 keys)
+    // 2. Agnes AI (4 keys, https://agnes-ai.com)
     agnesApiKeys: parseKeyList(env.AGNES_API_KEYS || env.AGNES_API_KEY),
     agnesBaseUrl: env.AGNES_BASE_URL || "https://apihub.agnes-ai.com/v1",
     agnesModel: env.AGNES_MODEL || "agnes-2.0-flash",
 
-    // 3. Cloudflare Workers AI (1 native)
-    aiModel: env.AI_MODEL || "@cf/meta/llama-3.1-8b-instruct"
+    // 3. Cloudflare Workers AI (Native fallback)
+    aiModel: env.AI_MODEL || "@cf/meta/llama-3.3-70b-instruct"
   };
 }

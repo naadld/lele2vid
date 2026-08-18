@@ -15,14 +15,16 @@ binding = "AI"
 [triggers]
 crons = ["0 18 * * *", "0 0 * * *", "0 6 * * *"]
 
-# Public Environment Variables (Non-sensitive)
 [vars]
 SPREADSHEET_ID = "1b6LNl7JHRiCsjK1w9VuD86GLqAfmSOtDUOm5whrGdH0"
 SHEET_TAB_NAME = "pinyin"
 GITHUB_REPO_OWNER = "naadld"
 GITHUB_REPO_NAME = "lele2vid"
 GITHUB_WORKFLOW_FILE = "daily_render.yml"
-AI_MODEL = "@cf/meta/llama-3.1-8b-instruct"
+AI_MODEL = "@cf/meta/llama-3.3-70b-instruct"
+GEMINI_MODEL = "gemini-3.6-flash"
+AGNES_MODEL = "agnes-2.0-flash"
+AGNES_BASE_URL = "https://apihub.agnes-ai.com/v1"
 
 # Secrets to be configured via `wrangler secret put <KEY>`:
 # - TELEGRAM_BOT_TOKEN

@@ -143,14 +143,13 @@ def generate_daily_rows(count: int = 5) -> List[List[str]]:
                 h, fp, hp = prepare_word_tuple(hz, py)
                 row.append(f"{h} | {fp} | {hp} | {mean}")
                 
-            metadata_link = save_and_upload_metadata(
+            metadata_text = save_and_upload_metadata(
                 batch_id=str(idx),
                 topic=topic,
                 level=level,
-                words=parsed_words,
-                gdrive_uploader=gdrive_uploader
+                words=parsed_words
             )
-            row.extend([metadata_link, "", "", "", "", now_str, "Tự động sinh bởi LLM (vpsg24gb:20130)"])
+            row.extend([metadata_text, "", "", "", "", now_str, "Tự động sinh bởi LLM (vpsg24gb:20130)"])
             new_rows.append(row)
             
         return new_rows
@@ -168,14 +167,13 @@ def generate_daily_rows(count: int = 5) -> List[List[str]]:
             h, fp, hp = prepare_word_tuple(hz, py)
             row.append(f"{h} | {fp} | {hp} | {mean}")
             
-        metadata_link = save_and_upload_metadata(
+        metadata_text = save_and_upload_metadata(
             batch_id=str(idx),
             topic=topic,
             level=level,
-            words=parsed_words,
-            gdrive_uploader=gdrive_uploader
+            words=parsed_words
         )
-        row.extend([metadata_link, "", "", "", "", now_str, "Tự động sinh bởi VOCAB_BANK"])
+        row.extend([metadata_text, "", "", "", "", now_str, "Tự động sinh bởi VOCAB_BANK"])
         new_rows.append(row)
 
     return new_rows
