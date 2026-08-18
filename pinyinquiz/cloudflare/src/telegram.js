@@ -122,6 +122,41 @@ export async function editTelegramMessageCaption(botToken, chatId, messageId, ca
 }
 
 /**
+ * Send Moderation Message with Inline Keyboard for human approval
+ */
+export async function sendModerationVideoMessage(botToken, chatId, batch) {
+  if (!botToken || !chatId || !batch) return null;
+
+  const wordsFormatted = (batch.words || []).map((w, idx) => {
+    return `   ${idx + 1}. <b>${w.hanzi}</b> (${w.pinyin}): ${w.meaning}`;
+  }).join("\n");
+
+  const caption = `🎬 <b>[VIDEO MỚI HOÀN TẤT - CHỜ DUYỆT]</b>\n\n` +
+    `🆔 <b>ID Dòng:</b> #${batch.id}\n` +
+    `📌 <b>Chủ đề:</b> ${batch.topic} (<code>${batch.level}</code>)\n\n` +
+    `📚 <b>Danh sách 5 từ vựng:</b>\n${wordsFormatted}\n\n` +
+    `🔗 <b>Link Xem Video (GDrive):</b>\n<a href="${batch.videoUrl}">${batch.videoUrl}</a>\n\n` +
+    `👉 <i>Vui lòng bấm nút bên dưới để ra quyết định:</i>`;
+
+  const inlineKeyboard = {
+    inline_keyboard: [
+      [
+        { text: "🟢 Duyệt (Ready)", callback_data: `approve:${batch.id}` },
+        { text: "🔄 Làm lại (Reset)", callback_data: `reset:${batch.id}` }
+      ],
+      [
+        { text: "🗑️ Xóa (Delete)", callback_data: `delete:${batch.id}` },
+        { text: "⏸️ Bỏ qua (Cancel)", callback_data: `cancel:${batch.id}` }
+      ]
+    ]
+  };
+
+  return await sendTelegramMessage(botToken, chatId, caption, {
+    reply_markup: inlineKeyboard
+  });
+}
+
+/**
  * Build help / start menu message
  */
 export function getHelpMessage() {
@@ -134,7 +169,7 @@ export function getHelpMessage() {
    👉 Tạo <b>1 bộ ý tưởng mới</b> (1 dòng) với trạng thái <b>Pending</b>.
 
 🔹 <code>/render</code>:
-   👉 Kích hoạt GitHub Action render tất cả dòng <b>Pending</b> ➔ Tạo video vào GDrive ➔ Set trạng thái <b>Video</b>.
+   👉 Kích hoạt GitHub Action render tất cả dòng <b>Pending</b> ➔ Tạo video vào GDrive ➔ Gửi video kèm nút kiểm duyệt (Approve/Reset/Delete) lên Telegram ➔ Set trạng thái <b>Video</b>.
 
 🔹 <code>/publish</code>:
    👉 Đăng đúng <b>1 video duy nhất</b> (ưu tiên retry dòng <b>Error</b> thiếu kênh, sau đó đăng dòng <b>Ready</b> đã duyệt).
@@ -147,7 +182,7 @@ export function getHelpMessage() {
 
 ━━━━━━━━━━━━━━━━━━━━━
 🕒 <b>LỊCH HOẠT ĐỘNG HÀNG NGÀY:</b>
-• <b>01:00 Sáng</b> (UTC 18:00): Tự động sản xuất ý tưởng, render video & sẵn sàng duyệt.
+• <b>01:00 Sáng</b> (UTC 18:00): Tự động sản xuất ý tưởng, render video & gửi kiểm duyệt Telegram.
 • <b>07:00 Sáng</b> (UTC 00:00): Tự động retry lỗi Error & đăng 1 video <b>Ready</b> lên 3 nền tảng qua Buffer.
 • <b>13:00 Chiều</b> (UTC 06:00): Tự động retry lỗi Error & đăng 1 video <b>Ready</b> tiếp theo lên 3 nền tảng qua Buffer.
 ━━━━━━━━━━━━━━━━━━━━━`;

@@ -1,53 +1,34 @@
-# 🇨🇳 LELEHOC TIENG TRUNG - CONTENT AUTOMATION HUB
+# 🇨🇳 Kênh Tự Động: Lê Lê Học Tiếng Trung (PinyinQuiz)
 
-Kho dự án tự động hóa sản xuất nội dung video đa nền tảng (TikTok, YouTube Shorts, Facebook Reels) cho kênh **Lê Lệ Học Tiếng Trung**.
-
----
-
-## 📂 Cấu Trúc Dự Án (Multi-Module Project)
-
-Dự án được phân chia thành các hạng mục (sub-modules) độc lập:
-
-```
-lelehoctiengtrung/
-├── pinyinquiz/                 # 🎯 Hạng mục: Video trắc nghiệm Pinyin & Hán tự HSK
-│   ├── assets/                 # Backgrounds, logos, sound effects, voice caches
-│   ├── configs/                # Cấu hình API, Google Service Account, OAuth 2.0
-│   ├── data/                   # Dữ liệu từ vựng mẫu
-│   ├── output/                 # Video MP4 xuất bản và cache Manim
-│   ├── scripts/                # CLI batch runner, sync Google Sheets & Drive
-│   ├── src/                    # Mã nguồn Manim engine, TTS, Pinyin utils
-│   ├── tiktok_hsk.py           # Kịch bản Manim test độc lập
-│   ├── requirements.txt        # Danh sách thư viện Python cho module
-│   └── README.md               # Tài liệu chi tiết module Pinyin Quiz
-├── .github/
-│   └── workflows/
-│       └── daily_render.yml    # GitHub Actions tự động render & upload mỗi ngày
-├── .venv/                      # Môi trường ảo Python dùng chung
-├── requirements.txt            # Thư viện toàn cục
-└── README.md                   # Tài liệu tổng quan dự án
-```
+> **Hệ thống đã chuyển đổi 100% sang Cloud Serverless (Cloudflare Worker + GitHub Actions).**  
+> Không phụ thuộc vào VPS hoặc máy tính cá nhân. Tự động sản xuất, kiểm duyệt và đăng bài 24/7.
 
 ---
 
-## 🎯 Danh Sách Hạng Mục
+## 🔗 Các Liên Kết Dự Án Quan Trọng:
 
-### 1. [`pinyinquiz/`](pinyinquiz/)
-- **Mục tiêu**: Tự động tạo video dọc 9:16 (1080x1920) dạng đố vui đoán Pinyin tiếng Trung (5 từ/video) với đồng hồ đếm ngược 5 giây, hiệu ứng âm thanh sống động, chuông ding và phát âm tiếng Trung chuẩn xác bản xứ.
-- **Tích hợp**: Google Sheets (tab `pinyin`) và Google Drive (tự động upload & cập nhật link).
-- **Xem chi tiết hướng dẫn**: [`pinyinquiz/README.md`](pinyinquiz/README.md)
+- **📦 Google Drive Backup:** [Thư mục Backup GDrive](https://drive.google.com/drive/u/0/folders/1k1Xamrrl1CXOFqXo2QhxSyrnesyQQr8N)
+  - File ZIP nén đầy đủ: [`lele_pinyinquiz_full_backup.zip`](https://drive.google.com/file/d/1Q7xkkZ4lei_DS3n0ywmKAAw0sLRz6lrO/view?usp=drivesdk)
+- **🚀 GitHub Repository:** [`https://github.com/naadld/lele2vid`](https://github.com/naadld/lele2vid)
+- **⚡ Cloudflare Worker Live:** [`https://lele-pinyinquiz.hothihuong113.workers.dev`](https://lele-pinyinquiz.hothihuong113.workers.dev)
+- **🤖 Telegram Control Bot:** [@lelepinyinBot](https://t.me/lelepinyinBot)
+- **📊 Google Sheets Dữ Liệu:** [Tab `pinyin`](https://docs.google.com/spreadsheets/d/1b6LNl7JHRiCsjK1w9VuD86GLqAfmSOtDUOm5whrGdH0/edit)
 
 ---
 
-## 🚀 Khởi Chạy Nhanh
+## ⏰ Lịch Vận Hành Hằng Ngày (Tự Động 100%):
+1. **01:00 Sáng VN (UTC 18:00):** Tự động sinh ý tưởng từ vựng HSK ➔ Kích hoạt GitHub Action render video ➔ Bắn video sang Telegram kèm 4 nút duyệt (`Approve` / `Reset` / `Delete` / `Cancel`).
+2. **07:00 Sáng VN (UTC 00:00):** Retry lỗi `Error` ➔ Tự động đăng 1 video `Ready` lên 3 nền tảng (TikTok, Reels, Shorts) qua Buffer GraphQL API.
+3. **13:00 Chiều VN (UTC 06:00):** Retry lỗi `Error` ➔ Tự động đăng 1 video `Ready` tiếp theo lên 3 nền tảng qua Buffer GraphQL API.
+
+---
+
+## 🛠️ Khi Cần Khôi Phục / Chỉnh Sửa Mã Nguồn Trên Máy Mới:
 
 ```bash
-# 1. Kích hoạt môi trường:
-source .venv/bin/activate
+# Cách 1: Clone trực tiếp từ GitHub
+git clone https://github.com/naadld/lele2vid.git
 
-# 2. Chuyển vào thư mục hạng mục muốn chạy (ví dụ Pinyin Quiz):
-cd pinyinquiz
-
-# 3. Chạy render batch từ Google Sheets:
-PYTHONPATH=. python scripts/run_batch.py --from-sheet --quality qh --upload-gdrive
+# Cách 2: Tải file zip từ Google Drive và giải nén
+unzip lele_pinyinquiz_full_backup.zip
 ```

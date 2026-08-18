@@ -128,3 +128,9 @@ jobs:
         run: |
           rm -f pinyinquiz/configs/service_account.json
           echo "Credentials cleaned up. Render workflow completed."
+
+      - name: Trigger Cloudflare Moderation Notification
+        if: always()
+        run: |
+          echo "Triggering Cloudflare Worker to send moderation videos to Telegram..."
+          curl -s -X POST https://lele-pinyinquiz.hothihuong113.workers.dev/api/notify-videos || true
