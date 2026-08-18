@@ -128,6 +128,13 @@ export default {
             setWhRes = { error: e.message };
           }
         }
+
+        // Test sending message
+        let sendRes = null;
+        if (url.searchParams.get("send") === "true") {
+          const targetChat = url.searchParams.get("chat_id") || config.telegramChatId || "6800539169";
+          sendRes = await sendTelegramMessage(token, targetChat, `🔔 <b>Test kết nối Telegram Bot (@lelepinyinBot)</b>\nThời gian: <code>${new Date().toISOString()}</code>`);
+        }
       }
 
       return new Response(JSON.stringify({
@@ -136,6 +143,7 @@ export default {
         getMe: meRes,
         webhookInfo: whRes,
         setWebhookResult: setWhRes,
+        sendMessageTestResult: sendRes,
         expectedWebhookUrl: `https://${url.host}/webhook`
       }, null, 2), { headers: { "Content-Type": "application/json" } });
     }
