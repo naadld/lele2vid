@@ -23,7 +23,7 @@ import { GoogleSheetsClient } from "./google_sheets.js";
 import { generateBatchesWithMultiAI, formatTopicsToSheetRows } from "./ai_ideation.js";
 import { triggerGitHubRenderWorkflow } from "./github_trigger.js";
 import { publishBatchToBuffer } from "./buffer_publisher.js";
-import { sendTelegramMessage, answerTelegramCallback, editTelegramMessageCaption, getHelpMessage, sendModerationVideoMessage } from "./telegram.js";
+import { sendTelegramMessage, answerTelegramCallback, editTelegramMessageCaption, getHelpMessage } from "./telegram.js";
 
 export default {
   /**
@@ -67,7 +67,34 @@ export default {
       }
     }
 
-    // 3. Manual Ideation API Endpoint (1 batch)
+    // 3. Debug AI Endpoint
+    if (url.pathname === "/api/debug-ai") {
+      const debugLogs = [];
+      const originalLog = console.log;
+      const originalWarn = console.warn;
+      console.log = (...args) => debugLogs.push("[LOG] " + args.join(" "));
+      console.warn = (...args) => debugLogs.push("[WARN] " + args.join(" "));
+
+      try {
+        const { generateBatchesWithMultiAI } = await import("./ai_ideation.js");
+        const res = await generateBatchesWithMultiAI(env, config, {}, 1);
+        console.log = originalLog;
+        console.warn = originalWarn;
+        return new Response(JSON.stringify({
+          geminiKeysCount: config.geminiApiKeys?.length || 0,
+          agnesKeysCount: config.agnesApiKeys?.length || 0,
+          provider: res.provider,
+          result: res,
+          logs: debugLogs
+        }, null, 2), { headers: { "Content-Type": "application/json" } });
+      } catch (err) {
+        console.log = originalLog;
+        console.warn = originalWarn;
+        return new Response(JSON.stringify({ error: err.message, stack: err.stack, logs: debugLogs }, null, 2), { status: 500, headers: { "Content-Type": "application/json" } });
+      }
+    }
+
+    // 4. Manual Ideation API Endpoint (1 batch)
     if (url.pathname === "/api/ideate" && request.method === "POST") {
       try {
         const result = await handleIdeateSingleBatch(env, config);
@@ -83,18 +110,6 @@ export default {
     if (url.pathname === "/api/publish" && request.method === "POST") {
       try {
         const result = await handlePublishSingleBatch(env, config, "Manual API");
-        return new Response(JSON.stringify(result, null, 2), {
-          headers: { "Content-Type": "application/json" }
-        });
-      } catch (err) {
-        return new Response(JSON.stringify({ error: err.message }), { status: 500 });
-      }
-    }
-
-    // 5. Notify Videos Endpoint (Called by GitHub Actions after rendering or manually)
-    if (url.pathname === "/api/notify-videos" && (request.method === "POST" || request.method === "GET")) {
-      try {
-        const result = await handleNotifyRenderedVideos(env, config);
         return new Response(JSON.stringify(result, null, 2), {
           headers: { "Content-Type": "application/json" }
         });
@@ -586,6 +601,7 @@ export async function handlePublishingCron(env, config) {
       `• Facebook: ${res.isFbOk ? "✅" : "❌"}`
     );
   } else {
+    // Không có video Ready
     await sendTelegramMessage(
       config.telegramBotToken,
       config.telegramChatId,
@@ -594,35 +610,4 @@ export async function handlePublishingCron(env, config) {
       `<i>(Vui lòng kiểm tra các video đang ở trạng thái <b>Video</b> và bấm Approve trên Telegram để chuyển sang Ready).</i>`
     );
   }
-}
-
-/**
- * Notify Moderation Videos: Scans all rows with status "Video" and sends them to Telegram with 4 inline moderation buttons
- */
-export async function handleNotifyRenderedVideos(env, config) {
-  const gsheet = new GoogleSheetsClient(
-    config.gcpClientEmail,
-    config.gcpPrivateKey,
-    config.spreadsheetId,
-    config.sheetTabName
-  );
-
-  const videoBatches = await gsheet.getBatchesByStatus("Video");
-  console.log(`[NOTIFY-VIDEOS] Found ${videoBatches.length} batches with status Video`);
-
-  const sent = [];
-  for (const batch of videoBatches) {
-    if (!batch.videoUrl) {
-      console.warn(`[NOTIFY-VIDEOS] Batch #${batch.id} has status Video but no videoUrl yet. Skipping.`);
-      continue;
-    }
-    await sendModerationVideoMessage(config.telegramBotToken, config.telegramChatId, batch);
-    sent.push(batch.id);
-  }
-
-  return {
-    success: true,
-    totalVideosFound: videoBatches.length,
-    sentBatchIds: sent
-  };
 }

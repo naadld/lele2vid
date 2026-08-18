@@ -1,0 +1,15 @@
+.git
+.github
+.gitignore
+.venv
+__pycache__
+*/__pycache__
+*/*/__pycache__
+*.pyc
+*.pyo
+*.pyd
+.DS_Store
+output/media/*
+output/videos/*
+output/generated_scenes/*
+output/metadata/*
