@@ -397,6 +397,79 @@ async function handleTelegramUpdate(update, env, config) {
       }
       return;
     }
+    // 🔄 Retry Ideate từ nút báo lỗi
+    else if (action === "retry_ideate") {
+      alertText = "Đang thử lại tạo ý tưởng mới...";
+      await answerTelegramCallback(botToken, cbId, alertText, false);
+      if (chatId && msgId) {
+        await editTelegramMessageText(
+          botToken,
+          chatId,
+          msgId,
+          `⏳ <b>Đang thử lại sinh 1 bộ ý tưởng từ vựng HSK mới...</b>\n<i>(Xoay vòng 6 Google AI Studio + 4 Agnes AI + Cloudflare AI - Giới hạn 75s)</i>`,
+          { inline_keyboard: [] }
+        );
+      }
+
+      try {
+        const res = await executeIdeateWithTimeout(env, config, 75000);
+
+        if (res.repairedBatches && res.repairedBatches.length > 0) {
+          const repText = res.repairedBatches.map(b => `• <b>#${b.rowId}</b>: ${b.topic} (<code>${b.level}</code>) ➔ <code>Pending</code>`).join("\n");
+          await sendTelegramMessage(
+            botToken,
+            chatId,
+            `🛠️ <b>[Self-Healing] Đã tự động khôi phục ${res.repairedBatches.length} dòng Failed:</b>\n\n${repText}\n\n<i>Các dòng trên đã được sửa lỗi và đổi về Pending để render!</i>`
+          );
+        }
+
+        let fallbackWarning = "";
+        if (res.isFallbackBank) {
+          fallbackWarning = `\n\n⚠️ <b>Lưu ý:</b> <i>Do các API AI (Gemini/Agnes/CF) đều bị giới hạn hạn ngạch hoặc lỗi kết nối, hệ thống đã kích hoạt Ngân Hàng Từ Vựng HSK Chuẩn dự phòng để không làm gián đoạn luồng công việc.</i>`;
+        }
+
+        const wordListText = (res.words || []).map((w, i) => `${i + 1}. <b>${w.hanzi}</b> (<code>${w.pinyin}</code>): ${w.meaning}`).join("\n");
+        const msg = `🎉 <b>ĐÃ TẠO 1 BỘ Ý TƯỞNG MỚI!</b>\n\n` +
+          `🆔 <b>ID Dòng:</b> <code>#${res.rowId}</code>\n` +
+          `📌 <b>Chủ đề:</b> <b>${res.topic}</b> (<code>${res.level}</code>)\n` +
+          `🤖 <b>AI Sử Dụng:</b> <code>${res.provider}</code> (<i>${res.durationSeconds || 0}s</i>)\n` +
+          `📊 <b>Trạng thái:</b> <code>Pending</code>\n\n` +
+          `📚 <b>Danh sách từ vựng:</b>\n${wordListText}` +
+          fallbackWarning +
+          `\n\n👇 <i>Vui lòng chọn thao tác tiếp theo:</i>`;
+
+        const replyMarkup = {
+          inline_keyboard: [
+            [
+              { text: "🎬 Render", callback_data: `render_ideate:${res.rowId}` },
+              { text: "❌ Cancel", callback_data: `cancel_ideate:${res.rowId}` }
+            ]
+          ]
+        };
+
+        if (chatId && msgId) {
+          await editTelegramMessageText(botToken, chatId, msgId, msg, { inline_keyboard: replyMarkup.inline_keyboard });
+        } else {
+          await sendTelegramMessage(botToken, chatId, msg, { reply_markup: replyMarkup });
+        }
+      } catch (retryErr) {
+        const errMsg = formatIdeateErrorTelegramMessage(retryErr, retryErr.durationSeconds || 0);
+        const retryMarkup = {
+          inline_keyboard: [
+            [
+              { text: "🔄 Thử Lại Ngay", callback_data: "retry_ideate:0" }
+            ]
+          ]
+        };
+        if (chatId && msgId) {
+          await editTelegramMessageText(botToken, chatId, msgId, errMsg, { inline_keyboard: retryMarkup.inline_keyboard });
+        } else {
+          await sendTelegramMessage(botToken, chatId, errMsg, { reply_markup: retryMarkup });
+        }
+      }
+      return;
+    }
+
     // ❌ Cancel từ nút /ideate
     else if (action === "cancel_ideate") {
       alertText = `Đã hủy ý tưởng #${rowId}.`;
@@ -452,11 +525,11 @@ async function handleTelegramUpdate(update, env, config) {
     await sendTelegramMessage(
       botToken,
       chatId,
-      `⏳ <b>Đang sinh 1 bộ ý tưởng từ vựng HSK mới...</b>\n<i>(Xoay vòng 6 Google AI Studio + 4 Agnes AI + Cloudflare AI)</i>`
+      `⏳ <b>Đang sinh 1 bộ ý tưởng từ vựng HSK mới...</b>\n<i>(Xoay vòng 6 Google AI Studio + 4 Agnes AI + Cloudflare AI - Giới hạn 75s)</i>`
     );
 
     try {
-      const res = await handleIdeateSingleBatch(env, config);
+      const res = await executeIdeateWithTimeout(env, config, 75000);
 
       if (res.repairedBatches && res.repairedBatches.length > 0) {
         const repText = res.repairedBatches.map(b => `• <b>#${b.rowId}</b>: ${b.topic} (<code>${b.level}</code>) ➔ <code>Pending</code>`).join("\n");
@@ -467,14 +540,20 @@ async function handleTelegramUpdate(update, env, config) {
         );
       }
 
+      let fallbackWarning = "";
+      if (res.isFallbackBank) {
+        fallbackWarning = `\n\n⚠️ <b>Lưu ý:</b> <i>Do các API AI (Gemini/Agnes/CF) đều bị giới hạn hạn ngạch hoặc lỗi kết nối, hệ thống đã kích hoạt Ngân Hàng Từ Vựng HSK Chuẩn dự phòng để không làm gián đoạn luồng công việc.</i>`;
+      }
+
       const wordListText = (res.words || []).map((w, i) => `${i + 1}. <b>${w.hanzi}</b> (<code>${w.pinyin}</code>): ${w.meaning}`).join("\n");
       const msg = `🎉 <b>ĐÃ TẠO 1 BỘ Ý TƯỞNG MỚI!</b>\n\n` +
         `🆔 <b>ID Dòng:</b> <code>#${res.rowId}</code>\n` +
         `📌 <b>Chủ đề:</b> <b>${res.topic}</b> (<code>${res.level}</code>)\n` +
-        `🤖 <b>AI Sử Dụng:</b> <code>${res.provider}</code>\n` +
+        `🤖 <b>AI Sử Dụng:</b> <code>${res.provider}</code> (<i>${res.durationSeconds || 0}s</i>)\n` +
         `📊 <b>Trạng thái:</b> <code>Pending</code>\n\n` +
-        `📚 <b>Danh sách từ vựng:</b>\n${wordListText}\n\n` +
-        `👇 <i>Vui lòng chọn thao tác tiếp theo:</i>`;
+        `📚 <b>Danh sách từ vựng:</b>\n${wordListText}` +
+        fallbackWarning +
+        `\n\n👇 <i>Vui lòng chọn thao tác tiếp theo:</i>`;
 
       const replyMarkup = {
         inline_keyboard: [
@@ -487,11 +566,15 @@ async function handleTelegramUpdate(update, env, config) {
 
       await sendTelegramMessage(botToken, chatId, msg, { reply_markup: replyMarkup });
     } catch (err) {
-      await sendTelegramMessage(
-        botToken,
-        chatId,
-        `❌ <b>Lỗi Sinh Ý Tưởng:</b>\n<code>${err.message}</code>`
-      );
+      const errMsg = formatIdeateErrorTelegramMessage(err, err.durationSeconds || 0);
+      const replyMarkup = {
+        inline_keyboard: [
+          [
+            { text: "🔄 Thử Lại Ngay", callback_data: "retry_ideate:0" }
+          ]
+        ]
+      };
+      await sendTelegramMessage(botToken, chatId, errMsg, { reply_markup: replyMarkup });
     }
     return;
   }
@@ -704,7 +787,7 @@ export async function handleIdeateSingleBatch(env, config) {
   }
 
   // 2. Generate 1 topic via Multi-AI rotation (count = 1)
-  const { topics: generatedTopics, provider: providerUsed } = await generateBatchesWithMultiAI(
+  const { topics: generatedTopics, provider: providerUsed, isFallbackBank, diagnostics } = await generateBatchesWithMultiAI(
     env,
     config,
     vocabHistory,
@@ -723,8 +806,93 @@ export async function handleIdeateSingleBatch(env, config) {
     level: topicObj.level || "HSK 1-2",
     words: topicObj.words || [],
     provider: providerUsed,
+    isFallbackBank: isFallbackBank || false,
+    diagnostics: diagnostics || null,
     repairedBatches: repairedBatches
   };
+}
+
+/**
+ * Execute single ideation with strict Global Timeout (default 75s)
+ */
+export async function executeIdeateWithTimeout(env, config, timeoutMs = 75000) {
+  const startTime = Date.now();
+  let timer;
+
+  const timeoutPromise = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      const err = new Error("GLOBAL_TIMEOUT: Quá thời gian 75 giây chờ phản hồi từ các mô hình AI hoặc mạng.");
+      err.isTimeout = true;
+      reject(err);
+    }, timeoutMs);
+  });
+
+  try {
+    const res = await Promise.race([
+      handleIdeateSingleBatch(env, config),
+      timeoutPromise
+    ]);
+    clearTimeout(timer);
+    res.durationSeconds = Math.round((Date.now() - startTime) / 1000);
+    return res;
+  } catch (err) {
+    clearTimeout(timer);
+    err.durationSeconds = Math.round((Date.now() - startTime) / 1000);
+    throw err;
+  }
+}
+
+/**
+ * Format detailed diagnostic error report for Telegram
+ */
+export function formatIdeateErrorTelegramMessage(err, durationSeconds = 0) {
+  const errMsg = err.message || String(err);
+  let errorTitle = "❌ <b>[Lỗi Sinh Ý Tưởng] Không Thể Tạo Batch Mới</b>";
+  let mainReason = `<code>${errMsg}</code>`;
+  let suggestedAction = "Vui lòng thử lại sau giây lát.";
+
+  if (err.isTimeout || errMsg.includes("GLOBAL_TIMEOUT") || errMsg.includes("timeout") || errMsg.includes("aborted")) {
+    errorTitle = "⏱️ <b>[Timeout] Quá Thời Gian Chờ Sinh Ý Tưởng</b>";
+    mainReason = `Quá trình tạo ý tưởng đã vượt quá giới hạn <b>75 giây</b> do các dịch vụ AI phản hồi chậm hoặc đang nghẽn mạng.`;
+    suggestedAction = "Bấm nút <b>🔄 Thử Lại Ngay</b> bên dưới để xoay tua và gọi lại các API AI.";
+  } else if (errMsg.includes("429") || errMsg.includes("RESOURCE_EXHAUSTED") || errMsg.includes("Quota") || errMsg.includes("rate limit")) {
+    errorTitle = "🔴 <b>[Hết Hạn Ngạch API] Quota Exceeded / Rate Limited</b>";
+    mainReason = `Các API Key AI của bạn đã chạm giới hạn hạn ngạch truy vấn (Rate Limit hoặc hết Credit miễn phí).`;
+    suggestedAction = "Vui lòng kiểm tra/nạp thêm hạn mức API keys cho Google AI Studio hoặc Agnes AI.";
+  } else if (errMsg.includes("401") || errMsg.includes("403") || errMsg.includes("API key not valid") || errMsg.includes("Unauthorized")) {
+    errorTitle = "🔑 <b>[Lỗi Xác Thực Key] API Keys Invalid / Unauthorized</b>";
+    mainReason = `API Key Google AI Studio hoặc Agnes AI không hợp lệ hoặc đã bị vô hiệu hóa.`;
+    suggestedAction = "Vui lòng kiểm tra lại cấu hình Secret <code>GEMINI_API_KEYS</code> hoặc <code>AGNES_API_KEYS</code>.";
+  } else if (errMsg.includes("JSON") || errMsg.includes("SyntaxError")) {
+    errorTitle = "⚠️ <b>[Lỗi Cấu Trúc AI] Malformed Response</b>";
+    mainReason = `Mô hình AI trả về kết quả không khớp chuẩn cấu trúc 5 từ vựng HSK JSON.`;
+    suggestedAction = "Bấm <b>🔄 Thử Lại Ngay</b> để gọi mô hình AI khác trong chuỗi xoay tua.";
+  }
+
+  let diagSection = "";
+  if (err.diagnostics) {
+    const diag = err.diagnostics;
+    const gErr = (diag.gemini || []).slice(0, 3).map(e => `  • ${e}`).join("\n");
+    const aErr = (diag.agnes || []).slice(0, 3).map(e => `  • ${e}`).join("\n");
+    const cErr = (diag.cloudflare || []).map(e => `  • ${e}`).join("\n");
+
+    const lines = [];
+    if (gErr) lines.push(`<b>Google AI Studio (Gemini):</b>\n${gErr}`);
+    if (aErr) lines.push(`<b>Agnes AI:</b>\n${aErr}`);
+    if (cErr) lines.push(`<b>Cloudflare Workers AI:</b>\n${cErr}`);
+
+    if (lines.length > 0) {
+      diagSection = `\n\n📊 <b>Nhật ký lỗi chi tiết từng nhà cung cấp:</b>\n${lines.join("\n\n")}`;
+    }
+  }
+
+  const durationText = durationSeconds > 0 ? `⏱️ <b>Thời gian xử lý:</b> <code>${durationSeconds}s / 75s</code>\n` : "";
+
+  return `${errorTitle}\n\n` +
+    `⚠️ <b>Nguyên nhân chính:</b>\n${mainReason}\n\n` +
+    durationText +
+    diagSection +
+    `\n\n💡 <b>Hướng dẫn xử lý:</b>\n<i>${suggestedAction}</i>`;
 }
 
 /**

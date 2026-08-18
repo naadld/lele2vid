@@ -407,6 +407,12 @@ export async function generateBatchesWithMultiAI(env, config, vocabHistory = {},
 
   let resultTopics = null;
   let providerUsed = "Fallback VOCAB_BANK";
+  let anyAiSucceeded = false;
+  const diagnostics = {
+    gemini: [],
+    agnes: [],
+    cloudflare: []
+  };
 
   // 1. Try Google AI Studio Keys (Rotating pool)
   if (config.geminiApiKeys && config.geminiApiKeys.length > 0) {
@@ -421,11 +427,14 @@ export async function generateBatchesWithMultiAI(env, config, vocabHistory = {},
         if (res && Array.isArray(res.data) && res.data.length > 0) {
           resultTopics = res.data.slice(0, count);
           providerUsed = `Google AI Studio (${res.modelUsed} - Key #${i + 1})`;
+          anyAiSucceeded = true;
           console.log(`✨ Successfully generated with ${providerUsed}!`);
           break;
         }
       } catch (err) {
-        console.warn(`⚠️ Google AI Studio Key #${i + 1} failed: ${err.message}. Rotating to next key...`);
+        const cleanErr = (err.message || "Unknown error").substring(0, 180);
+        diagnostics.gemini.push(`Key #${i + 1} (${keyShort}): ${cleanErr}`);
+        console.warn(`⚠️ Google AI Studio Key #${i + 1} failed: ${cleanErr}. Rotating to next key...`);
       }
     }
   }
@@ -443,27 +452,34 @@ export async function generateBatchesWithMultiAI(env, config, vocabHistory = {},
         if (res && Array.isArray(res.data) && res.data.length > 0) {
           resultTopics = res.data.slice(0, count);
           providerUsed = `Agnes AI (${res.modelUsed} - Key #${i + 1})`;
+          anyAiSucceeded = true;
           console.log(`✨ Successfully generated with ${providerUsed}!`);
           break;
         }
       } catch (err) {
-        console.warn(`⚠️ Agnes AI Key #${i + 1} failed: ${err.message}. Rotating to next key...`);
+        const cleanErr = (err.message || "Unknown error").substring(0, 180);
+        diagnostics.agnes.push(`Key #${i + 1} (${keyShort}): ${cleanErr}`);
+        console.warn(`⚠️ Agnes AI Key #${i + 1} failed: ${cleanErr}. Rotating to next key...`);
       }
     }
   }
 
   // 3. Try Cloudflare Workers AI if Gemini and Agnes are unavailable
   if (!resultTopics && env && env.AI) {
+    const cfModel = config.aiModel || "@cf/meta/llama-3.3-70b-instruct";
     try {
-      const cfModel = config.aiModel || "@cf/meta/llama-3.3-70b-instruct";
+      console.log(`[AI-Pool] Trying Cloudflare Workers AI (${cfModel})...`);
       const cfRes = await callCloudflareAI(env, cfModel, systemPrompt, userPrompt);
       if (cfRes && Array.isArray(cfRes.data) && cfRes.data.length > 0) {
         resultTopics = cfRes.data.slice(0, count);
         providerUsed = `Cloudflare Workers AI (${cfRes.modelUsed})`;
+        anyAiSucceeded = true;
         console.log(`✨ Successfully generated with ${providerUsed}!`);
       }
     } catch (err) {
-      console.warn("⚠️ Cloudflare Workers AI failed:", err.message);
+      const cleanErr = (err.message || "Unknown error").substring(0, 180);
+      diagnostics.cloudflare.push(`CF AI (${cfModel}): ${cleanErr}`);
+      console.warn("⚠️ Cloudflare Workers AI failed:", cleanErr);
     }
   }
 
@@ -500,7 +516,9 @@ export async function generateBatchesWithMultiAI(env, config, vocabHistory = {},
 
   return {
     topics: enrichedTopics,
-    provider: providerUsed
+    provider: providerUsed,
+    isFallbackBank: !anyAiSucceeded,
+    diagnostics: diagnostics
   };
 }
 
