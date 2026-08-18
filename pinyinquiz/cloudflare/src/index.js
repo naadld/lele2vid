@@ -23,6 +23,7 @@ import { GoogleSheetsClient } from "./google_sheets.js";
 import { generateBatchesWithMultiAI, formatTopicsToSheetRows } from "./ai_ideation.js";
 import { triggerGitHubRenderWorkflow, triggerGitHubQCWorkflow } from "./github_trigger.js";
 import { publishBatchToBuffer } from "./buffer_publisher.js";
+import { generateSocialMetadata } from "./metadata_helper.js";
 import { sendTelegramMessage, answerTelegramCallback, editTelegramMessageCaption, editTelegramMessageText, getHelpMessage } from "./telegram.js";
 
 export default {
@@ -456,6 +457,16 @@ async function handleTelegramUpdate(update, env, config) {
 
     try {
       const res = await handleIdeateSingleBatch(env, config);
+
+      if (res.repairedBatches && res.repairedBatches.length > 0) {
+        const repText = res.repairedBatches.map(b => `• <b>#${b.rowId}</b>: ${b.topic} (<code>${b.level}</code>) ➔ <code>Pending</code>`).join("\n");
+        await sendTelegramMessage(
+          botToken,
+          chatId,
+          `🛠️ <b>[Self-Healing] Đã tự động khôi phục ${res.repairedBatches.length} dòng Failed:</b>\n\n${repText}\n\n<i>Các dòng trên đã được sửa lỗi và đổi về Pending để render!</i>`
+        );
+      }
+
       const wordListText = (res.words || []).map((w, i) => `${i + 1}. <b>${w.hanzi}</b> (<code>${w.pinyin}</code>): ${w.meaning}`).join("\n");
       const msg = `🎉 <b>ĐÃ TẠO 1 BỘ Ý TƯỞNG MỚI!</b>\n\n` +
         `🆔 <b>ID Dòng:</b> <code>#${res.rowId}</code>\n` +
@@ -599,11 +610,16 @@ async function handleTelegramUpdate(update, env, config) {
           summary.errorDetails.map(d => `• ${d.rowId} (${d.topic}): Thiếu [${d.missingChannels}]`).join("\n");
       }
 
+      const failedInfoText = (summary.failedCount > 0)
+        ? `\n🛠️ <b>Ý tưởng vi phạm nguyên tắc (chờ tự sửa):</b> <code>${summary.failedCount}</code> Failed`
+        : "";
+
       const msg = `📊 <b>THỐNG KÊ TRẠNG THÁI VIDEO TRÊN GOOGLE SHEETS</b>\n\n` +
         `💡 <b>Ý tưởng đã sinh (chờ render):</b> <code>${summary.pendingCount}</code> Pending\n` +
         `⏳ <b>Video đã sinh (chờ kiểm duyệt):</b> <code>${summary.videoCount}</code> Video\n` +
-        `🟢 <b>Video đã duyệt (sẵn sàng đăng):</b> <code>${summary.readyCount}</code> Ready\n` +
-        `⚠️ <b>Video bị lỗi / thiếu kênh:</b> <code>${summary.errorCount}</code> Error` +
+        `🟢 <b>Video đã duyệt (sẵn sàng đăng):</b> <code>${summary.readyCount}</code> Ready` +
+        failedInfoText + `\n` +
+        `⚠️ <b>Video bị lỗi đăng Buffer:</b> <code>${summary.errorCount}</code> Error` +
         errorDetailText +
         `\n\n<i>Tab: <code>${config.sheetTabName}</code></i>`;
       await sendTelegramMessage(botToken, chatId, msg);
@@ -641,6 +657,47 @@ export async function handleIdeateSingleBatch(env, config) {
     console.warn(`[GSheet Warning] Could not fetch sheet history (${e.message}). Proceeding with empty history.`);
   }
 
+  // 1b. Self-Healing Gatekeeper: Scan & Repair any "Failed" rows first
+  const repairedBatches = [];
+  try {
+    const failedRows = await gsheet.getBatchesByStatus(["Failed"]);
+    if (failedRows.length > 0) {
+      console.log(`[Self-Healing] Found ${failedRows.length} Failed batch(es). Repairing to Pending...`);
+      for (const fRow of failedRows) {
+        try {
+          const { topics: repairedTopicList, provider: repairProvider } = await generateBatchesWithMultiAI(
+            env,
+            config,
+            vocabHistory,
+            1
+          );
+          const rep = repairedTopicList[0];
+          if (rep && rep.words && rep.words.length === 5) {
+            const metaObj = generateSocialMetadata(fRow.topic, fRow.level, rep.words);
+            await gsheet.repairBatchRow(
+              fRow.rowNumber,
+              fRow.topic,
+              fRow.level,
+              rep.words,
+              metaObj.formatted_text,
+              `[Tự động sửa lỗi bằng ${repairProvider} & đổi sang Pending]`
+            );
+            repairedBatches.push({
+              rowId: fRow.id,
+              topic: fRow.topic,
+              level: fRow.level,
+              provider: repairProvider
+            });
+          }
+        } catch (repairErr) {
+          console.error(`[Self-Healing Error] Could not repair row #${fRow.id}: ${repairErr.message}`);
+        }
+      }
+    }
+  } catch (healScanErr) {
+    console.warn(`[Self-Healing Warning] Could not scan for failed batches: ${healScanErr.message}`);
+  }
+
   // 2. Generate 1 topic via Multi-AI rotation (count = 1)
   const { topics: generatedTopics, provider: providerUsed } = await generateBatchesWithMultiAI(
     env,
@@ -660,7 +717,8 @@ export async function handleIdeateSingleBatch(env, config) {
     topic: topicObj.topic || `Chủ Đề #${currentMaxId + 1}`,
     level: topicObj.level || "HSK 1-2",
     words: topicObj.words || [],
-    provider: providerUsed
+    provider: providerUsed,
+    repairedBatches: repairedBatches
   };
 }
 
@@ -738,9 +796,18 @@ export async function handleProductionCron(env, config) {
   console.log(`[PRODUCTION-CRON] Fired at ${nowStr}. Pending count: ${pendingBatches.length}`);
 
   let ideaGenerated = null;
-  if (pendingBatches.length === 0) {
-    console.log("[PRODUCTION-CRON] Generating 1 new idea batch for today...");
-    ideaGenerated = await handleIdeateSingleBatch(env, config);
+  // 1. Repair Failed batches if any
+  try {
+    const failedBatches = await gsheet.getBatchesByStatus("Failed");
+    if (failedBatches.length > 0) {
+      console.log(`[PRODUCTION-CRON] Found ${failedBatches.length} Failed batch(es). Repairing to Pending...`);
+      ideaGenerated = await handleIdeateSingleBatch(env, config);
+    } else if (pendingBatches.length === 0) {
+      console.log("[PRODUCTION-CRON] Generating 1 new idea batch for today...");
+      ideaGenerated = await handleIdeateSingleBatch(env, config);
+    }
+  } catch (e) {
+    console.warn(`[PRODUCTION-CRON] Ideate/Repair warning: ${e.message}`);
   }
 
   // Trigger GitHub Actions to render all pending rows

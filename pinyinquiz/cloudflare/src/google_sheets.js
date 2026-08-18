@@ -365,6 +365,41 @@ export class GoogleSheetsClient {
   }
 
   /**
+   * Overwrite an entire batch row with newly regenerated words & metadata, resetting status to 'Pending'
+   */
+  async repairBatchRow(rowNumber, topic, level, words, metadataText, notes) {
+    const wordCols = [];
+    for (let wIdx = 0; wIdx < 5; wIdx++) {
+      const w = words[wIdx];
+      if (w) {
+        wordCols.push(`${w.hanzi} | ${w.pinyin} | ${w.hidden_pinyin} | ${w.meaning}`);
+      } else {
+        wordCols.push("");
+      }
+    }
+
+    const rowUpdates = [[
+      topic,           // Col B
+      level,           // Col C
+      "Pending",       // Col D: Reset Status to Pending
+      wordCols[0] || "", // Col E
+      wordCols[1] || "", // Col F
+      wordCols[2] || "", // Col G
+      wordCols[3] || "", // Col H
+      wordCols[4] || "", // Col I
+      metadataText || "", // Col J
+      "",              // Col K: Clear old video link
+      "",              // Col L: Youtube
+      "",              // Col M: Tiktok
+      "",              // Col N: Facebook
+      new Date().toISOString().substring(0, 19).replace("T", " "), // Col O
+      notes            // Col P: Notes
+    ]];
+
+    await this.updateRange(`${this.tabName}!B${rowNumber}:P${rowNumber}`, rowUpdates);
+  }
+
+  /**
    * Delete batch row (Set status to Deleted and clear video links)
    */
   async deleteBatchRow(rowNumber) {
@@ -396,10 +431,10 @@ export class GoogleSheetsClient {
    * - Error (bị lỗi khi đăng bài)
    */
   async getStatusSummary() {
-    const rows = await this.getSheetValues(`${this.tabName}!A2:P500`);
     let pendingCount = 0;
     let videoCount = 0;
     let readyCount = 0;
+    let failedCount = 0;
     let errorCount = 0;
     const errorDetails = [];
 
@@ -416,7 +451,9 @@ export class GoogleSheetsClient {
         videoCount++;
       } else if (status === "ready") {
         readyCount++;
-      } else if (status === "error" || status === "failed") {
+      } else if (status === "failed") {
+        failedCount++;
+      } else if (status === "error") {
         errorCount++;
         // Check missing channels
         const missing = [];
@@ -435,6 +472,7 @@ export class GoogleSheetsClient {
       pendingCount,
       videoCount,
       readyCount,
+      failedCount,
       errorCount,
       errorDetails
     };

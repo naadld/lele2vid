@@ -16,6 +16,7 @@ from src.render_engine import render_scene_file
 from src.audio_generator import ensure_bell_sound, ensure_tick_sound
 from src.gdrive_uploader import GDriveUploader
 from src.metadata_generator import save_and_upload_metadata
+from src.pre_render_validator import PreRenderValidator
 
 logging.basicConfig(
     level=logging.INFO,
@@ -30,6 +31,20 @@ def sanitize_filename(name: str) -> str:
     """Sanitize string for safe cross-platform filename."""
     s = re.sub(r'[/\\:*?"<>|]', '_', name)
     return s.strip()
+
+def send_telegram_alert_message(text: str):
+    """Send text alert to Telegram bot."""
+    bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip() or "8974080727:AAFiyOQzfadrZ8EF_IhYrNnwsy-9BTnsYis"
+    chat_id = os.getenv("TELEGRAM_CHAT_ID", "").strip() or "6800539169"
+
+    if not (bot_token and chat_id):
+        return
+    try:
+        import requests
+        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        requests.post(url, json={"chat_id": chat_id, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True}, timeout=20)
+    except Exception as e:
+        logger.warning(f"Telegram alert error: {e}")
 
 def send_telegram_video(video_path: str, caption: str, row_id: str = ""):
     """Send rendered video file directly to Telegram bot chat with moderation inline keyboard."""
@@ -131,6 +146,31 @@ def run_batch_job(from_sheet: bool = True, target_id: str = None, sample: bool =
         logger.info(f"Total Words: {len(words)}")
         logger.info(f"Quality: {quality}")
         logger.info("=" * 50)
+
+        # 🛑 PRE-RENDER GATEKEEPER CHECK
+        validator = PreRenderValidator()
+        is_valid, validation_errors = validator.validate_batch(batch)
+        if not is_valid:
+            error_str = " | ".join(validation_errors)
+            logger.warning(f"🛑 Batch [{row_id}] VI PHẠM NGUYÊN TẮC: {error_str}. Chuyển trạng thái sang 'Failed'.")
+            if gsheet_mgr and row_index > 0:
+                gsheet_mgr.update_batch_status(row_index, "Failed")
+                try:
+                    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    gsheet_mgr.worksheet.update_cell(row_index, 16, f"[Pre-Render Vi Phạm: {error_str[:150]} lúc {now_str}]")
+                except Exception as e:
+                    logger.warning(f"Could not update Notes cell: {e}")
+
+            # Send Telegram Alert
+            bullets = "\n".join([f"• {e}" for e in validation_errors])
+            alert_msg = (
+                f"🛑 <b>[Pre-Render Gatekeeper] Dòng #{row_id} Bị Chặn:</b>\n\n"
+                f"📌 <b>Chủ đề:</b> <b>{topic}</b> (<code>{level}</code>)\n"
+                f"❌ <b>Lý do vi phạm nguyên tắc:</b>\n{bullets}\n\n"
+                f"🔄 <b>Trạng thái:</b> <code>Pending ➔ Failed</code> (Đã dừng render, hệ thống sẽ tự động khôi phục chuẩn hóa trong lượt tới)."
+            )
+            send_telegram_alert_message(alert_msg)
+            continue
 
         if gsheet_mgr and row_index > 0:
             gsheet_mgr.update_batch_status(row_index, "In Progress")
