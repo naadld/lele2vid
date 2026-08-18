@@ -95,6 +95,51 @@ export default {
       }
     }
 
+    // 3c. Debug Telegram Webhook Endpoint
+    if (url.pathname === "/api/debug-telegram") {
+      const token = config.telegramBotToken || "";
+      const maskedToken = token ? `${token.substring(0, 8)}...${token.substring(token.length - 4)}` : "MISSING";
+      let meRes = null;
+      let whRes = null;
+      let setWhRes = null;
+
+      if (token) {
+        try {
+          const r1 = await fetch(`https://api.telegram.org/bot${token}/getMe`);
+          meRes = await r1.json();
+        } catch (e) {
+          meRes = { error: e.message };
+        }
+
+        try {
+          const r2 = await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`);
+          whRes = await r2.json();
+        } catch (e) {
+          whRes = { error: e.message };
+        }
+
+        // Auto-fix webhook if requested or if wrong
+        if (url.searchParams.get("set") === "true") {
+          try {
+            const targetWh = `https://${url.host}/webhook`;
+            const r3 = await fetch(`https://api.telegram.org/bot${token}/setWebhook?url=${encodeURIComponent(targetWh)}`);
+            setWhRes = await r3.json();
+          } catch (e) {
+            setWhRes = { error: e.message };
+          }
+        }
+      }
+
+      return new Response(JSON.stringify({
+        configuredToken: maskedToken,
+        chatId: config.telegramChatId || env.TELEGRAM_CHAT_ID || "MISSING",
+        getMe: meRes,
+        webhookInfo: whRes,
+        setWebhookResult: setWhRes,
+        expectedWebhookUrl: `https://${url.host}/webhook`
+      }, null, 2), { headers: { "Content-Type": "application/json" } });
+    }
+
     // 3b. Dedicated Gemini Test Endpoint
     if (url.pathname === "/api/test-gemini") {
       const geminiKeys = config.geminiApiKeys || [];
@@ -510,9 +555,10 @@ async function handleTelegramUpdate(update, env, config) {
 
   const chatId = message.chat.id;
   const rawText = message.text.trim();
-  const command = rawText.split(" ")[0].toLowerCase();
+  const rawCommand = rawText.split(" ")[0].toLowerCase();
+  const command = rawCommand.split("@")[0]; // Strip @bot_username suffix if present
 
-  console.log(`Received command from Chat ${chatId}: ${rawText}`);
+  console.log(`Received command from Chat ${chatId}: ${rawText} (Parsed: ${command})`);
 
   // 1. /help & /start
   if (command === "/start" || command === "/help") {
@@ -520,8 +566,8 @@ async function handleTelegramUpdate(update, env, config) {
     return;
   }
 
-  // 2. /ideate: Tạo 1 bộ ý tưởng (chỉ 1 dòng) với Status "Pending"
-  if (command === "/ideate" || command === "/generate") {
+  // 2. /ideate (hoặc /ideation, /idea, /generate, /sinh, /tao)
+  if (command === "/ideate" || command === "/ideation" || command === "/idea" || command === "/generate" || command === "/sinh" || command === "/tao") {
     await sendTelegramMessage(
       botToken,
       chatId,
@@ -718,6 +764,23 @@ async function handleTelegramUpdate(update, env, config) {
         `❌ <b>Lỗi đọc trạng thái Sheet:</b>\n<code>${err.message}</code>`
       );
     }
+    return;
+  }
+
+  // 6. Unknown / Unrecognized Command Fallback
+  if (command.startsWith("/")) {
+    await sendTelegramMessage(
+      botToken,
+      chatId,
+      `❓ <b>Lệnh không xác định:</b> <code>${command}</code>\n\n` +
+      `📌 <b>Các lệnh hợp lệ của hệ thống:</b>\n` +
+      `• <code>/ideate</code>: Tạo 1 bộ ý tưởng từ vựng HSK mới\n` +
+      `• <code>/render</code>: Kích hoạt render video (Pending ➔ Video)\n` +
+      `• <code>/qc</code>: Kích hoạt Auto-QC Gatekeeper kiểm tra video\n` +
+      `• <code>/publish</code>: Đăng 1 video lên Buffer (YouTube, TikTok, Facebook)\n` +
+      `• <code>/status</code>: Xem thống kê hàng đợi trên Google Sheets\n` +
+      `• <code>/help</code>: Xem hướng dẫn sử dụng chi tiết`
+    );
     return;
   }
 }
