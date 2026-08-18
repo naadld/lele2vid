@@ -49,7 +49,7 @@ def send_telegram_alert_message(text: str):
 def send_telegram_video(video_path: str, caption: str, row_id: str = ""):
     """Send rendered video file directly to Telegram bot chat with moderation inline keyboard."""
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip() or "8974080727:AAFiyOQzfadrZ8EF_IhYrNnwsy-9BTnsYis"
-    chat_id = os.getenv("TELEGRAM_CHAT_ID", "").strip()
+    chat_id = os.getenv("TELEGRAM_CHAT_ID", "").strip() or "6800539169"
     
     if not (bot_token and chat_id and os.path.exists(video_path)):
         logger.info("Telegram notification skipped (bot_token, chat_id or video_path missing).")

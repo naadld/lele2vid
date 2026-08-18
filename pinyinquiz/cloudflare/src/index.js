@@ -97,55 +97,62 @@ export default {
 
     // 3c. Debug Telegram Webhook Endpoint
     if (url.pathname === "/api/debug-telegram") {
-      const token = config.telegramBotToken || "";
-      const maskedToken = token ? `${token.substring(0, 8)}...${token.substring(token.length - 4)}` : "MISSING";
-      let meRes = null;
-      let whRes = null;
-      let setWhRes = null;
+      try {
+        const token = config.telegramBotToken || "";
+        const maskedToken = token ? `${token.substring(0, 8)}...${token.substring(token.length - 4)}` : "MISSING";
+        let meRes = null;
+        let whRes = null;
+        let setWhRes = null;
+        let sendRes = null;
 
-      if (token) {
-        try {
-          const r1 = await fetch(`https://api.telegram.org/bot${token}/getMe`);
-          meRes = await r1.json();
-        } catch (e) {
-          meRes = { error: e.message };
-        }
-
-        try {
-          const r2 = await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`);
-          whRes = await r2.json();
-        } catch (e) {
-          whRes = { error: e.message };
-        }
-
-        // Auto-fix webhook if requested or if wrong
-        if (url.searchParams.get("set") === "true") {
+        if (token) {
           try {
-            const targetWh = `https://${url.host}/webhook`;
-            const r3 = await fetch(`https://api.telegram.org/bot${token}/setWebhook?url=${encodeURIComponent(targetWh)}`);
-            setWhRes = await r3.json();
+            const r1 = await fetch(`https://api.telegram.org/bot${token}/getMe`);
+            meRes = await r1.json();
           } catch (e) {
-            setWhRes = { error: e.message };
+            meRes = { error: e.message };
+          }
+
+          try {
+            const r2 = await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`);
+            whRes = await r2.json();
+          } catch (e) {
+            whRes = { error: e.message };
+          }
+
+          // Auto-fix webhook if requested or if wrong
+          if (url.searchParams.get("set") === "true") {
+            try {
+              const targetWh = `https://${url.host}/webhook`;
+              const r3 = await fetch(`https://api.telegram.org/bot${token}/setWebhook?url=${encodeURIComponent(targetWh)}`);
+              setWhRes = await r3.json();
+            } catch (e) {
+              setWhRes = { error: e.message };
+            }
+          }
+
+          // Test sending message
+          if (url.searchParams.get("send") === "true") {
+            const targetChat = url.searchParams.get("chat_id") || config.telegramChatId || "6800539169";
+            sendRes = await sendTelegramMessage(token, targetChat, `🔔 <b>Test kết nối Telegram Bot (@lelepinyinBot)</b>\nThời gian: <code>${new Date().toISOString()}</code>`);
           }
         }
 
-        // Test sending message
-        let sendRes = null;
-        if (url.searchParams.get("send") === "true") {
-          const targetChat = url.searchParams.get("chat_id") || config.telegramChatId || "6800539169";
-          sendRes = await sendTelegramMessage(token, targetChat, `🔔 <b>Test kết nối Telegram Bot (@lelepinyinBot)</b>\nThời gian: <code>${new Date().toISOString()}</code>`);
-        }
+        return new Response(JSON.stringify({
+          configuredToken: maskedToken,
+          chatId: config.telegramChatId || env.TELEGRAM_CHAT_ID || "MISSING",
+          getMe: meRes,
+          webhookInfo: whRes,
+          setWebhookResult: setWhRes,
+          sendMessageTestResult: sendRes,
+          expectedWebhookUrl: `https://${url.host}/webhook`
+        }, null, 2), { headers: { "Content-Type": "application/json" } });
+      } catch (outerErr) {
+        return new Response(JSON.stringify({ error: outerErr.message, stack: outerErr.stack }, null, 2), {
+          status: 500,
+          headers: { "Content-Type": "application/json" }
+        });
       }
-
-      return new Response(JSON.stringify({
-        configuredToken: maskedToken,
-        chatId: config.telegramChatId || env.TELEGRAM_CHAT_ID || "MISSING",
-        getMe: meRes,
-        webhookInfo: whRes,
-        setWebhookResult: setWhRes,
-        sendMessageTestResult: sendRes,
-        expectedWebhookUrl: `https://${url.host}/webhook`
-      }, null, 2), { headers: { "Content-Type": "application/json" } });
     }
 
     // 3b. Dedicated Gemini Test Endpoint
