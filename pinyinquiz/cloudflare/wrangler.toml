@@ -9,11 +9,11 @@ account_id = "3591f5b61af3263ca14af7a1765cc954"
 binding = "AI"
 
 # Cron Triggers (UTC):
-# - 00:00 UTC = 07:00 AM VN (UTC+7) -> Đăng video lần 1
-# - 06:00 UTC = 13:00 PM VN (UTC+7) -> Đăng video lần 2
-# - 23:00 UTC = 06:00 AM VN (UTC+7) -> (Tùy chọn) Tự động sinh ý tưởng hàng ngày
+# - 18:00 UTC = 01:00 AM VN (UTC+7) -> Lịch sản xuất video & gửi kiểm duyệt Telegram
+# - 00:00 UTC = 07:00 AM VN (UTC+7) -> Lịch đăng video Buffer lần 1
+# - 06:00 UTC = 13:00 PM VN (UTC+7) -> Lịch đăng video Buffer lần 2
 [triggers]
-crons = ["0 0 * * *", "0 6 * * *"]
+crons = ["0 18 * * *", "0 0 * * *", "0 6 * * *"]
 
 # Public Environment Variables (Non-sensitive)
 [vars]

@@ -34,36 +34,88 @@ export async function sendTelegramMessage(botToken, chatId, text, options = {}) 
 }
 
 /**
+ * Answer Telegram Callback Query
+ */
+export async function answerTelegramCallback(botToken, callbackQueryId, text = "", showAlert = false) {
+  if (!botToken || !callbackQueryId) return null;
+
+  const url = `https://api.telegram.org/bot${botToken}/answerCallbackQuery`;
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        callback_query_id: callbackQueryId,
+        text: text,
+        show_alert: showAlert
+      })
+    });
+    return await res.json();
+  } catch (err) {
+    console.error("Failed to answer callback query:", err);
+    return null;
+  }
+}
+
+/**
+ * Edit Telegram Message Caption
+ */
+export async function editTelegramMessageCaption(botToken, chatId, messageId, caption, replyMarkup = null) {
+  if (!botToken || !chatId || !messageId) return null;
+
+  const url = `https://api.telegram.org/bot${botToken}/editMessageCaption`;
+  const body = {
+    chat_id: chatId,
+    message_id: messageId,
+    caption: caption,
+    parse_mode: "HTML"
+  };
+
+  if (replyMarkup !== null) {
+    body.reply_markup = replyMarkup;
+  }
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    return await res.json();
+  } catch (err) {
+    console.error("Failed to edit message caption:", err);
+    return null;
+  }
+}
+
+/**
  * Build help / start menu message
  */
 export function getHelpMessage() {
-  return `🤖 <b>HỆ THỐNG ĐIỀU KHIỂN TỰ ĐỘNG - LÊ LÊ HỌC TIẾNG TRUNG</b>
+  return `🤖 <b>HỆ THỐNG ĐIỀU KHIỂN & KIỂM DUYỆT TỰ ĐỘNG - LÊ LÊ HỌC TIẾNG TRUNG</b>
 <i>(Cloudflare Serverless 24/7 - Độc lập 100% VPS)</i>
 
 💡 <b>DANH SÁCH LỆNH ĐIỀU KHIỂN:</b>
 ━━━━━━━━━━━━━━━━━━━━━
 🔹 <code>/ideate</code>:
-   👉 Tạo <b>1 bộ ý tưởng mới</b> (1 dòng) với trạng thái <b>Pending</b> vào Google Sheet.
+   👉 Tạo <b>1 bộ ý tưởng mới</b> (1 dòng) với trạng thái <b>Pending</b>.
 
 🔹 <code>/render</code>:
-   👉 Kích hoạt GitHub Action render tất cả các dòng <b>Pending</b>. Khi render xong và có video trên GDrive, trạng thái chuyển thành <b>Video</b>.
+   👉 Kích hoạt GitHub Action render tất cả dòng <b>Pending</b> ➔ Tạo video vào GDrive ➔ Gửi video kèm nút kiểm duyệt lên Telegram ➔ Set trạng thái <b>Video</b>.
 
 🔹 <code>/publish</code>:
-   👉 Đăng đúng <b>1 video duy nhất</b> (quét từ trên xuống: ưu tiên dòng <b>Error</b> còn thiếu kênh, sau đó đến dòng <b>Video</b>).
-   • Đủ cả 3 nền tảng (TikTok, Reels, Shorts) ➔ chuyển thành <b>Published</b>.
-   • Nếu thiếu kênh nào ➔ giữ trạng thái <b>Error</b> và ghi nhận kênh thành công để lần sau chạy tiếp.
+   👉 Đăng đúng <b>1 video duy nhất</b> (ưu tiên retry dòng <b>Error</b> thiếu kênh, sau đó đăng dòng <b>Ready</b> đã duyệt).
 
 🔹 <code>/status</code>:
-   👉 Báo cáo thống kê:
-   • Số ý tưởng đã sinh chưa có video (Pending).
-   • Số video đã sinh chưa đăng (Video).
-   • Số video đang bị lỗi hoặc thiếu kênh (Error).
+   👉 Thống kê: Pending (chờ render), Video (chờ duyệt), Ready (sẵn sàng đăng), Error (lỗi đăng).
 
 🔹 <code>/help</code>:
    👉 Xem lại hướng dẫn này.
 
-⏰ <b>LỊCH ĐĂNG TỰ ĐỘNG 2 LẦN/NGÀY (BUFFER):</b>
-• <b>07:00 Sáng</b> (UTC 00:00)
-• <b>13:00 Chiều</b> (UTC 06:00)
+━━━━━━━━━━━━━━━━━━━━━
+🕒 <b>LỊCH HOẠT ĐỘNG HÀNG NGÀY:</b>
+• <b>01:00 Sáng</b> (UTC 18:00): Tự động sản xuất ý tưởng, render video & bắn sang Telegram kèm 4 nút kiểm duyệt (Approve / Reset / Delete / Cancel).
+• <b>07:00 Sáng</b> (UTC 00:00): Tự động retry lỗi Error & đăng 1 video <b>Ready</b> lên 3 nền tảng qua Buffer.
+• <b>13:00 Chiều</b> (UTC 06:00): Tự động retry lỗi Error & đăng 1 video <b>Ready</b> tiếp theo lên 3 nền tảng qua Buffer.
 ━━━━━━━━━━━━━━━━━━━━━`;
 }

@@ -198,6 +198,29 @@ export class GoogleSheetsClient {
   }
 
   /**
+   * Clear a specific range
+   */
+  async clearRange(range) {
+    const token = await this.getAuthToken();
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${this.spreadsheetId}/values/${encodeURIComponent(range)}:clear`;
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json"
+      }
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Google Sheets Clear Error (${res.status}): ${err}`);
+    }
+
+    return await res.json();
+  }
+
+  /**
    * Get vocabulary history for smart anti-duplication:
    * - recent5Words: words in the last 5 videos (strictly forbidden)
    * - olderWords: words in videos older than 5 videos (eligible for max 1 repetition)
@@ -246,7 +269,34 @@ export class GoogleSheetsClient {
   }
 
   /**
-   * Get list of batches with matching status ('Pending', 'Video', 'Error', etc.)
+   * Find row number and data by batch ID (Col A or numeric ID)
+   */
+  async findRowByBatchId(batchId) {
+    const cleanId = String(batchId).replace(/^#/, "").trim();
+    const rows = await this.getSheetValues(`${this.tabName}!A1:P500`);
+    if (!rows || rows.length < 2) return null;
+
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      const rowId = String(row[0] || "").replace(/^#/, "").trim();
+      const rowNum = i + 1;
+
+      if (rowId === cleanId || String(rowNum) === cleanId) {
+        return {
+          rowNumber: rowNum,
+          id: row[0] || String(rowNum),
+          topic: row[1] || "",
+          level: row[2] || "",
+          status: (row[3] || "").trim(),
+          rawRow: row
+        };
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Get list of batches with matching status ('Pending', 'Ready', 'Error', 'Video', etc.)
    */
   async getBatchesByStatus(targetStatuses) {
     const statuses = Array.isArray(targetStatuses) 
@@ -315,6 +365,14 @@ export class GoogleSheetsClient {
   }
 
   /**
+   * Delete batch row (Set status to Deleted and clear video links)
+   */
+  async deleteBatchRow(rowNumber) {
+    await this.updateRange(`${this.tabName}!D${rowNumber}`, [["Deleted"]]);
+    await this.updateRange(`${this.tabName}!K${rowNumber}`, [[""]]);
+  }
+
+  /**
    * Update social posting info and final status ('Published' or 'Error')
    */
   async updateSocialPublishStatus(rowNumber, finalStatus, { youtube = "", tiktok = "", facebook = "" }) {
@@ -331,15 +389,17 @@ export class GoogleSheetsClient {
   }
 
   /**
-   * Get stats summary strictly for:
-   * - Pending (ý tưởng sinh ra chưa có video)
-   * - Video (video sinh ra chưa đăng)
-   * - Error (video đang bị lỗi đăng bài)
+   * Get stats summary for:
+   * - Pending (chờ render)
+   * - Video (chờ kiểm duyệt duyệt)
+   * - Ready (đã duyệt, sẵn sàng đăng tự động)
+   * - Error (bị lỗi khi đăng bài)
    */
   async getStatusSummary() {
     const rows = await this.getSheetValues(`${this.tabName}!A2:P500`);
     let pendingCount = 0;
     let videoCount = 0;
+    let readyCount = 0;
     let errorCount = 0;
     const errorDetails = [];
 
@@ -352,8 +412,10 @@ export class GoogleSheetsClient {
 
       if (status === "pending") {
         pendingCount++;
-      } else if (status === "video" || status === "ready") {
+      } else if (status === "video") {
         videoCount++;
+      } else if (status === "ready") {
+        readyCount++;
       } else if (status === "error" || status === "failed") {
         errorCount++;
         // Check missing channels
@@ -372,6 +434,7 @@ export class GoogleSheetsClient {
     return {
       pendingCount,
       videoCount,
+      readyCount,
       errorCount,
       errorDetails
     };

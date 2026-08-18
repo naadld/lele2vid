@@ -173,25 +173,52 @@ jobs:
           except Exception as e:
               print(f'Could not send Telegram summary: {e}')
               
-          # Bắn từng file video đã render trực tiếp vào Telegram Bot
+          import json, re
+          # Bắn từng file video đã render trực tiếp vào Telegram Bot kèm nút kiểm duyệt
           for v_path in rendered_videos:
               try:
                   v_name = os.path.basename(v_path)
-                  print(f'Sending video {v_name} to Telegram...')
+                  row_id_match = re.search(r'#?(\d+)', v_name)
+                  row_id = row_id_match.group(1) if row_id_match else "1"
+                  print(f'Sending video {v_name} (Row #{row_id}) to Telegram...')
+                  
+                  reply_markup = {
+                      "inline_keyboard": [
+                          [
+                              {"text": "🟢 Approve (Ready)", "callback_data": f"approve:{row_id}"},
+                              {"text": "🔄 Reset (Pending)", "callback_data": f"reset:{row_id}"}
+                          ],
+                          [
+                              {"text": "🗑️ Delete", "callback_data": f"delete:{row_id}"},
+                              {"text": "⏸️ Cancel (Để sau)", "callback_data": f"cancel:{row_id}"}
+                          ]
+                      ]
+                  }
+                  
                   with open(v_path, 'rb') as vf:
                       v_caption = (
-                          f'🎬 <b>[Video Đã Render] {v_name}</b>\n\n'
-                          f'📊 <b>Trạng thái Sheet:</b> <code>Video</code>\n'
-                          f'⏰ Sẵn sàng đăng tự động lúc 07:00 & 13:00 (hoặc gõ /publish)'
+                          f'🎬 <b>[Kiểm Duyệt Video] #{row_id}: {v_name}</b>\n\n'
+                          f'📊 <b>Trạng thái:</b> <code>Video</code> (Đã lưu GDrive)\n\n'
+                          f'👇 <i>Vui lòng bấm nút để kiểm duyệt video:</i>\n'
+                          f'• <b>Approve</b> ➔ Chuyển thành <code>Ready</code> (Đăng tự động 07:00 / 13:00)\n'
+                          f'• <b>Reset</b> ➔ Chuyển về <code>Pending</code> (Render lại)\n'
+                          f'• <b>Delete</b> ➔ Xóa hẳn dòng này\n'
+                          f'• <b>Cancel</b> ➔ Giữ nguyên <code>Video</code> (Để sau)'
                       )
                       v_res = requests.post(
                           f'https://api.telegram.org/bot{bot_token}/sendVideo',
-                          data={'chat_id': chat_id, 'caption': v_caption, 'parse_mode': 'HTML', 'supports_streaming': True},
+                          data={
+                              'chat_id': chat_id,
+                              'caption': v_caption,
+                              'parse_mode': 'HTML',
+                              'supports_streaming': True,
+                              'reply_markup': json.dumps(reply_markup)
+                          },
                           files={'video': vf},
                           timeout=120
                       )
                       if v_res.status_code == 200:
-                          print(f'Successfully sent {v_name} to Telegram!')
+                          print(f'Successfully sent {v_name} with moderation buttons to Telegram!')
                       else:
                           print(f'Send video status for {v_name}: {v_res.status_code}')
               except Exception as ve:

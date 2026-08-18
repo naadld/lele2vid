@@ -31,8 +31,8 @@ def sanitize_filename(name: str) -> str:
     s = re.sub(r'[/\\:*?"<>|]', '_', name)
     return s.strip()
 
-def send_telegram_video(video_path: str, caption: str):
-    """Send rendered video file directly to Telegram bot chat."""
+def send_telegram_video(video_path: str, caption: str, row_id: str = ""):
+    """Send rendered video file directly to Telegram bot chat with moderation inline keyboard."""
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip() or "8974080727:AAFiyOQzfadrZ8EF_IhYrNnwsy-9BTnsYis"
     chat_id = os.getenv("TELEGRAM_CHAT_ID", "").strip()
     
@@ -43,18 +43,31 @@ def send_telegram_video(video_path: str, caption: str):
     url = f"https://api.telegram.org/bot{bot_token}/sendVideo"
     try:
         logger.info(f"Sending video to Telegram ({chat_id}): {video_path}")
+        reply_markup = {
+            "inline_keyboard": [
+                [
+                    {"text": "🟢 Approve (Ready)", "callback_data": f"approve:{row_id}"},
+                    {"text": "🔄 Reset (Pending)", "callback_data": f"reset:{row_id}"}
+                ],
+                [
+                    {"text": "🗑️ Delete", "callback_data": f"delete:{row_id}"},
+                    {"text": "⏸️ Cancel (Để sau)", "callback_data": f"cancel:{row_id}"}
+                ]
+            ]
+        }
         with open(video_path, "rb") as video_file:
             files = {"video": video_file}
             data = {
                 "chat_id": chat_id,
                 "caption": caption[:1024],
                 "parse_mode": "HTML",
-                "supports_streaming": True
+                "supports_streaming": True,
+                "reply_markup": json.dumps(reply_markup)
             }
             import requests
             res = requests.post(url, data=data, files=files, timeout=90)
             if res.status_code == 200:
-                logger.info("Successfully sent video to Telegram bot!")
+                logger.info("Successfully sent video to Telegram bot with moderation buttons!")
             else:
                 logger.warning(f"Failed to send video to Telegram: {res.status_code} - {res.text}")
     except Exception as e:
@@ -171,14 +184,18 @@ def run_batch_job(from_sheet: bool = True, target_id: str = None, sample: bool =
                     metadata_link=metadata_link
                 )
 
-            # Send video directly to Telegram bot chat
+            # Send video directly to Telegram bot chat with moderation buttons
             tg_caption = (
-                f"🎬 <b>[Video Mới] #{row_id}: {topic} ({level})</b>\n\n"
-                f"📊 <b>Trạng thái:</b> <code>Video</code> (Đã lưu GDrive)\n"
+                f"🎬 <b>[Kiểm Duyệt Video] #{row_id}: {topic} ({level})</b>\n\n"
+                f"📊 <b>Trạng thái hiện tại:</b> <code>Video</code> (Đã lưu GDrive)\n"
                 f"🔗 <b>GDrive:</b> {gdrive_link or 'Đã lưu local'}\n\n"
-                f"<i>Sẵn sàng để đăng tự động vào lúc 07:00 & 13:00 hoặc gõ /publish để đăng ngay!</i>"
+                f"👇 <i>Vui lòng chọn thao tác kiểm duyệt:</i>\n"
+                f"• <b>Approve</b> ➔ Chuyển thành <code>Ready</code> (Đăng tự động lúc 07:00 / 13:00)\n"
+                f"• <b>Reset</b> ➔ Chuyển về <code>Pending</code> (Để render lại)\n"
+                f"• <b>Delete</b> ➔ Xóa dòng khỏi Sheet\n"
+                f"• <b>Cancel</b> ➔ Giữ nguyên <code>Video</code> (Để sau)"
             )
-            send_telegram_video(video_path, tg_caption)
+            send_telegram_video(video_path, tg_caption, row_id=str(row_id))
 
             logger.info(f" Batch [{row_id}] finished successfully -> {video_path}")
         else:
