@@ -21,7 +21,7 @@ export function getConfig(env) {
     
     // Telegram
     telegramBotToken: env.TELEGRAM_BOT_TOKEN || "",
-    telegramChatId: env.TELEGRAM_CHAT_ID || "",
+    telegramChatId: env.TELEGRAM_CHAT_ID || "6800539169",
     telegramWebhookSecret: env.TELEGRAM_WEBHOOK_SECRET || "",
     
     // GitHub Actions
