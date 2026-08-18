@@ -242,12 +242,22 @@ def run_batch_job(from_sheet: bool = True, target_id: str = None, sample: bool =
                 f"• <b>Cancel</b> ➔ Giữ nguyên <code>Video</code> (Để sau)"
             )
             send_telegram_video(video_path, tg_caption, row_id=str(row_id))
-
             logger.info(f" Batch [{row_id}] finished successfully -> {video_path}")
         else:
             logger.error(f"❌ Failed to render batch [{row_id}]")
             if gsheet_mgr and row_index > 0:
                 gsheet_mgr.update_batch_status(row_index, "Failed")
+                try:
+                    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    gsheet_mgr.worksheet.update_cell(row_index, 16, f"[Render Thất Bại lúc {now_str}]")
+                except Exception:
+                    pass
+            send_telegram_alert_message(
+                f"❌ <b>[Render Thất Bại] #{row_id}: {topic} ({level})</b>\n\n"
+                f"📊 <b>Trạng thái:</b> <code>In Progress ➔ Failed</code>\n"
+                f"⚠️ <b>Nguyên nhân:</b> Lỗi trong quá trình kết xuất Manim / FFmpeg.\n"
+                f"🔄 Hệ thống sẽ tự động thử khôi phục trong lượt tới."
+            )
 
 def main():
     parser = argparse.ArgumentParser(description="lelehoctiengtrung_pinyin Batch Runner")

@@ -178,6 +178,19 @@ def generate_daily_rows(count: int = 5) -> List[List[str]]:
 
     return new_rows
 
+def send_telegram_alert(text: str):
+    """Send Telegram notification."""
+    bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip() or "8974080727:AAFiyOQzfadrZ8EF_IhYrNnwsy-9BTnsYis"
+    chat_id = os.getenv("TELEGRAM_CHAT_ID", "").strip() or "6800539169"
+    if not (bot_token and chat_id):
+        return
+    try:
+        import requests
+        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        requests.post(url, json={"chat_id": chat_id, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True}, timeout=20)
+    except Exception as e:
+        logger.warning(f"Telegram alert error: {e}")
+
 def main():
     logger.info("=== Daily Batch Creator with LLM (vpsg24gb:20130) ===")
     mgr = GSheetManager()
@@ -186,6 +199,14 @@ def main():
     if new_rows:
         mgr.worksheet.append_rows(new_rows)
         logger.info(f"🎉 Successfully added {len(new_rows)} new Pending batches with metadata to tab '{mgr.tab_name}'!")
+        
+        batch_bullets = "\n".join([f"• <b>#{r[0]}:</b> {r[1]} (<code>{r[2]}</code>)" for r in new_rows])
+        send_telegram_alert(
+            f"💡 <b>[Sinh Bộ Ý Tưởng Mới]</b>\n\n"
+            f"Đã tạo thành công <b>{len(new_rows)}</b> bộ chủ đề từ vựng HSK:\n"
+            f"{batch_bullets}\n\n"
+            f"📊 <b>Trạng thái:</b> <code>Pending</code> (Sẵn sàng render)"
+        )
     else:
         logger.info("No new batches generated.")
 

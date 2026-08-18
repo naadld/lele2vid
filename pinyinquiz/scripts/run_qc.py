@@ -68,6 +68,11 @@ def run_auto_qc(target_row_id: str = None):
 
     if not video_batches:
         logger.info("No batches found with status 'Video'. QC complete.")
+        send_telegram_qc_alert(
+            f"ℹ️ <b>[Auto-QC Gatekeeper] Hoàn Tất Quét</b>\n\n"
+            f"Hiện không có video nào ở trạng thái <code>Video</code> cần duyệt.\n"
+            f"Tất cả video đã ở trạng thái <code>Ready</code> hoặc đang chờ render."
+        )
         return
 
     logger.info(f"Found {len(video_batches)} batch(es) with status 'Video' to inspect.")
@@ -176,6 +181,18 @@ def run_auto_qc(target_row_id: str = None):
     logger.info("\n" + "=" * 50)
     logger.info(f"Auto-QC Summary: {passed_count} Passed (Ready), {failed_count} Failed (QC_Failed), {skipped_count} Skipped.")
     logger.info("=" * 50)
+
+    # Send summary notification if checked multiple batches
+    if len(video_batches) > 1:
+        skip_text = f"\n• ⚠️ <b>{skipped_count}</b> video tạm bỏ qua" if skipped_count > 0 else ""
+        summary_msg = (
+            f"🏁 <b>[Tổng Kết Auto-QC Gatekeeper]</b>\n\n"
+            f"📊 Đã quét <b>{len(video_batches)}</b> video:\n"
+            f"• ✅ <b>{passed_count}</b> video đạt chuẩn ➔ <code>Ready</code>\n"
+            f"• ❌ <b>{failed_count}</b> video lỗi ➔ <code>Failed</code>"
+            f"{skip_text}"
+        )
+        send_telegram_qc_alert(summary_msg)
 
 def main():
     parser = argparse.ArgumentParser(description="Auto-QC Gatekeeper Runner")

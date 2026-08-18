@@ -1097,6 +1097,7 @@ export async function handlePublishingCron(env, config) {
   // 1. Quét và thử lại (retry tối đa 2 lần) cho TẤT CẢ các dòng Error
   if (errorBatches.length > 0) {
     console.log(`[PUBLISHING-CRON] Retrying ${errorBatches.length} Error batches...`);
+    const retrySummaries = [];
     for (const errBatch of errorBatches) {
       // Retry lần 1
       let res = await publishBatchToBuffer(env, errBatch);
@@ -1111,7 +1112,15 @@ export async function handlePublishingCron(env, config) {
         tiktok: res.tiktokStatus,
         facebook: res.fbStatus
       });
+
+      retrySummaries.push(`• <b>#${errBatch.id}</b> (${errBatch.topic}): ${res.finalStatus === 'Published' ? '✅ Đã đăng đủ 3 kênh' : '⚠️ Còn thiếu kênh'}`);
     }
+
+    await sendTelegramMessage(
+      config.telegramBotToken,
+      config.telegramChatId,
+      `🔄 <b>[Tự Động Retry ${errorBatches.length} Video Error]</b>\n\n${retrySummaries.join("\n")}`
+    );
   }
 
   // 2. Đăng ĐÚNG 1 video duy nhất có trạng thái "Ready" (từ trên xuống)
