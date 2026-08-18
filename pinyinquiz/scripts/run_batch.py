@@ -118,18 +118,21 @@ def run_batch_job(from_sheet: bool = True, target_id: str = None, sample: bool =
         else:
             batches_to_process = gsheet_mgr.get_pending_batches()
     elif sample:
+        sample_words = [
+            {"hanzi": "苹果", "pinyin": "píng guǒ", "hidden_pinyin": "p _ _ _   g _ _", "meaning": "Quả táo"},
+            {"hanzi": "米饭", "pinyin": "mǐ fàn", "hidden_pinyin": "m _   f _ _", "meaning": "Cơm"},
+            {"hanzi": "面包", "pinyin": "miàn bāo", "hidden_pinyin": "m _ _ _   b _ _", "meaning": "Bánh mì"},
+            {"hanzi": "喝水", "pinyin": "hē shuǐ", "hidden_pinyin": "h _   s _ _ _", "meaning": "Uống nước"},
+            {"hanzi": "吃饭", "pinyin": "chī fàn", "hidden_pinyin": "c _ _   f _ _", "meaning": "Ăn cơm"}
+        ]
+        sample_meta = save_and_upload_metadata("sample_hsk12", "HSK 1-2 • ĐOÁN PINYIN", "HSK 1-2", sample_words)
         batches_to_process = [{
             "row_index": 0,
             "id": "sample_hsk12",
             "topic": "HSK 1-2 • ĐOÁN PINYIN",
             "level": "HSK 1-2",
-            "words": [
-                {"hanzi": "苹果", "pinyin": "píng guǒ", "hidden_pinyin": "p _ _ _   g _ _", "meaning": "Quả táo"},
-                {"hanzi": "米饭", "pinyin": "mǐ fàn", "hidden_pinyin": "m _   f _ _", "meaning": "Cơm"},
-                {"hanzi": "面包", "pinyin": "miàn bāo", "hidden_pinyin": "m _ _ _   b _ _", "meaning": "Bánh mì"},
-                {"hanzi": "喝水", "pinyin": "hē shuǐ", "hidden_pinyin": "h _   s _ _ _", "meaning": "Uống nước"},
-                {"hanzi": "吃饭", "pinyin": "chī fàn", "hidden_pinyin": "c _ _   f _ _", "meaning": "Ăn cơm"}
-            ]
+            "words": sample_words,
+            "metadata": sample_meta
         }]
 
     if not batches_to_process:
