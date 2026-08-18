@@ -1,0 +1,35 @@
+name = "lele-pinyinquiz"
+main = "src/index.js"
+compatibility_date = "2024-04-01"
+compatibility_flags = ["nodejs_compat"]
+account_id = "3591f5b61af3263ca14af7a1765cc954"
+
+# Cloudflare Workers AI Binding
+[ai]
+binding = "AI"
+
+# Cron Triggers (UTC):
+# - 00:00 UTC = 07:00 AM VN (UTC+7) -> Đăng video lần 1
+# - 06:00 UTC = 13:00 PM VN (UTC+7) -> Đăng video lần 2
+# - 23:00 UTC = 06:00 AM VN (UTC+7) -> (Tùy chọn) Tự động sinh ý tưởng hàng ngày
+[triggers]
+crons = ["0 0 * * *", "0 6 * * *"]
+
+# Public Environment Variables (Non-sensitive)
+[vars]
+SPREADSHEET_ID = "1b6LNl7JHRiCsjK1w9VuD86GLqAfmSOtDUOm5whrGdH0"
+SHEET_TAB_NAME = "pinyin"
+GITHUB_REPO_OWNER = "naadld"
+GITHUB_REPO_NAME = "lele2vid"
+GITHUB_WORKFLOW_FILE = "daily_render.yml"
+AI_MODEL = "@cf/meta/llama-3.3-70b-instruct"
+
+# Secrets to be configured via `wrangler secret put <KEY>`:
+# - TELEGRAM_BOT_TOKEN
+# - TELEGRAM_CHAT_ID
+# - TELEGRAM_WEBHOOK_SECRET
+# - GCP_SERVICE_ACCOUNT_EMAIL
+# - GCP_SERVICE_ACCOUNT_PRIVATE_KEY
+# - GITHUB_TOKEN
+# - BUFFER_ACCESS_TOKEN
+# - BUFFER_PROFILE_IDS (Comma separated: tiktok_id,facebook_id,youtube_id)

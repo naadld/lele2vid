@@ -31,6 +31,35 @@ def sanitize_filename(name: str) -> str:
     s = re.sub(r'[/\\:*?"<>|]', '_', name)
     return s.strip()
 
+def send_telegram_video(video_path: str, caption: str):
+    """Send rendered video file directly to Telegram bot chat."""
+    bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip() or "8974080727:AAFiyOQzfadrZ8EF_IhYrNnwsy-9BTnsYis"
+    chat_id = os.getenv("TELEGRAM_CHAT_ID", "").strip()
+    
+    if not (bot_token and chat_id and os.path.exists(video_path)):
+        logger.info("Telegram notification skipped (bot_token, chat_id or video_path missing).")
+        return
+        
+    url = f"https://api.telegram.org/bot{bot_token}/sendVideo"
+    try:
+        logger.info(f"Sending video to Telegram ({chat_id}): {video_path}")
+        with open(video_path, "rb") as video_file:
+            files = {"video": video_file}
+            data = {
+                "chat_id": chat_id,
+                "caption": caption[:1024],
+                "parse_mode": "HTML",
+                "supports_streaming": True
+            }
+            import requests
+            res = requests.post(url, data=data, files=files, timeout=90)
+            if res.status_code == 200:
+                logger.info("Successfully sent video to Telegram bot!")
+            else:
+                logger.warning(f"Failed to send video to Telegram: {res.status_code} - {res.text}")
+    except Exception as e:
+        logger.warning(f"Error sending video to Telegram: {e}")
+
 def run_batch_job(from_sheet: bool = True, target_id: str = None, sample: bool = False, quality: str = "qh", upload_gdrive: bool = False):
     """
     Main batch processing function.
@@ -141,6 +170,15 @@ def run_batch_job(from_sheet: bool = True, target_id: str = None, sample: bool =
                     video_link=gdrive_link,
                     metadata_link=metadata_link
                 )
+
+            # Send video directly to Telegram bot chat
+            tg_caption = (
+                f"🎬 <b>[Video Mới] #{row_id}: {topic} ({level})</b>\n\n"
+                f"📊 <b>Trạng thái:</b> <code>Video</code> (Đã lưu GDrive)\n"
+                f"🔗 <b>GDrive:</b> {gdrive_link or 'Đã lưu local'}\n\n"
+                f"<i>Sẵn sàng để đăng tự động vào lúc 07:00 & 13:00 hoặc gõ /publish để đăng ngay!</i>"
+            )
+            send_telegram_video(video_path, tg_caption)
 
             logger.info(f" Batch [{row_id}] finished successfully -> {video_path}")
         else:

@@ -156,27 +156,46 @@ jobs:
               
           status_icon = f'✅ THÀNH CÔNG ({num_videos} video)' if status == 'success' else '❌ THẤT BẠI'
           
-          text = (
+          summary_text = (
               f'🤖 <b>[GitHub Actions] Báo Cáo Render Video PinyinQuiz</b>\n\n'
               f'Trạng thái: <b>{status_icon}</b>\n'
               f'Số lượng video render: <b>{num_videos}</b>\n'
               f'Chất lượng: <b>{quality}</b>\n'
-              f'Nền tảng: <b>GitHub Actions Cloud Runner (Mỗi 1 tiếng)</b>\n'
-              f'Google Sheet: Đã đồng bộ Video Link & Metadata vào tab <code>pinyin</code>.'
+              f'Google Sheet: Đã đồng bộ Video Link & Metadata vào tab <code>pinyin</code> (Trạng thái: <code>Video</code>).'
           )
           
           try:
-              res = requests.post(
+              requests.post(
                   f'https://api.telegram.org/bot{bot_token}/sendMessage',
-                  data={'chat_id': chat_id, 'text': text, 'parse_mode': 'HTML'},
+                  data={'chat_id': chat_id, 'text': summary_text, 'parse_mode': 'HTML'},
                   timeout=15
               )
-              if res.status_code == 200:
-                  print('Telegram notification sent successfully.')
-              else:
-                  print(f'Telegram send status: {res.status_code}')
           except Exception as e:
-              print('Could not send Telegram notification.')
+              print(f'Could not send Telegram summary: {e}')
+              
+          # Bắn từng file video đã render trực tiếp vào Telegram Bot
+          for v_path in rendered_videos:
+              try:
+                  v_name = os.path.basename(v_path)
+                  print(f'Sending video {v_name} to Telegram...')
+                  with open(v_path, 'rb') as vf:
+                      v_caption = (
+                          f'🎬 <b>[Video Đã Render] {v_name}</b>\n\n'
+                          f'📊 <b>Trạng thái Sheet:</b> <code>Video</code>\n'
+                          f'⏰ Sẵn sàng đăng tự động lúc 07:00 & 13:00 (hoặc gõ /publish)'
+                      )
+                      v_res = requests.post(
+                          f'https://api.telegram.org/bot{bot_token}/sendVideo',
+                          data={'chat_id': chat_id, 'caption': v_caption, 'parse_mode': 'HTML', 'supports_streaming': True},
+                          files={'video': vf},
+                          timeout=120
+                      )
+                      if v_res.status_code == 200:
+                          print(f'Successfully sent {v_name} to Telegram!')
+                      else:
+                          print(f'Send video status for {v_name}: {v_res.status_code}')
+              except Exception as ve:
+                  print(f'Error uploading video {v_path} to Telegram: {ve}')
           "
 
       - name: Cleanup Credentials
