@@ -28,10 +28,19 @@ jobs:
           python-version: '3.12'
           cache: 'pip'
 
+      # Cache Pip Wheels for ultrafast install
+      - name: Cache Pip Wheels
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('pinyinquiz/requirements.txt', 'requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
       - name: Install System Dependencies (FFmpeg & LibGL)
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg libgl1-mesa-glx libglib2.0-0
+          sudo apt-get install -y ffmpeg libgl1 libglib2.0-0
 
       - name: Install Python Requirements
         run: |
@@ -58,6 +67,9 @@ jobs:
           INPUT_ROW: ${{ github.event.inputs.row_id }}
           PYTHONPATH: .
           GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+          GDRIVE_CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
+          GDRIVE_CLIENT_SECRET: ${{ secrets.GDRIVE_CLIENT_SECRET }}
+          GDRIVE_REFRESH_TOKEN: ${{ secrets.GDRIVE_REFRESH_TOKEN }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |

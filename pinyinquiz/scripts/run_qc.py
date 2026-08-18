@@ -52,39 +52,19 @@ def run_auto_qc(target_row_id: str = None):
     gsheet_mgr = GSheetManager()
     inspector = QCInspector()
 
-    # Find rows with Status == 'Video'
-    all_rows = gsheet_mgr.get_all_rows()
     video_batches = []
 
-    for idx, r in enumerate(all_rows, start=2):
-        status = str(r.get("Status", "")).strip()
-        if status.lower() == "video":
-            row_id = str(r.get("#", idx))
-            if target_row_id and row_id != target_row_id:
-                continue
-
-            words = []
-            for w_idx in range(1, 6):
-                w_val = str(r.get(f"Word {w_idx}", "")).strip()
-                if w_val:
-                    parts = [p.strip() for p in w_val.split("|")]
-                    words.append({
-                        "hanzi": parts[0] if len(parts) > 0 else "",
-                        "pinyin": parts[1] if len(parts) > 1 else "",
-                        "hidden_pinyin": parts[2] if len(parts) > 2 else "",
-                        "meaning": parts[3] if len(parts) > 3 else parts[0]
-                    })
-
-            video_batches.append({
-                "row_index": idx,
-                "id": row_id,
-                "topic": r.get("Topic", "HSK 1-2"),
-                "level": r.get("Level", "HSK 1-2"),
-                "words": words,
-                "video_url": r.get("Video", ""),
-                "metadata": r.get("metadata", ""),
-                "notes": r.get("Notes", "")
-            })
+    if target_row_id:
+        target_clean = str(target_row_id).replace("#", "").strip()
+        batch = gsheet_mgr.get_batch_by_id(target_clean)
+        if batch:
+            video_batches = [batch]
+            logger.info(f"Targeted specific batch #{target_clean}: '{batch.get('topic')}'")
+        else:
+            logger.warning(f"Could not find batch #{target_clean} on Google Sheets.")
+            return
+    else:
+        video_batches = gsheet_mgr.get_batches_by_status("Video")
 
     if not video_batches:
         logger.info("No batches found with status 'Video'. QC complete.")
@@ -96,22 +76,29 @@ def run_auto_qc(target_row_id: str = None):
 
     passed_count = 0
     failed_count = 0
+    skipped_count = 0
 
     for batch in video_batches:
         row_id = batch["id"]
         topic = batch["topic"]
         level = batch["level"]
         row_idx = batch["row_index"]
-        video_url = batch["video_url"]
+        video_url = batch.get("video_url", "")
 
         logger.info("\n" + "=" * 50)
-        logger.info(f"Checking Batch #{row_id}: {topic} ({level})")
+        logger.info(f"Checking Batch #{row_id} (Row {row_idx}): {topic} ({level})")
         logger.info(f"Video URL: {video_url}")
         logger.info("=" * 50)
 
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
         if not video_url:
-            logger.warning(f"Batch #{row_id} has status 'Video' but no Video URL. Reverting to Pending.")
-            gsheet_mgr.update_batch_status(row_idx, "Pending")
+            logger.warning(f"Batch #{row_id} has status 'Video' but no Video URL. Skipping.")
+            skipped_count += 1
+            try:
+                gsheet_mgr.worksheet.update_cell(row_idx, 16, f"[Auto-QC: Chưa có link Video lúc {now_str}]")
+            except Exception:
+                pass
             continue
 
         # 1. Download video file
@@ -120,18 +107,22 @@ def run_auto_qc(target_row_id: str = None):
 
         download_ok = download_video_file(video_url, local_video_path)
         if not download_ok or not os.path.exists(local_video_path):
-            logger.error(f"Could not download video for Batch #{row_id}. Skipping.")
+            logger.error(f"Could not download video for Batch #{row_id}. Leaving status as 'Video' for retry.")
+            skipped_count += 1
+            try:
+                gsheet_mgr.worksheet.update_cell(row_idx, 16, f"[Auto-QC: Tải video thất bại lúc {now_str}]")
+            except Exception:
+                pass
             continue
 
         # 2. Run QC Inspection
         result = inspector.inspect_batch(batch, local_video_path)
-        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         if result["passed"]:
             logger.info(f"✨ Batch #{row_id} PASSED all QC checks! Changing Status to 'Ready'.")
             passed_count += 1
             
-            # Update Sheet status to 'Ready'
+            # Update Sheet status to 'Ready' (Col 4: D)
             gsheet_mgr.worksheet.update_cell(row_idx, 4, "Ready")
             
             # Update Notes column (Col 16: P)
@@ -147,21 +138,20 @@ def run_auto_qc(target_row_id: str = None):
                 f"📊 <b>Trạng thái:</b> <code>Video ➔ Ready</code> (Sẵn sàng đăng)\n"
                 f"✅ <b>Chi tiết kiểm tra:</b>\n"
                 f"• Chữ Hán Giản thể chuẩn HSK: 100%\n"
-                f"• Khung hình & Pinyin an toàn: Không tràn viền\n"
-                f"• Định dạng video: {result['details'].get('width', 1080)}x{result['details'].get('height', 1920)} ({result['details'].get('duration_sec', 0)}s)\n\n"
+                f"• Âm thanh & Khung hình: 1080x1920 9:16 ({result['details'].get('duration_sec', 0)}s, {result['details'].get('fps', 0)} FPS)\n"
+                f"• Bố cục nội dung: Chuẩn an toàn 5 từ\n\n"
                 f"<i>Video sẽ tự động được Buffer đăng lên YouTube, TikTok, Facebook Reels lúc 07:00 / 13:00!</i>"
             )
             send_telegram_qc_alert(tg_msg)
 
         else:
             errors_str = " | ".join(result["errors"])
-            logger.warning(f"❌ Batch #{row_id} FAILED QC checks: {errors_str}. Reverting Status to 'Pending'.")
+            logger.warning(f"❌ Batch #{row_id} FAILED QC checks: {errors_str}. Changing Status to 'Failed'.")
             failed_count += 1
 
-            # Clear video link and revert status to 'Pending'
-            gsheet_mgr.worksheet.update_cell(row_idx, 4, "Pending")
+            # Update status to 'Failed' (KEEP video link intact in Col 11 for manual review)
+            gsheet_mgr.worksheet.update_cell(row_idx, 4, "Failed")
             try:
-                gsheet_mgr.worksheet.update_cell(row_idx, 11, "") # Clear Video Link
                 gsheet_mgr.worksheet.update_cell(row_idx, 16, f"[Auto-QC Lỗi: {errors_str[:150]} lúc {now_str}]")
             except Exception as e:
                 logger.warning(f"Could not update cell: {e}")
@@ -172,7 +162,7 @@ def run_auto_qc(target_row_id: str = None):
                 f"⚠️ <b>[Auto-QC Gatekeeper] Phát Hiện Video Lỗi:</b>\n\n"
                 f"🎬 <b>Batch #{row_id}:</b> <b>{topic}</b> (<code>{level}</code>)\n"
                 f"❌ <b>Lý do không đạt chuẩn:</b>\n{error_bullets}\n\n"
-                f"🔄 <b>Hành động:</b> Đã tự động chuyển về <code>Pending</code> để render lại trong ca tiếp theo."
+                f"🔄 <b>Trạng thái:</b> <code>Video ➔ Failed</code> (Link video vẫn được giữ để bạn kiểm tra lại)."
             )
             send_telegram_qc_alert(tg_msg)
 
@@ -184,7 +174,7 @@ def run_auto_qc(target_row_id: str = None):
                 pass
 
     logger.info("\n" + "=" * 50)
-    logger.info(f"Auto-QC Summary: {passed_count} Passed (Ready), {failed_count} Failed (Pending).")
+    logger.info(f"Auto-QC Summary: {passed_count} Passed (Ready), {failed_count} Failed (QC_Failed), {skipped_count} Skipped.")
     logger.info("=" * 50)
 
 def main():
