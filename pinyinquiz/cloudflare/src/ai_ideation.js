@@ -112,13 +112,14 @@ function buildSystemPrompt(history = {}, count = 1) {
 Nhiệm vụ: Tạo ${count} bộ chủ đề từ vựng HSK 1 - HSK 3 hấp dẫn, vui tươi, thiết thực.
 
 QUY TẮC CHỐNG TRÙNG LẶP & CẤU TRÚC:
-1. Mỗi bộ gồm đúng 5 từ vựng tiếng Trung (2-3 chữ Hán/từ).
+1. Mỗi bộ gồm đúng 5 từ vựng tiếng Trung (1-4 chữ Hán/từ).
 2. KHÔNG ĐƯỢC trùng lặp nguyên bộ 5 từ hoặc trùng chủ đề với các video gần đây: [${recentTopicsStr}].
 3. TUYỆT ĐỐI CẤM dùng lại bất kỳ từ nào đã xuất hiện trong 5 video gần nhất: [${recentWordsStr}].
 4. ĐƯỢC PHÉP tái sử dụng TỐI ĐA 1 TỪ VỰNG CŨ (từ các video đã đăng cách đây hơn 5 tập để ôn tập kiến thức), còn lại ít nhất 4 từ trong video BẮT BUỘC PHẢI LÀ TỪ MỚI HOÀN TOÀN.
-5. Pinyin phải CHUẨN XÁC và có ĐẦY ĐỦ THANH ĐIỆU (ā, á, ǎ, à, ē, é, ě, è, ī, í, ǐ, ì, ō, ó, ǒ, ò, ū, ú, ǔ, ù, ǖ, ǘ, ǚ, ǜ).
-6. Nghĩa tiếng Việt ngắn gọn, dễ hiểu.
-7. Phản hồi DUY NHẤT một chuỗi JSON hợp lệ không có văn bản thừa ngoài JSON.
+5. Pinyin phải CHUẨN XÁC, có ĐẦY ĐỦ THANH ĐIỆU (ā, á, ǎ, à, ē, é, ě, è, ī, í, ǐ, ì, ō, ó, ǒ, ò, ū, ú, ǔ, ù, ǖ, ǘ, ǚ, ǜ) và BẮT BUỘC MỖI CHỮ HÁN PHẢI CÓ ĐÚNG 1 ÂM TIẾT CÁCH NHAU BẰNG DẤU CÁCH (1-to-1 match). Ví dụ: '公共汽车' -> 'gōng gòng qì chē', '自行车' -> 'zì xíng chē', '出租车' -> 'chū zū chē' (TUYỆT ĐỐI KHÔNG viết dính liền 'gōnggòng qìchē' hay 'zìxíngchē').
+6. Nghĩa tiếng Việt ngắn gọn, súc tích, TỐI ĐA 30 KÝ TỰ (tuyệt đối không vượt quá 35 ký tự để tránh rớt dòng làm lệch khung video).
+7. Toàn bộ chữ Hán BẮT BUỘC là chữ Giản thể (Simplified Chinese).
+8. Phản hồi DUY NHẤT một chuỗi JSON hợp lệ không có văn bản thừa ngoài JSON.
 
 CẤU TRÚC JSON MẪU:
 [
