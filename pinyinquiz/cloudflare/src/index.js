@@ -315,6 +315,55 @@ export default {
       }
     }
 
+    // 4g. Reset All "Video" Rows to "Pending" & Trigger Render
+    if ((url.pathname === "/api/reset-all" || url.pathname === "/api/reset-all-videos") && (request.method === "POST" || request.method === "GET")) {
+      try {
+        const includeReady = url.searchParams.get("include_ready") === "true";
+        const autoTrigger = url.searchParams.get("trigger") !== "false";
+        const gsheet = new GoogleSheetsClient(
+          config.gcpClientEmail,
+          config.gcpPrivateKey,
+          config.spreadsheetId,
+          config.sheetTabName
+        );
+        const allRows = await gsheet.getSheetValues(`${config.sheetTabName}!A1:N200`);
+        const resetList = [];
+
+        for (let i = 1; i < allRows.length; i++) {
+          const rowStatus = String(allRows[i][3] || "").trim();
+          const shouldReset = rowStatus.toLowerCase() === "video" || (includeReady && rowStatus.toLowerCase() === "ready");
+          if (shouldReset) {
+            const sheetRowIdx = i + 1;
+            await gsheet.updateCell(`${config.sheetTabName}!D${sheetRowIdx}`, "Pending");
+            await gsheet.updateCell(`${config.sheetTabName}!K${sheetRowIdx}`, "");
+            resetList.push({
+              rowId: allRows[i][0],
+              topic: allRows[i][1],
+              level: allRows[i][2],
+              oldStatus: rowStatus
+            });
+          }
+        }
+
+        let triggerRes = null;
+        if (autoTrigger && resetList.length > 0) {
+          triggerRes = await triggerGitHubRenderWorkflow(env, { row_id: "" });
+        }
+
+        return new Response(JSON.stringify({
+          success: true,
+          count: resetList.length,
+          resetList,
+          autoRenderTriggered: autoTrigger && resetList.length > 0,
+          renderWorkflow: triggerRes
+        }, null, 2), {
+          headers: { "Content-Type": "application/json" }
+        });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message, stack: err.stack }), { status: 500, headers: { "Content-Type": "application/json" } });
+      }
+    }
+
     // 4b. Preview Publish Payload Endpoint
     if (url.pathname === "/api/test-publish-preview") {
       try {
@@ -884,6 +933,57 @@ async function handleTelegramUpdate(update, env, config) {
       );
     } catch (err) {
       await sendTelegramMessage(botToken, chatId, `❌ <b>Lỗi khi reset dòng #${targetRowId}:</b>\n<code>${err.message}</code>`);
+    }
+    return;
+  }
+
+  // 3c-2. /resetall: Reset toàn bộ dòng có status 'Video' về 'Pending' và kích hoạt render lại
+  if (command === "/resetall" || command === "/resetvideos") {
+    await sendTelegramMessage(botToken, chatId, "⏳ <b>Đang quét và reset tất cả các dòng 'Video' về 'Pending'...</b>");
+    try {
+      const gsheet = new GoogleSheetsClient(
+        config.gcpClientEmail,
+        config.gcpPrivateKey,
+        config.spreadsheetId,
+        config.sheetTabName
+      );
+      const allRows = await gsheet.getSheetValues(`${config.sheetTabName}!A1:N200`);
+      const resetIds = [];
+
+      for (let i = 1; i < allRows.length; i++) {
+        const rowStatus = String(allRows[i][3] || "").trim().toLowerCase();
+        if (rowStatus === "video") {
+          const sheetRowIdx = i + 1;
+          await gsheet.updateCell(`${config.sheetTabName}!D${sheetRowIdx}`, "Pending");
+          await gsheet.updateCell(`${config.sheetTabName}!K${sheetRowIdx}`, "");
+          resetIds.push(allRows[i][0]);
+        }
+      }
+
+      if (resetIds.length === 0) {
+        await sendTelegramMessage(botToken, chatId, "ℹ️ Không có dòng nào ở trạng thái <code>Video</code> cần reset.");
+        return;
+      }
+
+      // Automatically trigger render workflow
+      let renderMsg = "";
+      try {
+        const ghRes = await triggerGitHubRenderWorkflow(env, { row_id: "" });
+        renderMsg = `\n🚀 <b>Đã kích hoạt Render:</b> ${ghRes.message}`;
+      } catch (ge) {
+        renderMsg = `\n⚠️ <i>Chưa tự kích hoạt render được: ${ge.message}. Bạn có thể gõ <code>/render</code> thủ công.</i>`;
+      }
+
+      await sendTelegramMessage(
+        botToken,
+        chatId,
+        `🔄 <b>ĐÃ RESET TOÀN BỘ ${resetIds.length} DÒNG VIDEO VỀ PENDING!</b>\n\n` +
+        `📋 <b>Các ID dòng:</b> <code>#${resetIds.join(", #")}</code>\n` +
+        `📊 <b>Trạng thái mới:</b> <code>Pending</code> (Đã xóa video cũ để kết xuất bìa mới)${renderMsg}\n\n` +
+        `<i>Sau khi kết xuất xong, video sẽ gửi về bot và chạy Auto-QC tự động!</i>`
+      );
+    } catch (err) {
+      await sendTelegramMessage(botToken, chatId, `❌ <b>Lỗi khi reset toàn bộ video:</b>\n<code>${err.message}</code>`);
     }
     return;
   }
