@@ -251,22 +251,12 @@ def run_batch_job(from_sheet: bool = True, target_id: str = None, sample: bool =
         if gsheet_mgr and row_index > 0:
             gsheet_mgr.update_batch_status(row_index, "In Progress")
 
-        # 1. Generate scene python file
+        # 1. Generate scene python file (Includes 0.75s High-CTR Cover at 00:00)
         scene_file, scene_name = create_scene_file(batch)
         logger.info(f"Generated scene: {scene_name} at {scene_file}")
 
-        # 1.5 Generate High-CTR Thumbnail (1080x1920 9:16)
-        clean_topic_name = sanitize_filename(topic)
-        thumb_filename = f"#{row_id}.{clean_topic_name}_thumbnail.jpg"
-        thumb_path = os.path.join(config.output_videos_dir, thumb_filename)
-        try:
-            create_high_ctr_thumbnail(batch, output_path=thumb_path)
-            logger.info(f"✨ Generated High-CTR Thumbnail: {thumb_path}")
-        except Exception as te:
-            logger.warning(f"Could not generate thumbnail: {te}")
-            thumb_path = ""
-
         # 2. Render Video with Manim
+        clean_topic_name = sanitize_filename(topic)
         final_video_name = f"#{row_id}.{clean_topic_name}.mp4"
         custom_video_path = os.path.join(config.output_videos_dir, final_video_name)
 
@@ -281,12 +271,9 @@ def run_batch_job(from_sheet: bool = True, target_id: str = None, sample: bool =
             logger.info(f"Video rendered successfully: {video_path}")
             
             gdrive_link = ""
-            thumb_gdrive_link = ""
             if gdrive_uploader:
                 try:
                     gdrive_link = gdrive_uploader.upload_file(video_path, final_video_name) or ""
-                    if thumb_path and os.path.exists(thumb_path):
-                        thumb_gdrive_link = gdrive_uploader.upload_file(thumb_path, thumb_filename, mimetype="image/jpeg") or ""
                 except Exception as ue:
                     logger.error(f"GDrive upload error: {ue}")
 
@@ -312,20 +299,19 @@ def run_batch_job(from_sheet: bool = True, target_id: str = None, sample: bool =
                     metadata_link=metadata_text
                 )
 
-            # Send video directly to Telegram bot chat with moderation buttons & thumbnail
-            thumb_info = f"\n🖼️ <b>Thumbnail:</b> {thumb_gdrive_link or 'Đã tạo đính kèm'}" if (thumb_gdrive_link or thumb_path) else ""
+            # Send video directly to Telegram bot chat with moderation buttons
             tg_caption = (
                 f"🎬 <b>[Kiểm Duyệt Video] #{row_id}: {topic} ({level})</b>\n\n"
                 f"📊 <b>Trạng thái hiện tại:</b> <code>Video</code> (Đã lưu GDrive)\n"
-                f"🔗 <b>GDrive Video:</b> {gdrive_link or 'Đã lưu local'}"
-                f"{thumb_info}\n\n"
+                f"🔗 <b>GDrive Video:</b> {gdrive_link or 'Đã lưu local'}\n"
+                f"🖼️ <b>Ảnh bìa (Cover):</b> Đã tích hợp 0.75s ở đầu video (Frame 00:00)\n\n"
                 f"👇 <i>Vui lòng chọn thao tác kiểm duyệt:</i>\n"
                 f"• <b>Approve</b> ➔ Chuyển thành <code>Ready</code> (Đăng tự động lúc 07:00 / 13:00)\n"
                 f"• <b>Reset</b> ➔ Chuyển về <code>Pending</code> (Để render lại)\n"
                 f"• <b>Delete</b> ➔ Xóa dòng khỏi Sheet\n"
                 f"• <b>Cancel</b> ➔ Giữ nguyên <code>Video</code> (Để sau)"
             )
-            send_telegram_video(video_path, tg_caption, row_id=str(row_id), gdrive_link=gdrive_link, thumb_path=thumb_path, thumb_gdrive_link=thumb_gdrive_link)
+            send_telegram_video(video_path, tg_caption, row_id=str(row_id), gdrive_link=gdrive_link)
             logger.info(f" Batch [{row_id}] finished successfully -> {video_path}")
         else:
             logger.error(f"❌ Failed to render batch [{row_id}]")

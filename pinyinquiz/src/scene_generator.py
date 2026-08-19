@@ -9,7 +9,8 @@ def generate_scene_code(
     words: List[Dict[str, Any]],
     topic: str = "HSK 1-2 • TỪ VỰNG CƠ BẢN",
     level: str = "HSK 1-2",
-    scene_name: str = "ModernPinyinQuizScene"
+    scene_name: str = "ModernPinyinQuizScene",
+    cover_path: str = ""
 ) -> str:
     """
     Generates standalone Python/Manim script code matching user's exact storyboard and layout.
@@ -65,6 +66,16 @@ class {scene_name}(Scene):
         words = {words_code}
         total_words = len(words)
         topic_title = "{clean_topic}"
+
+        # 0. High-CTR Cover Thumbnail (0.75s Cover at 00:00 for TikTok / Shorts / Reels)
+        cover_path = "{cover_path}"
+        if os.path.exists(cover_path):
+            cover_img = ImageMobject(cover_path)
+            cover_img.set_height(config.frame_height)
+            cover_img.set_width(config.frame_width)
+            self.add(cover_img)
+            self.wait(0.75)
+            self.remove(cover_img)
 
         # 1. Background Image
         bg_path = "{os.path.join(config.base_dir, 'assets/images/background.jpg')}"
@@ -368,15 +379,27 @@ class {scene_name}(Scene):
     return code
 
 def create_scene_file(batch_data: Dict[str, Any], output_path: str = None) -> Tuple[str, str]:
-    """Save generated scene code to Python file."""
+    """Save generated scene code to Python file with High-CTR 0.75s Cover Thumbnail."""
     os.makedirs(config.generated_scenes_dir, exist_ok=True)
     batch_id = batch_data.get("id", "1")
     topic = batch_data.get("topic", "HSK 1-2 • TỪ VỰNG CƠ BẢN")
     level = batch_data.get("level", "HSK 1-2")
     words_input = batch_data.get("words", [])
     
+    # 1. Pre-generate Cover Thumbnail Image (0.05s)
+    clean_topic_name = "".join([c if c.isalnum() else "_" for c in topic]).strip("_")
+    cover_filename = f"#{batch_id}.{clean_topic_name}_cover.jpg"
+    cover_path = os.path.join(config.output_videos_dir, cover_filename)
+    try:
+        from src.thumbnail_generator import create_high_ctr_thumbnail
+        create_high_ctr_thumbnail(batch_data, output_path=cover_path)
+    except Exception as e:
+        import logging
+        logging.getLogger("SceneGenerator").warning(f"Could not create cover image: {e}")
+        cover_path = ""
+
     scene_name = f"HSKBatch_{re.sub(r'[^a-zA-Z0-9_]', '_', str(batch_id))}"
-    code = generate_scene_code(words_input, topic, level, scene_name)
+    code = generate_scene_code(words_input, topic, level, scene_name, cover_path=cover_path)
     
     if not output_path:
         output_path = os.path.join(config.generated_scenes_dir, f"scene_batch_{batch_id}.py")
