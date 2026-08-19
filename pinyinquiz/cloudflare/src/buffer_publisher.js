@@ -359,6 +359,9 @@ export async function publishBatchToBuffer(env, batch) {
     fbStatus,
     results,
     errors,
+    isYtOk,
+    isTtOk,
+    isFbOk,
     fullyPublished: isYtOk && isTtOk && isFbOk
   };
 }
