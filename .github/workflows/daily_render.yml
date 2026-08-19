@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   render_videos:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     timeout-minutes: 60
 
     steps:
@@ -37,7 +37,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.venv
-          key: ${{ runner.os }}-venv-${{ hashFiles('pinyinquiz/requirements.txt') }}
+          key: ${{ runner.os }}-venv-22-${{ hashFiles('pinyinquiz/requirements.txt') }}
 
       # 2. Cache CJK Fonts (Khôi phục trong 1 giây)
       - name: Cache CJK Fonts
@@ -45,21 +45,18 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.fonts
-          key: ${{ runner.os }}-cjk-fonts-v3
+          key: ${{ runner.os }}-cjk-fonts-22
 
       # 3. Install System Dependencies & CJK Fonts (CHỈ CHẠY KHI THIẾU CACHE - Bỏ qua 100% khi đã có Cache)
       - name: Install System Dependencies & CJK Fonts (Only on Cache Miss)
         if: steps.cache-venv.outputs.cache-hit != 'true' || steps.cache-fonts.outputs.cache-hit != 'true'
         run: |
-          sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu/|http://archive.ubuntu.com/ubuntu/|g' /etc/apt/sources.list /etc/apt/sources.list.d/* || true
-          timeout 45s sudo apt-get update -y || true
-          timeout 60s sudo apt-get install -y --no-install-recommends \
+          sudo apt-get update -y || true
+          sudo apt-get install -y --no-install-recommends \
             ffmpeg \
             pkg-config \
             libpango1.0-dev \
             libcairo2-dev \
-            sox \
-            libsox-fmt-all \
             fonts-noto-cjk \
             fonts-wqy-zenhei || true
           mkdir -p ~/.fonts
