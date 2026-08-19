@@ -84,13 +84,21 @@ class PreRenderValidator:
             elif len(meaning) > self.max_meaning_len:
                 errors.append(f"Từ #{idx} '{hanzi}': Nghĩa '{meaning}' quá dài ({len(meaning)} ký tự, tối đa {self.max_meaning_len}) gây rớt dòng lệch thẻ.")
 
-        # 4. Check Metadata Column
+        # 4. Strict Metadata Inspection (Kiểm tra đầy đủ 3 nền tảng + Hashtags)
         if not metadata or metadata.strip() == "":
-            errors.append("Cột Metadata bị rỗng.")
-        elif metadata.startswith("#ERROR"):
-            errors.append("Cột Metadata bị lỗi công thức #ERROR!.")
-        elif not ("YOUTUBE" in metadata.upper() or "[YOUTUBE]" in metadata.upper()):
-            errors.append("Cột Metadata thiếu cấu trúc YouTube Shorts.")
+            errors.append("Cột Metadata bị rỗng (Chưa có nội dung đăng bài).")
+        elif metadata.startswith("#ERROR") or metadata.startswith("#VALUE") or metadata.startswith("#REF"):
+            errors.append("Cột Metadata bị lỗi công thức Google Sheets (#ERROR! / #VALUE!).")
+        else:
+            meta_upper = metadata.upper()
+            if "YOUTUBE" not in meta_upper:
+                errors.append("Metadata thiếu phần tiêu đề & mô tả cho YouTube Shorts.")
+            if "TIKTOK" not in meta_upper:
+                errors.append("Metadata thiếu phần Caption cho TikTok.")
+            if "FACEBOOK" not in meta_upper and "REELS" not in meta_upper:
+                errors.append("Metadata thiếu phần Caption cho Facebook Reels.")
+            if "#LELEHOCTIENGTRUNG" not in meta_upper and "#PINYIN" not in meta_upper:
+                errors.append("Metadata thiếu bộ Hashtags chuẩn nhận diện thương hiệu kênh (#lelehoctiengtrung, #pinyinquiz).")
 
         is_valid = len(errors) == 0
         return is_valid, errors
