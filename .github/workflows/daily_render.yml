@@ -31,14 +31,20 @@ jobs:
         with:
           python-version: '3.11'
 
-      # 1. Register Bundled CJK Fonts (0.1 giây)
+      # 1. Install FFmpeg & System Libraries (1-2 giây)
+      - name: Install FFmpeg & System Dependencies
+        run: |
+          sudo apt-get update -y || true
+          sudo apt-get install -y --no-install-recommends ffmpeg pkg-config libpango1.0-dev libcairo2-dev || true
+
+      # 2. Register Bundled CJK Fonts (0.1 giây)
       - name: Register Bundled CJK Fonts
         run: |
           mkdir -p ~/.fonts
           cp pinyinquiz/assets/fonts/*.ttf ~/.fonts/ 2>/dev/null || true
           fc-cache -f || true
 
-      # 2. Cache Python Virtual Environment (Khôi phục trong 2-3 giây)
+      # 3. Cache Python Virtual Environment (Khôi phục trong 2-3 giây)
       - name: Cache Python Virtualenv
         id: cache-venv
         uses: actions/cache@v4
@@ -46,13 +52,11 @@ jobs:
           path: ~/.venv
           key: ${{ runner.os }}-venv-v4-${{ hashFiles('pinyinquiz/requirements.txt') }}
 
-      # 3. Setup Python Virtualenv (Tự động biên dịch nếu thiếu hoặc cache hỏng)
+      # 4. Setup Python Virtualenv (Tự động biên dịch nếu thiếu hoặc cache hỏng)
       - name: Setup Virtualenv & Dependencies
         run: |
           if [ "${{ steps.cache-venv.outputs.cache-hit }}" != "true" ] || [ ! -f "$HOME/.venv/bin/manim" ]; then
             echo "🔧 Installing dependencies and compiling Manim virtual environment..."
-            sudo apt-get update -y || true
-            sudo apt-get install -y --no-install-recommends pkg-config libpango1.0-dev libcairo2-dev || true
             python -m venv ~/.venv
             source ~/.venv/bin/activate
             pip install --upgrade pip setuptools wheel
