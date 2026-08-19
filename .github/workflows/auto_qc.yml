@@ -80,6 +80,7 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
+          source ~/.venv/bin/activate
           CMD="python scripts/run_qc.py"
           if [ -n "$INPUT_ROW" ]; then
             CMD="$CMD --row-id $INPUT_ROW"

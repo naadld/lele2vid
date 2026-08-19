@@ -93,6 +93,7 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
+          source ~/.venv/bin/activate
           QUALITY="${INPUT_QUALITY:-qh}"
           CMD="python scripts/run_batch.py --from-sheet --quality $QUALITY --upload-gdrive"
           if [ -n "$INPUT_ROW" ]; then
