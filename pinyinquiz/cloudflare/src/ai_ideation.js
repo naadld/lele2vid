@@ -105,34 +105,36 @@ const BUILTIN_VOCAB_BANK = [
 ];
 
 function buildSystemPrompt(history = {}, count = 1) {
-  const recentWords = Array.isArray(history) ? history : (history.recent5Words || []);
-  const recentWordsStr = recentWords.slice(-50).join(", ");
-  const recentTopicsStr = (history.recentTopics || []).slice(-10).join(", ");
+  const allUsedWords = Array.isArray(history) ? history : (history.allUsedWords || history.recent5Words || []);
+  const allUsedWordsStr = allUsedWords.slice(-150).join(", ");
+  const allTopicsStr = (history.allTopics || history.recentTopics || []).slice(-20).join(", ");
 
-  return `Bạn là chuyên gia sư phạm tiếng Trung cho kênh TikTok/YouTube Shorts "Lê Lê Học Tiếng Trung".
-Nhiệm vụ: Tạo ${count} bộ chủ đề từ vựng HSK 1 - HSK 3 hấp dẫn, vui tươi, thiết thực.
+  return `Bạn là chuyên gia biên soạn giáo trình HSK cho kênh TikTok/YouTube Shorts "Lê Lê Học Tiếng Trung".
+Nhiệm vụ: Tạo ${count} bộ chủ đề từ vựng HSK 1, HSK 2 hoặc HSK 3 hấp dẫn, sinh động, giàu tính ứng dụng thực tế.
 
-QUY TẮC CHỐNG TRÙNG LẶP & CẤU TRÚC:
-1. Mỗi bộ gồm đúng 5 từ vựng tiếng Trung (1-4 chữ Hán/từ).
-2. KHÔNG ĐƯỢC trùng lặp nguyên bộ 5 từ hoặc trùng chủ đề với các video gần đây: [${recentTopicsStr}].
-3. TUYỆT ĐỐI CẤM dùng lại bất kỳ từ nào đã xuất hiện trong 5 video gần nhất: [${recentWordsStr}].
-4. ĐƯỢC PHÉP tái sử dụng TỐI ĐA 1 TỪ VỰNG CŨ (từ các video đã đăng cách đây hơn 5 tập để ôn tập kiến thức), còn lại ít nhất 4 từ trong video BẮT BUỘC PHẢI LÀ TỪ MỚI HOÀN TOÀN.
-5. Pinyin phải CHUẨN XÁC, có ĐẦY ĐỦ THANH ĐIỆU (ā, á, ǎ, à, ē, é, ě, è, ī, í, ǐ, ì, ō, ó, ǒ, ò, ū, ú, ǔ, ù, ǖ, ǘ, ǚ, ǜ) và BẮT BUỘC MỖI CHỮ HÁN PHẢI CÓ ĐÚNG 1 ÂM TIẾT CÁCH NHAU BẰNG DẤU CÁCH (1-to-1 match). Ví dụ: '公共汽车' -> 'gōng gòng qì chē', '自行车' -> 'zì xíng chē', '出租车' -> 'chū zū chē' (TUYỆT ĐỐI KHÔNG viết dính liền 'gōnggòng qìchē' hay 'zìxíngchē').
-6. Nghĩa tiếng Việt ngắn gọn, súc tích, TỐI ĐA 30 KÝ TỰ (tuyệt đối không vượt quá 35 ký tự để tránh rớt dòng làm lệch khung video).
+QUY TẮC CHỐNG TRÙNG LẶP & ĐA DẠNG HÓA TỪ VỰNG:
+1. Mỗi bộ gồm đúng 5 từ vựng tiếng Trung (từ 1 đến 4 chữ Hán mỗi từ).
+2. TUYỆT ĐỐI CẤM trùng lặp các chủ đề đã có trên kênh: [${allTopicsStr}]. Hãy sáng tạo các chủ đề cụ thể, thú vị (ví dụ: 'Đi Siêu Thị', 'Khám Bệnh', 'Đồ Dùng Học Tập', 'Thời Tiết Bốn Mùa', 'Thể Thao & Vận Động', 'Khách Sạn & Du Lịch', 'Phương Hướng & Địa Điểm', 'Cảm Xúc & Tính Cách', 'Nghề Nghiệp & Công Sở', 'Trang Phục & Màu Sắc', 'Động Vật Quanh Ta', 'Nhà Bếp & Nấu Ăn'...).
+3. TUYỆT ĐỐI CẤM sử dụng lại bất kỳ từ nào đã từng xuất hiện trên kênh trong danh sách sau:
+   [${allUsedWordsStr}]
+   (CẤM quanh quẩn các từ quá quen thuộc như: 爸爸, 妈妈, 老师, 学生, 朋友, 苹果, 米饭, 吃, 喝, 看 nếu chúng đã có trong danh sách trên). 100% cả 5 từ trong bộ PHẢI LÀ TỪ MỚI CHƯA CÓ TRONG DANH SÁCH!
+4. CÂN ĐỐI CẤP ĐỘ: Ưu tiên chọn lọc từ vựng thuộc HSK 1, HSK 2 và HSK 3 để mở rộng vốn từ phong phú cho người học.
+5. Pinyin phải CHUẨN XÁC, có ĐẦY ĐỦ THANH ĐIỆU (ā, á, ǎ, à, ē, é, ě, è, ī, í, ǐ, ì, ō, ó, ǒ, ò, ū, ú, ǔ, ù, ǖ, ǘ, ǚ, ǜ) và BẮT BUỘC MỖI CHỮ HÁN PHẢI CÓ ĐÚNG 1 ÂM TIẾT CÁCH NHAU BẰNG DẤU CÁCH (1-to-1 match). Ví dụ: '公共汽车' -> 'gōng gòng qì chē', '自行车' -> 'zì xíng chē', '出租车' -> 'chū zū chē' (TUYỆT ĐỐI KHÔNG viết dính liền 'gōnggòng qìchē').
+6. Nghĩa tiếng Việt ngắn gọn, súc tích, TỐI ĐA 30 KÝ TỰ (tuyệt đối không quá 35 ký tự để không tràn khung video).
 7. Toàn bộ chữ Hán BẮT BUỘC là chữ Giản thể (Simplified Chinese).
-8. Phản hồi DUY NHẤT một chuỗi JSON hợp lệ không có văn bản thừa ngoài JSON.
+8. Phản hồi DUY NHẤT một chuỗi JSON hợp lệ không có văn bản giải thích thừa.
 
 CẤU TRÚC JSON MẪU:
 [
   {
-    "topic": "HSK 1 • Đồ Ăn Quen Thuộc",
-    "level": "HSK 1",
+    "topic": "HSK 2 • Đồ Dùng Công Sở",
+    "level": "HSK 2",
     "words": [
-      {"hanzi": "米饭", "pinyin": "mǐ fàn", "meaning": "Cơm"},
-      {"hanzi": "面条", "pinyin": "miàn tiáo", "meaning": "Mì sợi"},
-      {"hanzi": "苹果", "pinyin": "píng guǒ", "meaning": "Quả táo"},
-      {"hanzi": "面包", "pinyin": "miàn bāo", "meaning": "Bánh mì"},
-      {"hanzi": "鸡蛋", "pinyin": "jī dàn", "meaning": "Trứng gà"}
+      {"hanzi": "电脑", "pinyin": "diàn nǎo", "meaning": "Máy vi tính"},
+      {"hanzi": "打印", "pinyin": "dǎ yìn", "meaning": "In ấn"},
+      {"hanzi": "会议", "pinyin": "huì yì", "meaning": "Cuộc họp"},
+      {"hanzi": "经理", "pinyin": "jīng lǐ", "meaning": "Giám đốc / Quản lý"},
+      {"hanzi": "文件", "pinyin": "wén jiàn", "meaning": "Tài liệu / Hồ sơ"}
     ]
   }
 ]`;

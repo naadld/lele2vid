@@ -237,50 +237,58 @@ export class GoogleSheetsClient {
 
   /**
    * Get vocabulary history for smart anti-duplication:
-   * - recent5Words: words in the last 5 videos (strictly forbidden)
-   * - olderWords: words in videos older than 5 videos (eligible for max 1 repetition)
+   * - allUsedWords: ALL words that have appeared in the entire sheet
+   * - recent5Words: words in the last 5 videos
+   * - allTopics: list of all existing topic names on the sheet
    * - recentTopics: list of recent topic names
    */
   async getVocabHistory() {
     const rows = await this.getSheetValues(`${this.tabName}!A2:I500`);
+    if (!rows || rows.length === 0) {
+      return {
+        allUsedWords: [],
+        recent5Words: [],
+        olderWords: [],
+        allTopics: [],
+        recentTopics: []
+      };
+    }
+
+    const allUsedWordsSet = new Set();
     const recentRows = rows.slice(-5);
-    const olderRows = rows.slice(0, -5);
+    const recentWordsSet = new Set();
 
-    const recentWords = new Set();
-    for (const r of recentRows) {
+    for (let rIdx = 0; rIdx < rows.length; rIdx++) {
+      const r = rows[rIdx];
+      const isRecent = rIdx >= (rows.length - 5);
       for (let i = 4; i <= 8; i++) {
         if (r[i]) {
           const hz = r[i].split("|")[0].trim();
-          if (hz) recentWords.add(hz);
+          if (hz) {
+            allUsedWordsSet.add(hz);
+            if (isRecent) recentWordsSet.add(hz);
+          }
         }
       }
     }
 
-    const olderWords = new Set();
-    for (const r of olderRows) {
-      for (let i = 4; i <= 8; i++) {
-        if (r[i]) {
-          const hz = r[i].split("|")[0].trim();
-          if (hz && !recentWords.has(hz)) olderWords.add(hz);
-        }
-      }
-    }
-
-    const recentTopics = rows.slice(-10).map(r => (r[1] || "").trim()).filter(Boolean);
+    const allTopics = rows.map(r => (r[1] || "").trim()).filter(Boolean);
+    const recentTopics = allTopics.slice(-10);
 
     return {
-      recent5Words: Array.from(recentWords),
-      olderWords: Array.from(olderWords),
+      allUsedWords: Array.from(allUsedWordsSet),
+      recent5Words: Array.from(recentWordsSet),
+      allTopics: allTopics,
       recentTopics: recentTopics
     };
   }
 
   /**
-   * Get all used Chinese words
+   * Get all used Chinese words across the sheet
    */
   async getExistingWords() {
     const history = await this.getVocabHistory();
-    return history.recent5Words;
+    return history.allUsedWords;
   }
 
   /**
