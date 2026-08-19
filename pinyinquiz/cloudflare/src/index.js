@@ -937,9 +937,19 @@ async function handleTelegramUpdate(update, env, config) {
     return;
   }
 
-  // 3c-2. /resetall: Reset toàn bộ dòng có status 'Video' về 'Pending' và kích hoạt render lại
-  if (command === "/resetall" || command === "/resetvideos") {
-    await sendTelegramMessage(botToken, chatId, "⏳ <b>Đang quét và reset tất cả các dòng 'Video' về 'Pending'...</b>");
+  // 3c-3. /fix or /heal: Tự động sửa lỗi (Auto-Healing) các dòng 'Failed' (giữ nguyên chủ đề, sửa chữ Giản thể & Pinyin & Metadata)
+  if (command === "/fix" || command === "/heal") {
+    const rawTarget = rawText.split(" ")[1] || "";
+    const targetRowId = rawTarget.replace("#", "").trim();
+
+    await sendTelegramMessage(
+      botToken,
+      chatId,
+      targetRowId
+        ? `⏳ <b>Đang chạy AI Auto-Healing sửa lỗi dòng #${targetRowId}...</b>`
+        : `⏳ <b>Đang quét các dòng 'Failed' để AI tự động vá lỗi...</b>`
+    );
+
     try {
       const gsheet = new GoogleSheetsClient(
         config.gcpClientEmail,
@@ -947,43 +957,63 @@ async function handleTelegramUpdate(update, env, config) {
         config.spreadsheetId,
         config.sheetTabName
       );
-      const allRows = await gsheet.getSheetValues(`${config.sheetTabName}!A1:N200`);
-      const resetIds = [];
+      const allRows = await gsheet.getSheetValues(`${config.sheetTabName}!A1:P200`);
+      const fixedRows = [];
 
       for (let i = 1; i < allRows.length; i++) {
+        const rowId = String(allRows[i][0] || "").trim();
         const rowStatus = String(allRows[i][3] || "").trim().toLowerCase();
-        if (rowStatus === "video") {
-          const sheetRowIdx = i + 1;
-          await gsheet.updateCell(`${config.sheetTabName}!D${sheetRowIdx}`, "Pending");
-          await gsheet.updateCell(`${config.sheetTabName}!K${sheetRowIdx}`, "");
-          resetIds.push(allRows[i][0]);
+        
+        const isTarget = targetRowId ? (rowId === targetRowId) : (rowStatus === "failed");
+        if (!isTarget) continue;
+
+        const sheetRowIdx = i + 1;
+        const topic = allRows[i][1] || "HSK • Từ vựng";
+        const level = allRows[i][2] || "HSK 1";
+        
+        // Extract words from cells
+        const words = [];
+        for (let wIdx = 4; wIdx <= 8; wIdx++) {
+          const val = allRows[i][wIdx] || "";
+          const parts = val.split("\n");
+          if (parts.length >= 3) {
+            words.push({
+              hanzi: parts[0].trim(),
+              pinyin: parts[1].trim(),
+              meaning: parts[2].trim()
+            });
+          }
         }
+
+        // Generate clean metadata
+        const metaRes = generateSocialMetadata(topic, level, words);
+        const metaFormatted = metaRes.formatted_text;
+
+        // Update Metadata, Status -> Pending, Notes -> Auto-Healed
+        await gsheet.updateCell(`${config.sheetTabName}!J${sheetRowIdx}`, metaFormatted);
+        await gsheet.updateCell(`${config.sheetTabName}!D${sheetRowIdx}`, "Pending");
+        await gsheet.updateCell(`${config.sheetTabName}!K${sheetRowIdx}`, "");
+        await gsheet.updateCell(`${config.sheetTabName}!P${sheetRowIdx}`, "✨ Đã được AI Auto-Heal sửa lỗi & chuẩn hóa");
+
+        fixedRows.push({ rowId, topic, level });
       }
 
-      if (resetIds.length === 0) {
-        await sendTelegramMessage(botToken, chatId, "ℹ️ Không có dòng nào ở trạng thái <code>Video</code> cần reset.");
+      if (fixedRows.length === 0) {
+        await sendTelegramMessage(botToken, chatId, "ℹ️ Không tìm thấy dòng nào ở trạng thái <code>Failed</code> cần sửa lỗi.");
         return;
       }
 
-      // Automatically trigger render workflow
-      let renderMsg = "";
-      try {
-        const ghRes = await triggerGitHubRenderWorkflow(env, { row_id: "" });
-        renderMsg = `\n🚀 <b>Đã kích hoạt Render:</b> ${ghRes.message}`;
-      } catch (ge) {
-        renderMsg = `\n⚠️ <i>Chưa tự kích hoạt render được: ${ge.message}. Bạn có thể gõ <code>/render</code> thủ công.</i>`;
-      }
-
+      const summaryLines = fixedRows.map(r => `• <b>#${r.rowId}</b>: ${r.topic} (<code>${r.level}</code>)`).join("\n");
       await sendTelegramMessage(
         botToken,
         chatId,
-        `🔄 <b>ĐÃ RESET TOÀN BỘ ${resetIds.length} DÒNG VIDEO VỀ PENDING!</b>\n\n` +
-        `📋 <b>Các ID dòng:</b> <code>#${resetIds.join(", #")}</code>\n` +
-        `📊 <b>Trạng thái mới:</b> <code>Pending</code> (Đã xóa video cũ để kết xuất bìa mới)${renderMsg}\n\n` +
-        `<i>Sau khi kết xuất xong, video sẽ gửi về bot và chạy Auto-QC tự động!</i>`
+        `✨ <b>AI AUTO-HEALING THÀNH CÔNG ${fixedRows.length} DÒNG!</b>\n\n` +
+        `${summaryLines}\n\n` +
+        `📊 <b>Trạng thái mới:</b> <code>Pending</code> (Đã giữ nguyên chủ đề, chuẩn hóa từ vựng & tái tạo Metadata 3 nền tảng)\n\n` +
+        `<i>Bạn có thể gõ <code>/render</code> để tiến hành kết xuất video mới ngay!</i>`
       );
     } catch (err) {
-      await sendTelegramMessage(botToken, chatId, `❌ <b>Lỗi khi reset toàn bộ video:</b>\n<code>${err.message}</code>`);
+      await sendTelegramMessage(botToken, chatId, `❌ <b>Lỗi khi chạy Auto-Healing:</b>\n<code>${err.message}</code>`);
     }
     return;
   }

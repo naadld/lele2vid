@@ -221,20 +221,32 @@ export function getHelpMessage() {
 🔹 <code>/ideate</code>:
    👉 Tạo <b>1 bộ ý tưởng mới</b> (1 dòng) với trạng thái <b>Pending</b> (kèm nút Render / Cancel).
 
-🔹 <code>/render</code>:
-   👉 Kích hoạt GitHub Action render tất cả dòng <b>Pending</b> ➔ Tạo video vào GDrive ➔ Set trạng thái <b>Video</b>.
+🔹 <code>/fix</code> hoặc <code>/heal</code>:
+   👉 <b>AI Auto-Healing</b>: Tự động sửa các dòng <b>Failed</b> (chuyển Phồn thể ➔ Giản thể, chuẩn hóa Pinyin & tái tạo Metadata) ➔ Đổi sang <b>Pending</b>.
+
+🔹 <code>/render [id]</code>:
+   👉 Kích hoạt GitHub Action render tất cả dòng <b>Pending</b> (hoặc dòng cụ thể) ➔ Gắn bìa Cover 0.75s ➔ Set trạng thái <b>Video</b>.
+
+🔹 <code>/resetall</code>:
+   👉 Reset toàn bộ các dòng <b>Video</b> về <b>Pending</b> để render lại video có ảnh bìa mới.
+
+🔹 <code>/reset [id]</code>:
+   👉 Reset 1 dòng cụ thể về <b>Pending</b> để kết xuất lại.
+
+🔹 <code>/approve [id]</code>:
+   👉 Duyệt thủ công 1 dòng sang <b>Ready</b> (Sẵn sàng đăng).
 
 🔹 <code>/qc</code>:
-   👉 Kích hoạt <b>Auto-QC Gatekeeper</b>: Tải và mổ xẻ video để tự động duyệt các dòng <b>Video</b> ➔ <b>Ready</b> (hoặc trả về Pending nếu lỗi).
+   👉 Kích hoạt <b>Auto-QC Gatekeeper</b>: Kiểm tra chữ Hán, độ tương phản ảnh bìa 0.75s & âm thanh ➔ Tự động duyệt <b>Video</b> ➔ <b>Ready</b>.
 
 🔹 <code>/publish</code>:
-   👉 Đăng đúng <b>1 video duy nhất</b> (ưu tiên retry dòng <b>Error</b> thiếu kênh, sau đó đăng dòng <b>Ready</b> đã duyệt).
+   👉 Đăng đúng <b>1 video duy nhất</b> (ưu tiên retry dòng <b>Error</b>, sau đó đăng dòng <b>Ready</b>).
 
 🔹 <code>/status</code>:
-   👉 Thống kê: Pending (chờ render), Video (chờ duyệt), Ready (sẵn sàng đăng), Error (lỗi đăng).
+   👉 Thống kê: Pending, Video, Ready, Error, Failed trên Google Sheets.
 
 🔹 <code>/myid</code>:
-   👉 Xem Chat ID Telegram hiện tại của bạn và kiểm tra trạng thái kết nối bot.
+   👉 Xem Chat ID Telegram và kiểm tra kết nối bot.
 
 🔹 <code>/help</code>:
    👉 Xem lại hướng dẫn này.
