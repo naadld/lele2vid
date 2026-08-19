@@ -26,10 +26,10 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.12
+      - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.11'
 
       # 1. Register Bundled CJK Fonts (0.1 giây)
       - name: Register Bundled CJK Fonts
