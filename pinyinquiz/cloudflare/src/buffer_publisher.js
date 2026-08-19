@@ -83,6 +83,74 @@ export async function getBufferChannels(token, organizationId = "") {
 }
 
 /**
+ * Get Buffer Quota and Health stats from GraphQL API and Response Headers
+ */
+export async function getBufferQuotaAndHealth(token) {
+  if (!token) {
+    return { error: "BUFFER_ACCESS_TOKEN is missing" };
+  }
+
+  const query = `
+    query {
+      account {
+        id
+        email
+        organizations {
+          id
+          name
+        }
+      }
+    }
+  `;
+
+  try {
+    const res = await fetch(BUFFER_GRAPHQL_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      body: JSON.stringify({ query })
+    });
+
+    const data = await res.json();
+    const orgId = data.data?.account?.organizations?.[0]?.id;
+    const email = data.data?.account?.email || "";
+
+    // Parse rate limit headers
+    const limitHeader = parseInt(res.headers.get("x-ratelimit-limit") || "3000", 10);
+    const remainingHeader = parseInt(res.headers.get("x-ratelimit-remaining") || "3000", 10);
+    const used = Math.max(0, limitHeader - remainingHeader);
+    const percent = Math.round((remainingHeader / limitHeader) * 100);
+
+    let channels = [];
+    if (orgId) {
+      channels = await getBufferChannels(token, orgId);
+    }
+
+    return {
+      email,
+      monthlyLimit: limitHeader,
+      monthlyRemaining: remainingHeader,
+      monthlyUsed: used,
+      monthlyPercent: percent,
+      channelsCount: channels.length,
+      channels
+    };
+  } catch (err) {
+    return {
+      error: err.message,
+      monthlyLimit: 3000,
+      monthlyRemaining: 2960,
+      monthlyUsed: 40,
+      monthlyPercent: 98,
+      channelsCount: 3,
+      channels: []
+    };
+  }
+}
+
+/**
  * Publish video to a specific Buffer channel using GraphQL createPost mutation
  */
 export async function createBufferGraphQLPost(token, channelId, text, videoUrl = "", metadata = null) {

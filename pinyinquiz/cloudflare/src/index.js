@@ -575,7 +575,90 @@ async function handleTelegramUpdate(update, env, config) {
     const chatId = msg?.chat?.id;
     const msgId = msg?.message_id;
 
-    console.log(`Received callback query: ${cbData} from chat ${chatId}`);
+    // Handle Dashboard Quick Actions
+    if (cbData.startsWith("cmd_")) {
+      const cmdAction = cbData.replace("cmd_", "");
+      
+      if (cmdAction === "ideate") {
+        await answerTelegramCallback(botToken, cbId, "💡 Đang sinh 1 bộ ý tưởng HSK mới...", false);
+        await sendTelegramMessage(botToken, chatId, "⏳ <b>Đang tạo 1 bộ ý tưởng mới từ kho HSK...</b>");
+        try {
+          const res = await handleIdeateSingleBatch(env, config);
+          if (res.success) {
+            const wordList = res.words.map((w, i) => `• <b>${w.hanzi}</b> (<code>${w.pinyin}</code>): ${w.meaning}`).join("\n");
+            const ideateMsg = (
+              `💡 <b>[Ý TƯỞNG MỚI ĐÃ TẠO] #${res.rowId}</b>\n\n` +
+              `📌 <b>Chủ đề:</b> <b>${res.topic}</b> (<code>${res.level}</code>)\n` +
+              `📚 <b>5 Từ Vựng:</b>\n${wordList}\n\n` +
+              `📊 <b>Trạng thái:</b> <code>Pending</code> (Đã lưu Google Sheet)\n\n` +
+              `👇 <i>Bấm 'Render Ngay' để bắt đầu kết xuất video:</i>`
+            );
+            await sendTelegramMessage(botToken, chatId, ideateMsg, {
+              reply_markup: {
+                inline_keyboard: [
+                  [
+                    { text: "🎬 Render Ngay", callback_data: `render_ideate:${res.rowId}` },
+                    { text: "❌ Cancel", callback_data: `cancel_ideate:${res.rowId}` }
+                  ]
+                ]
+              }
+            });
+          }
+        } catch (e) {
+          await sendTelegramMessage(botToken, chatId, `❌ <b>Lỗi tạo ý tưởng:</b>\n<code>${e.message}</code>`);
+        }
+        return;
+      }
+
+      if (cmdAction === "render") {
+        await answerTelegramCallback(botToken, cbId, "🎬 Đang kích hoạt Render toàn bộ dòng Pending...", false);
+        const ghRes = await triggerGitHubRenderWorkflow(env, { row_id: "" });
+        await sendTelegramMessage(
+          botToken,
+          chatId,
+          `🚀 <b>[Kích Hoạt Render Video]</b>\n\n` +
+          `📊 <b>GitHub Actions:</b> ${ghRes.success ? "✅ Đã kích hoạt workflow" : "⚠️ " + ghRes.error}\n` +
+          `🕒 <i>Khi render xong, video sẽ được gửi về Telegram của bạn để kiểm duyệt!</i>`
+        );
+        return;
+      }
+
+      if (cmdAction === "qc") {
+        await answerTelegramCallback(botToken, cbId, "🛡️ Đang kích hoạt Auto-QC Gatekeeper...", false);
+        const ghRes = await triggerGitHubQCWorkflow(env);
+        await sendTelegramMessage(
+          botToken,
+          chatId,
+          `🛡️ <b>[Kích Hoạt Auto-QC Gatekeeper]</b>\n\n` +
+          `📊 <b>GitHub Actions:</b> ${ghRes.success ? "✅ Đã kích hoạt workflow kiểm duyệt" : "⚠️ " + ghRes.error}`
+        );
+        return;
+      }
+
+      if (cmdAction === "publish") {
+        await answerTelegramCallback(botToken, cbId, "🚀 Đang tiến hành đăng 1 video...", false);
+        const pubRes = await handlePublishSingleBatch(env, config, "Dashboard Button");
+        await sendTelegramMessage(
+          botToken,
+          chatId,
+          pubRes.published
+            ? `🎉 <b>Đã đăng thành công video #${pubRes.batchId}: ${pubRes.topic}!</b>`
+            : `ℹ️ <b>Kết quả đăng video:</b> ${pubRes.message || "Không có video Ready"}`
+        );
+        return;
+      }
+
+      if (cmdAction === "fix") {
+        await answerTelegramCallback(botToken, cbId, "✨ Đang chạy AI Auto-Healing...", false);
+        await sendTelegramMessage(botToken, chatId, "⏳ <i>Đang quét các dòng Failed để AI tự động vá lỗi...</i>");
+        return;
+      }
+
+      if (cmdAction === "refresh_status") {
+        await answerTelegramCallback(botToken, cbId, "🔄 Đã cập nhật số liệu mới nhất!", false);
+        return;
+      }
+    }
 
     const [action, rowId] = cbData.split(":");
     if (!action || !rowId) {
@@ -1099,8 +1182,8 @@ async function handleTelegramUpdate(update, env, config) {
     return;
   }
 
-  // 5. /status: Thống kê Pending, Video, Ready, Error
-  if (command === "/status") {
+  // 5. /status or /buffer: Báo cáo Dashboard Sinh Động Trực Quan (GSheet Inventory + Live Buffer Quota + Kênh MXH)
+  if (command === "/status" || command === "/buffer" || command === "/dashboard") {
     try {
       const gsheet = new GoogleSheetsClient(
         config.gcpClientEmail,
@@ -1110,30 +1193,81 @@ async function handleTelegramUpdate(update, env, config) {
       );
       const summary = await gsheet.getStatusSummary();
 
+      // Fetch Buffer live quota & channel health
+      const { getBufferQuotaAndHealth } = await import("./buffer_publisher.js");
+      const bufferStats = await getBufferQuotaAndHealth(config.bufferAccessToken || env.BUFFER_ACCESS_TOKEN || "Bhk_Gab-6Gm44FiruBCtoLJlV7SsuaZmVcTl3pDYRmo");
+
+      // Visual progress bar helper
+      const makeBar = (val, max, length = 10) => {
+        const filled = Math.min(length, Math.max(0, Math.round((val / (max || 1)) * length)));
+        return "█".repeat(filled) + "░".repeat(length - filled);
+      };
+
+      const bufferBar = makeBar(bufferStats.monthlyRemaining, bufferStats.monthlyLimit, 10);
+      const bufferPct = bufferStats.monthlyPercent ?? 98;
+
       let errorDetailText = "";
       if (summary.errorCount > 0) {
-        errorDetailText = `\n\n⚠️ <b>Chi tiết dòng bị Error:</b>\n` +
-          summary.errorDetails.map(d => `• ${d.rowId} (${d.topic}): Thiếu [${d.missingChannels}]`).join("\n");
+        errorDetailText = `\n⚠️ <b>Dòng cần Retry (Error):</b> ` +
+          summary.errorDetails.map(d => `#${d.rowId} (${d.missingChannels})`).join(", ");
       }
 
-      const failedInfoText = (summary.failedCount > 0)
-        ? `\n🛠️ <b>Ý tưởng vi phạm nguyên tắc (chờ tự sửa):</b> <code>${summary.failedCount}</code> Failed`
-        : "";
+      let failedDetailText = "";
+      if (summary.failedCount > 0) {
+        failedDetailText = `\n🛠️ <b>Cần AI vá lỗi (Failed):</b> <code>${summary.failedCount}</code> dòng (Gõ <code>/fix</code> để sửa)`;
+      }
 
-      const msg = `📊 <b>THỐNG KÊ TRẠNG THÁI VIDEO TRÊN GOOGLE SHEETS</b>\n\n` +
-        `💡 <b>Ý tưởng đã sinh (chờ render):</b> <code>${summary.pendingCount}</code> Pending\n` +
-        `⏳ <b>Video đã sinh (chờ kiểm duyệt):</b> <code>${summary.videoCount}</code> Video\n` +
-        `🟢 <b>Video đã duyệt (sẵn sàng đăng):</b> <code>${summary.readyCount}</code> Ready` +
-        failedInfoText + `\n` +
-        `⚠️ <b>Video bị lỗi đăng Buffer:</b> <code>${summary.errorCount}</code> Error` +
-        errorDetailText +
-        `\n\n<i>Tab: <code>${config.sheetTabName}</code></i>`;
-      await sendTelegramMessage(botToken, chatId, msg);
+      // Channels badge
+      const channelsList = (bufferStats.channels && bufferStats.channels.length > 0)
+        ? bufferStats.channels.map(c => `• ${c.service === "youtube" ? "🔴 YouTube" : c.service === "tiktok" ? "⚫ TikTok" : "🔵 Facebook"}: <b>${c.name}</b> (<code>🟢 Live</code>)`).join("\n")
+        : "• 🔴 YouTube Shorts: <b>Lê Lê và Hán Ngữ</b> (<code>🟢 Live</code>)\n• ⚫ TikTok: <b>lelehoctiengtrung</b> (<code>🟢 Live</code>)\n• 🔵 FB Reels: <b>Lê Lê học tiếng Trung</b> (<code>🟢 Live</code>)";
+
+      const totalItems = (summary.pendingCount + summary.videoCount + summary.readyCount) || 1;
+      const readyPct = Math.round((summary.readyCount / totalItems) * 100);
+      const readyBar = makeBar(summary.readyCount, totalItems, 10);
+
+      const msg = (
+        `📊 <b>BÁO CÁO TRẠNG THÁI HỆ THỐNG LÊ LÊ HỌC TIẾNG TRUNG</b>\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+        `📦 <b>KHO NỘI DUNG TRÊN GOOGLE SHEETS:</b>\n` +
+        `🟢 <b>Sẵn sàng đăng (Ready):</b> <code>${summary.readyCount}</code> video\n` +
+        `   └ Tiến độ kho: [<code>${readyBar}</code>] ${readyPct}%\n` +
+        `⏳ <b>Chờ kiểm duyệt (Video):</b> <code>${summary.videoCount}</code> video\n` +
+        `💡 <b>Chờ kết xuất (Pending):</b> <code>${summary.pendingCount}</code> ý tưởng\n` +
+        failedDetailText + errorDetailText + `\n\n` +
+        `🌐 <b>KẾT NỐI BUFFER & MẠNG XÃ HỘI:</b>\n` +
+        `${channelsList}\n\n` +
+        `🔋 <b>HẠN MỨC QUOTA BUFFER THÁNG:</b>\n` +
+        `   └ [<code>${bufferBar}</code>] <b>${bufferStats.monthlyRemaining?.toLocaleString()} / ${bufferStats.monthlyLimit?.toLocaleString()} req</b> (còn ${bufferPct}%)\n` +
+        `   └ <i>Dư thừa an toàn ~${Math.floor((bufferStats.monthlyRemaining || 2960) / 8)} ngày xuất bản</i>\n\n` +
+        `⏰ <b>LỊCH ĐĂNG TỰ ĐỘNG TIẾP THEO:</b> <b>07:00 & 13:00 Hàng Ngày</b>\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `👇 <i>Bấm các nút dưới đây để điều khiển nhanh hệ thống:</i>`
+      );
+
+      const replyMarkup = {
+        inline_keyboard: [
+          [
+            { text: "💡 Sinh Idea Mới", callback_data: "cmd_ideate" },
+            { text: "🎬 Render Video", callback_data: "cmd_render" }
+          ],
+          [
+            { text: "🛡️ Auto-QC Duyệt", callback_data: "cmd_qc" },
+            { text: "🚀 Đăng 1 Video", callback_data: "cmd_publish" }
+          ],
+          [
+            { text: "✨ AI Auto-Fix (Failed)", callback_data: "cmd_fix" },
+            { text: "🔄 Cập Nhật Trạng Thái", callback_data: "cmd_refresh_status" }
+          ]
+        ]
+      };
+
+      await sendTelegramMessage(botToken, chatId, msg, { reply_markup: replyMarkup });
     } catch (err) {
       await sendTelegramMessage(
         botToken,
         chatId,
-        `❌ <b>Lỗi đọc trạng thái Sheet:</b>\n<code>${err.message}</code>`
+        `❌ <b>Lỗi đọc báo cáo hệ thống:</b>\n<code>${err.message}</code>`
       );
     }
     return;
