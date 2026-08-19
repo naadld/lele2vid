@@ -43,26 +43,24 @@ jobs:
           cp pinyinquiz/assets/fonts/*.ttf ~/.fonts/ 2>/dev/null || true
           fc-cache -f || true
 
-      # 3. Cache Python Virtual Environment (Khôi phục trong 2-3 giây)
+      # 3. Cache Python Virtualenv
       - name: Cache Python Virtualenv
         id: cache-venv
         uses: actions/cache@v4
         with:
           path: ~/.venv
-          key: ${{ runner.os }}-venv-v4-${{ hashFiles('pinyinquiz/requirements.txt') }}
+          key: ${{ runner.os }}-venv-v5-${{ hashFiles('pinyinquiz/requirements.txt') }}
 
-      # 4. Setup Python Virtualenv (Tự động biên dịch nếu thiếu hoặc cache hỏng)
+      # 4. Setup Virtualenv & Dependencies (Tự động biên dịch nếu thiếu hoặc cập nhật dependencies)
       - name: Setup Virtualenv & Dependencies
         run: |
-          if [ "${{ steps.cache-venv.outputs.cache-hit }}" != "true" ] || [ ! -f "$HOME/.venv/bin/python" ]; then
-            echo "🔧 Installing dependencies and compiling virtual environment..."
+          if [ ! -f "$HOME/.venv/bin/python" ]; then
+            echo "🔧 Creating virtual environment..."
             python -m venv ~/.venv
-            source ~/.venv/bin/activate
-            pip install --upgrade pip setuptools wheel
-            pip install -r pinyinquiz/requirements.txt
-          else
-            echo "✅ Virtual environment restored successfully."
           fi
+          source ~/.venv/bin/activate
+          pip install --upgrade pip setuptools wheel
+          pip install -r pinyinquiz/requirements.txt
           echo "$HOME/.venv/bin" >> $GITHUB_PATH
 
       # 2. Setup Service Account Credentials
