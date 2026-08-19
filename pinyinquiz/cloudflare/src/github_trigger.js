@@ -19,8 +19,7 @@ export async function triggerGitHubRenderWorkflow(env, options = {}) {
     ref: options.ref || "main",
     inputs: {
       quality: options.quality || "qh",
-      row_id: options.row_id || "",
-      generate_ideas: "false" // Cloudflare Worker has already generated the ideas into Sheet
+      row_id: options.row_id || ""
     }
   };
 
