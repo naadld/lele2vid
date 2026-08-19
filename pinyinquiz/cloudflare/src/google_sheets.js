@@ -447,6 +447,13 @@ export class GoogleSheetsClient {
   }
 
   /**
+   * Completely clear the entire row content from sheet (A:P)
+   */
+  async clearBatchRowContent(rowNumber) {
+    await this.clearRange(`${this.tabName}!A${rowNumber}:P${rowNumber}`);
+  }
+
+  /**
    * Update social posting info and final status ('Published' or 'Error')
    */
   async updateSocialPublishStatus(rowNumber, finalStatus, { youtube = "", tiktok = "", facebook = "" }) {

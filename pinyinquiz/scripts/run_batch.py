@@ -162,7 +162,50 @@ def send_telegram_video(video_path: str, caption: str, row_id: str = "", gdrive_
         if not _send_thumbnail_photo():
             send_telegram_alert_message(caption, reply_markup=reply_markup)
 
-def run_batch_job(from_sheet: bool = True, target_id: str = None, sample: bool = False, quality: str = "qh", upload_gdrive: bool = False):
+TARGET_GDRIVE_FOLDER_ID = "1Y240J5-oXA-UDm2IKvp7qCBVsRempbCB"
+
+def trigger_product_qc(row_id: str, local_video_path: str = "", gdrive_link: str = "") -> bool:
+    """
+    Automatically trigger ProductQC post-render physical inspection.
+    Dispatches GitHub Actions ProductQC.yml if in CI, or runs Auto-QC in-process.
+    """
+    logger.info(f"⚡ Automatically triggering ProductQC for Row #{row_id}...")
+    
+    # 1. In GitHub Actions environment: trigger ProductQC.yml
+    if os.getenv("GITHUB_ACTIONS") == "true":
+        try:
+            import subprocess
+            cmd = ["gh", "workflow", "run", "ProductQC.yml"]
+            if row_id:
+                cmd.extend(["-f", f"row_id={row_id}"])
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            if res.returncode == 0:
+                logger.info(f" Successfully dispatched ProductQC.yml workflow for row #{row_id} via GitHub CLI.")
+                return True
+            else:
+                logger.warning(f"gh workflow run ProductQC.yml returned code {res.returncode}: {res.stderr}")
+        except Exception as ge:
+            logger.warning(f"Could not dispatch ProductQC.yml via GitHub CLI: {ge}")
+
+    # 2. Local fallback / direct Python invocation
+    try:
+        from scripts.run_qc import run_auto_qc
+        logger.info(f"Running in-process Auto-QC inspection for row #{row_id}...")
+        run_auto_qc(target_row_id=str(row_id))
+        return True
+    except Exception as qe:
+        logger.warning(f"In-process Auto-QC execution error for row #{row_id}: {qe}")
+        return False
+
+def run_batch_job(
+    from_sheet: bool = True,
+    target_id: str = None,
+    sample: bool = False,
+    quality: str = "qh",
+    upload_gdrive: bool = False,
+    auto_qc: bool = False,
+    gdrive_folder_id: str = TARGET_GDRIVE_FOLDER_ID
+):
     """
     Main batch processing function.
     """
@@ -175,7 +218,7 @@ def run_batch_job(from_sheet: bool = True, target_id: str = None, sample: bool =
 
     if upload_gdrive:
         try:
-            gdrive_uploader = GDriveUploader()
+            gdrive_uploader = GDriveUploader(folder_id=gdrive_folder_id)
         except Exception as e:
             logger.warning(f"Could not initialize GDriveUploader: {e}")
 
@@ -317,6 +360,10 @@ def run_batch_job(from_sheet: bool = True, target_id: str = None, sample: bool =
             )
             send_telegram_video(video_path, tg_caption, row_id=str(row_id), gdrive_link=gdrive_link)
             logger.info(f" Batch [{row_id}] finished successfully -> {video_path}")
+
+            # Automatic trigger to ProductQC if requested
+            if auto_qc or os.getenv("TRIGGER_QC", "").lower() in ("true", "1") or os.getenv("AUTO_QC", "").lower() in ("true", "1"):
+                trigger_product_qc(row_id=str(row_id), local_video_path=video_path, gdrive_link=gdrive_link)
         else:
             logger.error(f"❌ Failed to render batch [{row_id}]")
             if gsheet_mgr and row_index > 0:
@@ -337,12 +384,14 @@ def run_batch_job(from_sheet: bool = True, target_id: str = None, sample: bool =
 
 def main():
     try:
-        parser = argparse.ArgumentParser(description="lelehoctiengtrung_pinyin Batch Runner")
+        parser = argparse.ArgumentParser(description="lelehoctiengtrung_pinyin Batch Runner (Pipeline 2.0)")
         parser.add_argument("--from-sheet", action="store_true", help="Fetch batches from Google Sheets")
         parser.add_argument("--sample", action="store_true", help="Run with built-in sample batch")
         parser.add_argument("--row-id", type=str, default=None, help="Process a specific row ID from Sheet")
         parser.add_argument("--quality", type=str, default="qh", choices=["ql", "qm", "qh", "qk"], help="Render quality (default: qh 1080p60)")
         parser.add_argument("--upload-gdrive", action="store_true", help="Upload rendered video to Google Drive")
+        parser.add_argument("--auto-qc", "--trigger-qc", dest="auto_qc", action="store_true", help="Automatically trigger ProductQC physical inspection after render")
+        parser.add_argument("--gdrive-folder-id", type=str, default=TARGET_GDRIVE_FOLDER_ID, help="Target Google Drive Folder ID (default: 1Y240J5-oXA-UDm2IKvp7qCBVsRempbCB)")
         
         args = parser.parse_args()
         
@@ -354,7 +403,9 @@ def main():
             target_id=args.row_id,
             sample=args.sample,
             quality=args.quality,
-            upload_gdrive=args.upload_gdrive
+            upload_gdrive=args.upload_gdrive,
+            auto_qc=args.auto_qc,
+            gdrive_folder_id=args.gdrive_folder_id
         )
     except Exception as e:
         logger.error(f"🔥 FATAL EXCEPTION in Batch Runner: {e}", exc_info=True)

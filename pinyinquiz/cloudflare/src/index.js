@@ -21,7 +21,8 @@
 import { getConfig } from "./config.js";
 import { GoogleSheetsClient, getVietnamTimestamp } from "./google_sheets.js";
 import { generateBatchesWithMultiAI, formatTopicsToSheetRows } from "./ai_ideation.js";
-import { triggerGitHubRenderWorkflow, triggerGitHubQCWorkflow } from "./github_trigger.js";
+import { processGatekeeperIdea } from "./gatekeeper.js";
+import { triggerGitHubIdeationWorkflow, triggerGitHubRenderWorkflow, triggerGitHubQCWorkflow } from "./github_trigger.js";
 import { publishBatchToBuffer } from "./buffer_publisher.js";
 import { generateSocialMetadata } from "./metadata_helper.js";
 import { sendTelegramMessage, answerTelegramCallback, editTelegramMessageCaption, editTelegramMessageText, getHelpMessage } from "./telegram.js";
@@ -65,6 +66,42 @@ export default {
         });
       } catch (err) {
         return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+      }
+    }
+
+    // 2b. Gatekeeper 1 Ingest Endpoint (From GitHub Actions ScriptNewIdeation.yml)
+    if (url.pathname === "/api/receive-ideas") {
+      if (request.method === "GET") {
+        return new Response(JSON.stringify({
+          endpoint: "/api/receive-ideas",
+          method: "POST",
+          description: "Gatekeeper 1 Webhook for Ingesting and Auditing Batch Ideas from GitHub Actions",
+          status: "Online"
+        }, null, 2), {
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+
+      if (request.method === "POST") {
+        try {
+          const body = await request.json();
+          const result = await processGatekeeperIdea(env, config, body);
+          return new Response(JSON.stringify(result, null, 2), {
+            status: 200,
+            headers: { "Content-Type": "application/json" }
+          });
+        } catch (err) {
+          console.error("[RECEIVE-IDEAS] Error processing payload:", err);
+          return new Response(JSON.stringify({
+            success: false,
+            status: "Error",
+            error: err.message,
+            stack: err.stack
+          }, null, 2), {
+            status: 500,
+            headers: { "Content-Type": "application/json" }
+          });
+        }
       }
     }
 
@@ -160,13 +197,17 @@ export default {
     if (url.pathname === "/api/test-gemini") {
       const geminiKeys = config.geminiApiKeys || [];
       const testModels = [
-        config.geminiModel,
-        "gemini-2.5-flash",
-        "gemini-3.5-flash-lite",
+        "gemini-3.7-flash",
+        "gemini-3.7-pro",
+        "gemini-3.6-flash",
         "gemini-3.5-flash",
-        "gemini-2.5-pro",
+        "gemini-3.5-flash-lite",
+        "gemini-3.1-pro-preview",
+        "gemini-2.5-flash",
+        "gemini-2.0-flash",
+        "gemini-2.0-flash-exp",
         "gemini-1.5-flash"
-      ].filter(Boolean);
+      ];
       const uniqueModels = [...new Set(testModels)];
 
       const results = [];
@@ -192,14 +233,16 @@ export default {
           keyResult.listModelsError = err.message;
         }
 
-        // 2. Test generateContent on candidate models
+        // 2. Test generateContent on candidate models via AI Gateway
         for (const m of uniqueModels) {
           const cleanModel = m.replace(/^models\//, "");
-          const testUrl = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent?key=${key}`;
+          const testUrl = config.aiGatewayName
+            ? `https://gateway.ai.cloudflare.com/v1/${config.accountId}/${config.aiGatewayName}/google-ai-studio/v1beta/models/${cleanModel}:generateContent?key=${key}`
+            : `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent?key=${key}`;
           try {
             const genRes = await fetch(testUrl, {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: { "Content-Type": "application/json", "x-goog-api-key": key },
               body: JSON.stringify({
                 systemInstruction: { parts: [{ text: "Bạn là chuyên gia tiếng Trung." }] },
                 contents: [{ role: "user", parts: [{ text: "Tạo 1 bộ từ vựng HSK 1 gồm 5 từ dạng JSON chuẩn: [{\"topic\": \"HSK 1 • Đồ Ăn\", \"level\": \"HSK 1\", \"words\": [{\"hanzi\": \"米饭\", \"pinyin\": \"mǐ fàn\", \"meaning\": \"Cơm\"}]}]" }] }],
@@ -215,16 +258,15 @@ export default {
                 model: cleanModel,
                 status: genRes.status,
                 success: true,
-                outputPreview: nonThought.substring(0, 200) || (parts[0]?.text || "").substring(0, 200)
+                outputPreview: (nonThought.substring(0, 200) || (parts[0]?.text || "").substring(0, 200)).replace(/\n/g, " ")
               });
-              break; // Found working model for this key
             } else {
               const errBody = await genRes.text();
               keyResult.modelTests.push({
                 model: cleanModel,
                 status: genRes.status,
                 success: false,
-                error: errBody.substring(0, 200)
+                error: errBody.substring(0, 200).replace(/\n/g, " ")
               });
             }
           } catch (err) {
@@ -253,6 +295,42 @@ export default {
         });
       } catch (err) {
         return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+      }
+    }
+
+    // 4b. Trigger Ideation Workflow (ScriptNewIdeation.yml)
+    if ((url.pathname === "/api/trigger-ideation" || url.pathname === "/api/dispatch-ideation") && (request.method === "POST" || request.method === "GET")) {
+      try {
+        const mode = url.searchParams.get("mode") || "batch";
+        const count = url.searchParams.get("count") || "30";
+        const rowId = url.searchParams.get("row_id") || "";
+        const rejectedTopic = url.searchParams.get("rejected_topic") || "";
+        const errorReasons = url.searchParams.get("error_reasons") || "";
+        const ghRes = await triggerGitHubIdeationWorkflow(env, {
+          mode,
+          count,
+          row_id: rowId,
+          rejected_topic: rejectedTopic,
+          error_reasons: errorReasons
+        });
+        return new Response(JSON.stringify({ success: true, mode, count, row_id: rowId, result: ghRes }, null, 2), {
+          headers: { "Content-Type": "application/json" }
+        });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message, stack: err.stack }), { status: 500, headers: { "Content-Type": "application/json" } });
+      }
+    }
+
+    // 4c. Trigger Auto-QC Workflow (ProductQC.yml)
+    if ((url.pathname === "/api/qc" || url.pathname === "/api/trigger-qc") && (request.method === "POST" || request.method === "GET")) {
+      try {
+        const rowId = url.searchParams.get("row_id") || "";
+        const ghRes = await triggerGitHubQCWorkflow(env, { row_id: rowId });
+        return new Response(JSON.stringify({ success: true, row_id: rowId, result: ghRes }, null, 2), {
+          headers: { "Content-Type": "application/json" }
+        });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message, stack: err.stack }), { status: 500, headers: { "Content-Type": "application/json" } });
       }
     }
 
@@ -479,11 +557,11 @@ export default {
   },
 
   /**
-   * Cron Trigger Event Handler (Tự động hóa hoàn toàn 24/7)
-   * • "0 12,18 * * *" : Sản xuất video (19:00 Tối & 01:00 Sáng VN)
-   * • "0 0,6,14 * * *": Đăng bài Buffer 3 ca (07:00 Sáng, 13:00 Chiều, 21:00 Tối VN)
-   * • "1 5 * * *"     : Báo cáo Dashboard giữa ngày (12:01 Trưa VN)
-   * • "0 15 * * *"    : Báo cáo Dashboard cuối ngày (22:00 Đêm VN)
+   * Cron Trigger Event Handler (Tự động hóa hoàn toàn 24/7 cho Pipeline 2.0)
+   * • "1 17 * * 5"    : Sáng Thứ 7 00:01 GMT+7 (17:01 Thứ 6 UTC): Sinh 30 kịch bản mới (ScriptNewIdeation.yml)
+   * • "0 0,6,12 * * *": Đăng bài Buffer 3 ca (07:00 Sáng, 13:00 Chiều, 19:00 Tối GMT+7 / 00:00, 06:00, 12:00 UTC)
+   * • "1 5 * * *"     : Báo cáo Dashboard giữa ngày (12:01 Trưa GMT+7 / 05:01 UTC)
+   * • "0 15 * * *"    : Báo cáo Dashboard cuối ngày (22:00 Đêm GMT+7 / 15:00 UTC)
    */
   async scheduled(event, env, ctx) {
     const config = getConfig(env);
@@ -493,31 +571,59 @@ export default {
       (async () => {
         try {
           const nowUtc = new Date();
+          const dayOfWeek = nowUtc.getUTCDay(); // 5 = Friday
           const utcHours = nowUtc.getUTCHours();
+          const utcMinutes = nowUtc.getUTCMinutes();
 
-          // 1. Production Schedule (Sinh idea & Render): 18:00 UTC (01:00 Sáng VN) or 12:00 UTC (19:00 Tối VN)
-          if (event.cron === "0 12,18 * * *" || event.cron === "0 18 * * *" || event.cron === "0 12 * * *") {
-            const label = (utcHours >= 16 || utcHours <= 2) ? "01:00 Sáng" : "19:00 Tối";
-            await handleProductionCron(env, config, label);
-          } 
-          // 2. Publishing Schedule (Đăng Buffer 3 ca): 00:00 UTC (07:00 Sáng), 06:00 UTC (13:00 Chiều), 14:00 UTC (21:00 Tối)
-          else if (event.cron === "0 0,6,14 * * *" || event.cron === "0 0 * * *" || event.cron === "0 6 * * *" || event.cron === "0 14 * * *") {
+          // 1. Saturday 00:01 GMT+7 (Friday 17:01 UTC) Cron: Dispatch ScriptNewIdeation.yml (Batch 30)
+          if (
+            event.cron === "1 17 * * 5" ||
+            (dayOfWeek === 5 && utcHours === 17 && utcMinutes >= 0 && utcMinutes <= 10)
+          ) {
+            console.log("[CRON] Saturday 00:01 GMT+7 Cron: Triggering ScriptNewIdeation.yml (Batch 30)...");
+            const ghRes = await triggerGitHubIdeationWorkflow(env, { mode: "batch", count: 30 });
+            await sendTelegramMessage(
+              config.telegramBotToken,
+              config.telegramChatId,
+              `🏭 <b>[Lịch Tự Động Sáng Thứ 7 - 00:01 GMT+7]</b>\n\n` +
+              `🚀 <b>Đã kích hoạt GitHub Actions:</b> <code>ScriptNewIdeation.yml</code> (Batch 30 kịch bản mới)\n` +
+              `🔑 <i>Đã truyền danh sách Ephemeral Gemini API Keys qua TLS bảo mật (Zero-Secret).</i>\n` +
+              `🧐 <i>Khi hoàn thành từng dòng, GitHub Actions sẽ gửi về Webhook Gatekeeper 1 để kiểm định độc lập.</i>`
+            );
+          }
+          // 2. 3x Daily Publishing: 07:00 (00:00 UTC), 13:00 (06:00 UTC), 19:00 (12:00 UTC) GMT+7
+          else if (
+            event.cron === "0 0,6,12 * * *" ||
+            event.cron === "0 0 * * *" ||
+            event.cron === "0 6 * * *" ||
+            event.cron === "0 12 * * *" ||
+            event.cron === "0 0,6,14 * * *" // fallback compatibility
+          ) {
+            console.log("[CRON] Publishing Cron: Executing 3x daily Buffer publishing...");
             await handlePublishingCron(env, config);
           }
-          // 3. Báo cáo tự động Dashboard giữa ngày (12:01 Trưa VN / 05:01 UTC)
+          // 3. Mid-day Report: 12:01 GMT+7 (05:01 UTC)
           else if (event.cron === "1 5 * * *") {
             await sendSystemDashboardReport(env, config, config.telegramBotToken, config.telegramChatId, "• BÁO CÁO GIỮA NGÀY 12:01");
           }
-          // 4. Báo cáo tự động Dashboard cuối ngày (22:00 Đêm VN / 15:00 UTC)
+          // 4. Night Report: 22:00 GMT+7 (15:00 UTC)
           else if (event.cron === "0 15 * * *") {
             await sendSystemDashboardReport(env, config, config.telegramBotToken, config.telegramChatId, "• BÁO CÁO TỔNG KẾT ĐÊM 22:00");
+          }
+          // Legacy production cron support (0 12,18 * * *)
+          else if (event.cron === "0 12,18 * * *" || event.cron === "0 18 * * *") {
+            const label = (utcHours >= 16 || utcHours <= 2) ? "01:00 Sáng" : "19:00 Tối";
+            await handleProductionCron(env, config, label);
+          }
+          else {
+            console.log(`[CRON] Unhandled cron expression: ${event.cron}.`);
           }
         } catch (err) {
           console.error("[CRON] Automation execution error:", err);
           await sendTelegramMessage(
             config.telegramBotToken,
             config.telegramChatId,
-            `⚠️ <b>[Lỗi Lịch Tự Động]</b>\n\nChi tiết lỗi: <code>${err.message}</code>`
+            `⚠️ <b>[Lỗi Lịch Tự Động Cloudflare Worker]</b>\n\nCron: <code>${event.cron}</code>\nChi tiết lỗi: <code>${err.message}</code>`
           );
         }
       })()

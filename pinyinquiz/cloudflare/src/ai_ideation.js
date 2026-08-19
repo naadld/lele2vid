@@ -213,55 +213,83 @@ export function parseAIResponseJson(rawText) {
  * 1. Call Google AI Studio (Gemini v1beta REST API)
  * Fully compatible with Gemini 2.5 / 2.0 / 1.5 Flash models and multi-part / thinking responses.
  */
-async function callGeminiAPI(apiKey, requestedModel, systemPrompt, userPrompt) {
-  const rawModel = (requestedModel || "gemini-3.6-flash").trim();
-  const cleanModel = rawModel.replace(/^models\//, "");
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent?key=${apiKey}`;
+async function callGeminiAPI(apiKey, requestedModel, systemPrompt, userPrompt, config = {}) {
+  const primaryModel = (requestedModel || "gemini-3.7-flash").trim().replace(/^models\//, "");
+  // Keep top 2 models to stay strictly within Cloudflare 50 subrequests limit
+  const modelCandidates = [
+    primaryModel,
+    "gemini-3.7-flash",
+    "gemini-2.5-flash"
+  ];
+  const uniqueModels = [...new Set(modelCandidates.filter(Boolean))];
 
-  const response = await fetch(url, {
-    method: "POST",
-    signal: AbortSignal.timeout(4000),
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      systemInstruction: {
-        parts: [{ text: systemPrompt }]
-      },
-      contents: [
-        {
-          role: "user",
-          parts: [{ text: userPrompt }]
-        }
-      ],
-      generationConfig: {
-        temperature: 0.7,
-        responseMimeType: "application/json"
+  const accountId = config.accountId || "3591f5b61af3263ca14af7a1765cc954";
+  const gatewayName = config.aiGatewayName || "lelepinyinquiz";
+
+  let lastError = null;
+
+  for (const cleanModel of uniqueModels) {
+    const url = gatewayName
+      ? `https://gateway.ai.cloudflare.com/v1/${accountId}/${gatewayName}/google-ai-studio/v1beta/models/${cleanModel}:generateContent?key=${apiKey}`
+      : `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent?key=${apiKey}`;
+
+    try {
+      const isGw = url.includes("gateway.ai.cloudflare.com");
+      const response = await fetch(url, {
+        method: "POST",
+        signal: AbortSignal.timeout(15000),
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey
+        },
+        body: JSON.stringify({
+          systemInstruction: {
+            parts: [{ text: systemPrompt }]
+          },
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: userPrompt }]
+            }
+          ],
+          generationConfig: {
+            temperature: 0.7,
+            responseMimeType: "application/json"
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`[Model: ${cleanModel}] (${response.status}): ${errText.substring(0, 150)}`);
       }
-    })
-  });
 
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`[Model: ${cleanModel}] (${response.status}): ${errText.substring(0, 150)}`);
+      const data = await response.json();
+      const candidate = data.candidates?.[0];
+      const parts = candidate?.content?.parts || [];
+
+      // Separate actual content from thinking parts in Gemini 2.5 / 2.0 / 3.x
+      const textParts = parts.filter(p => !p.thought && p.text).map(p => p.text);
+      const rawText = textParts.length > 0 
+        ? textParts.join("\n") 
+        : parts.map(p => p.text || "").join("\n");
+
+      const parsed = parseAIResponseJson(rawText);
+      if (parsed && parsed.length > 0) {
+        return { data: parsed, modelUsed: cleanModel, viaGateway: isGw };
+      }
+
+      throw new Error(`[Model: ${cleanModel}] Không thể phân tích định dạng JSON từ phản hồi.`);
+    } catch (err) {
+      lastError = err;
+      console.warn(`⚠️ Gemini attempt (${cleanModel}) failed: ${err.message}`);
+      if (err.message && (err.message.includes("API_KEY_INVALID") || err.message.includes("API key not valid"))) {
+        throw err;
+      }
+    }
   }
 
-  const data = await response.json();
-  const candidate = data.candidates?.[0];
-  const parts = candidate?.content?.parts || [];
-
-  // Separate actual content from thinking parts in Gemini 2.5 / 2.0 / 3.x
-  const textParts = parts.filter(p => !p.thought && p.text).map(p => p.text);
-  const rawText = textParts.length > 0 
-    ? textParts.join("\n") 
-    : parts.map(p => p.text || "").join("\n");
-
-  const parsed = parseAIResponseJson(rawText);
-  if (parsed && parsed.length > 0) {
-    return { data: parsed, modelUsed: cleanModel };
-  }
-
-  throw new Error("Không thể phân tích định dạng JSON từ phản hồi Gemini.");
+  throw lastError || new Error("Tất cả các model Gemini đều không phản hồi thành công.");
 }
 
 /**
@@ -274,7 +302,7 @@ async function callAgnesAPI(apiKey, baseUrl, requestedModel, systemPrompt, userP
 
   const response = await fetch(url, {
     method: "POST",
-    signal: AbortSignal.timeout(5000),
+    signal: AbortSignal.timeout(15000),
     headers: {
       "Authorization": `Bearer ${apiKey}`,
       "Content-Type": "application/json"
@@ -491,13 +519,14 @@ export async function generateBatchesWithMultiAI(env, config, vocabHistory = {},
       const keyShort = `${key.substring(0, 6)}...${key.substring(key.length - 4)}`;
       try {
         console.log(`[AI-Pool] Trying Google AI Studio (Key ${i + 1}/${shuffledGeminiKeys.length}: ${keyShort})...`);
-        const res = await callGeminiAPI(key, config.geminiModel, systemPrompt, userPrompt);
+        const res = await callGeminiAPI(key, config.geminiModel, systemPrompt, userPrompt, config);
         if (res && Array.isArray(res.data) && res.data.length > 0) {
           const candidate = res.data[0];
           const gateCheck = validateTopicUniquenessAndQuality(candidate, vocabHistory);
           if (gateCheck.isValid) {
             resultTopics = [candidate];
-            providerUsed = `Google AI Studio (${res.modelUsed} - Key #${i + 1})`;
+            const gwTag = res.viaGateway ? " (AI Gateway)" : "";
+            providerUsed = `Google AI Studio${gwTag} (${res.modelUsed} - Key #${i + 1})`;
             anyAiSucceeded = true;
             console.log(`✨ Successfully generated and PASSED Gatekeeper with ${providerUsed}!`);
             break;

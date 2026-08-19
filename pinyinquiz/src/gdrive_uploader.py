@@ -14,8 +14,8 @@ logger = logging.getLogger("GDriveUploader")
 TARGET_FOLDER_ID = "1Y240J5-oXA-UDm2IKvp7qCBVsRempbCB"
 
 class GDriveUploader:
-    def __init__(self, folder_id: str = TARGET_FOLDER_ID):
-        self.folder_id = folder_id
+    def __init__(self, folder_id: Optional[str] = None):
+        self.folder_id = folder_id or os.getenv("GDRIVE_TARGET_FOLDER") or os.getenv("GDRIVE_FOLDER_ID") or TARGET_FOLDER_ID
         self.service = None
         self._authenticate()
 

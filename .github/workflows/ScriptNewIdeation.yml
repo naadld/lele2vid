@@ -1,0 +1,174 @@
+name: Script New Ideation Pipeline
+
+on:
+  schedule:
+    # Saturday 00:01 GMT+7 / Friday 17:01 UTC (Weekly Batch 30 Production)
+    - cron: '1 17 * * 5'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Execution mode (batch or single_row)'
+        required: false
+        default: 'batch'
+        type: choice
+        options:
+          - batch
+          - single_row
+      count:
+        description: 'Number of ideas to generate in batch mode'
+        required: false
+        default: '30'
+      row_id:
+        description: 'Specific Row ID for single-row re-generation'
+        required: false
+        default: ''
+      rejected_topic:
+        description: 'Previous rejected topic for single-row re-generation'
+        required: false
+        default: ''
+      error_reasons:
+        description: 'Error reasons from Gatekeeper 1 for single-row re-generation'
+        required: false
+        default: ''
+      gemini_api_keys:
+        description: 'Ephemeral Gemini API keys passed from Cloudflare'
+        required: false
+        default: ''
+      cf_webhook_url:
+        description: 'Cloudflare Worker Webhook URL to receive ideas'
+        required: false
+        default: 'https://lele-pinyinquiz.aleron-dt.workers.dev/api/receive-ideas'
+
+# 🛑 Do not cancel in-progress ideation jobs; keep sequential queue intact
+concurrency:
+  group: pinyin-ideation-pipeline
+  cancel-in-progress: false
+
+jobs:
+  ideation:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # 1. Install System Dependencies
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get install -y --no-install-recommends pkg-config libpango1.0-dev libcairo2-dev || true
+
+      # 2. Cache Python Virtualenv
+      - name: Cache Python Virtualenv
+        id: cache-venv
+        uses: actions/cache@v4
+        with:
+          path: ~/.venv
+          key: ${{ runner.os }}-venv-v5-${{ hashFiles('pinyinquiz/requirements.txt') }}
+
+      # 3. Setup Virtualenv & Dependencies
+      - name: Setup Virtualenv & Dependencies
+        run: |
+          if [ ! -f "$HOME/.venv/bin/python" ]; then
+            echo "🔧 Creating virtual environment..."
+            python -m venv ~/.venv
+          fi
+          source ~/.venv/bin/activate
+          pip install --upgrade pip setuptools wheel
+          pip install -r pinyinquiz/requirements.txt
+          echo "$HOME/.venv/bin" >> $GITHUB_PATH
+
+      # 4. Setup Service Account Credentials (if provided for Negative Context reading)
+      - name: Setup Service Account Credentials
+        env:
+          GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+        run: |
+          mkdir -p pinyinquiz/configs
+          if [ -n "$GCP_SERVICE_ACCOUNT_JSON" ]; then
+            echo "$GCP_SERVICE_ACCOUNT_JSON" > pinyinquiz/configs/service_account.json
+            echo "Service account credentials configured."
+          fi
+
+      # 5. Execute Ideation Generator with Dynamic Inputs and Zero Static Secrets
+      - name: Execute Ideation Generator
+        working-directory: pinyinquiz
+        env:
+          GEMINI_API_KEYS: ${{ github.event.inputs.gemini_api_keys }}
+          CF_WEBHOOK_URL: ${{ github.event.inputs.cf_webhook_url || 'https://lele-pinyinquiz.aleron-dt.workers.dev/api/receive-ideas' }}
+          INPUT_MODE: ${{ github.event.inputs.mode || 'batch' }}
+          INPUT_COUNT: ${{ github.event.inputs.count || '30' }}
+          INPUT_ROW_ID: ${{ github.event.inputs.row_id }}
+          INPUT_REJECTED_TOPIC: ${{ github.event.inputs.rejected_topic }}
+          INPUT_ERROR_REASONS: ${{ github.event.inputs.error_reasons }}
+          PYTHONPATH: .
+          GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          source ~/.venv/bin/activate
+
+          # Mask ephemeral Gemini API keys from runner logs
+          if [ -n "$GEMINI_API_KEYS" ]; then
+            IFS=',' read -ra ADDR <<< "$GEMINI_API_KEYS"
+            for key in "${ADDR[@]}"; do
+              CLEAN_KEY="$(echo "$key" | xargs)"
+              if [ -n "$CLEAN_KEY" ]; then
+                echo "::add-mask::$CLEAN_KEY"
+              fi
+            done
+          fi
+
+          MODE="${INPUT_MODE:-batch}"
+          COUNT="${INPUT_COUNT:-30}"
+          WEBHOOK="${CF_WEBHOOK_URL:-https://lele-pinyinquiz.aleron-dt.workers.dev/api/receive-ideas}"
+
+          CMD="python scripts/generate_daily_batches.py --mode $MODE --webhook-url $WEBHOOK"
+
+          if [ "$MODE" = "batch" ]; then
+            CMD="$CMD --count $COUNT"
+          else
+            if [ -n "$INPUT_ROW_ID" ]; then
+              CMD="$CMD --row-id \"$INPUT_ROW_ID\""
+            fi
+            if [ -n "$INPUT_REJECTED_TOPIC" ]; then
+              CMD="$CMD --rejected-topic \"$INPUT_REJECTED_TOPIC\""
+            fi
+            if [ -n "$INPUT_ERROR_REASONS" ]; then
+              CMD="$CMD --error-reasons \"$INPUT_ERROR_REASONS\""
+            fi
+          fi
+
+          if [ -n "$GEMINI_API_KEYS" ]; then
+            CMD="$CMD --gemini-keys \"$GEMINI_API_KEYS\""
+          fi
+
+          echo "🚀 Executing Ideation Command: $CMD"
+          eval $CMD
+
+      # 6. Cleanup Credentials
+      - name: Cleanup Credentials
+        if: always()
+        run: |
+          rm -f pinyinquiz/configs/service_account.json
+          echo "Credentials cleaned up. Ideation workflow completed."
+
+      # 7. Notify Workflow Failure to Telegram
+      - name: Notify Workflow Failure to Telegram
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          CHAT_ID="${TELEGRAM_CHAT_ID:-1187577977}"
+          if [ -n "$TELEGRAM_BOT_TOKEN" ]; then
+            MSG="🚨 <b>[GitHub Actions Lỗi] Pipeline Sinh Kịch Bản Thất Bại!</b>%0A%0A• <b>Workflow:</b> <code>ScriptNewIdeation.yml</code>%0A• <b>Run ID:</b> <a href=\"https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\">${{ github.run_id }}</a>"
+            curl -s "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+              -d "chat_id=${CHAT_ID}" \
+              -d "text=${MSG}" \
+              -d "parse_mode=HTML" || true
+          fi
