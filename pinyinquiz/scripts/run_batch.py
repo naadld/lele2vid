@@ -336,25 +336,29 @@ def run_batch_job(from_sheet: bool = True, target_id: str = None, sample: bool =
             send_telegram_alert_message(fail_msg)
 
 def main():
-    parser = argparse.ArgumentParser(description="lelehoctiengtrung_pinyin Batch Runner")
-    parser.add_argument("--from-sheet", action="store_true", help="Fetch batches from Google Sheets")
-    parser.add_argument("--sample", action="store_true", help="Run with built-in sample batch")
-    parser.add_argument("--row-id", type=str, default=None, help="Process a specific row ID from Sheet")
-    parser.add_argument("--quality", type=str, default="qh", choices=["ql", "qm", "qh", "qk"], help="Render quality (default: qh 1080p60)")
-    parser.add_argument("--upload-gdrive", action="store_true", help="Upload rendered video to Google Drive")
-    
-    args = parser.parse_args()
-    
-    if not args.from_sheet and not args.sample and not args.row_id:
-        args.from_sheet = True
+    try:
+        parser = argparse.ArgumentParser(description="lelehoctiengtrung_pinyin Batch Runner")
+        parser.add_argument("--from-sheet", action="store_true", help="Fetch batches from Google Sheets")
+        parser.add_argument("--sample", action="store_true", help="Run with built-in sample batch")
+        parser.add_argument("--row-id", type=str, default=None, help="Process a specific row ID from Sheet")
+        parser.add_argument("--quality", type=str, default="qh", choices=["ql", "qm", "qh", "qk"], help="Render quality (default: qh 1080p60)")
+        parser.add_argument("--upload-gdrive", action="store_true", help="Upload rendered video to Google Drive")
+        
+        args = parser.parse_args()
+        
+        if not args.from_sheet and not args.sample and not args.row_id:
+            args.from_sheet = True
 
-    run_batch_job(
-        from_sheet=args.from_sheet or bool(args.row_id),
-        target_id=args.row_id,
-        sample=args.sample,
-        quality=args.quality,
-        upload_gdrive=args.upload_gdrive
-    )
+        run_batch_job(
+            from_sheet=args.from_sheet or bool(args.row_id),
+            target_id=args.row_id,
+            sample=args.sample,
+            quality=args.quality,
+            upload_gdrive=args.upload_gdrive
+        )
+    except Exception as e:
+        logger.error(f"🔥 FATAL EXCEPTION in Batch Runner: {e}", exc_info=True)
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
