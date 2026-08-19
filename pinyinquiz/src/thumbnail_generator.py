@@ -13,15 +13,17 @@ from src.config import config
 
 logger = logging.getLogger("ThumbnailGenerator")
 
-# Standard CJK and Latin Font Paths
+# Standard Arial Fonts for Vietnamese & CJK Fallback
 FONT_CANDIDATES = [
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "fonts", "Arial_Bold.ttf"),
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "fonts", "Arial.ttf"),
+    os.path.expanduser("~/.fonts/Arial_Bold.ttf"),
+    os.path.expanduser("~/.fonts/Arial.ttf"),
+    "/usr/share/fonts/truetype/msttcorefonts/Arial_Bold.ttf",
+    "/usr/share/fonts/truetype/msttcorefonts/Arial.ttf",
+    "/usr/share/fonts/truetype/litefonts/ARIALUNI.TTF",
     os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "fonts", "NotoSansSC.ttf"),
     os.path.expanduser("~/.fonts/NotoSansSC.ttf"),
-    "/usr/share/fonts/truetype/litefonts/ARIALUNI.TTF",
-    "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
-    "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc",
-    "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
 ]
 
 def get_font(size: int, bold: bool = True) -> ImageFont.FreeTypeFont:

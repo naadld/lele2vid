@@ -8,7 +8,9 @@ config.pixel_height = 1920
 config.frame_width = 9.0
 config.frame_height = 16.0
 
-CHINESE_FONT = "Arial Unicode MS"
+VIETNAMESE_FONT = "Arial"
+PINYIN_FONT = "Arial"
+CHINESE_FONT = "Noto Sans SC"
 
 class ModernPinyinQuizScene(Scene):
     def __init__(self, batch_data=None, **kwargs):
@@ -96,7 +98,7 @@ class ModernPinyinQuizScene(Scene):
         # 2. Top Header Pill
         pill_text = Text(
             topic_title.upper(),
-            font="sans-serif",
+            font=VIETNAMESE_FONT,
             font_size=24,
             color="#082f49",
             weight=BOLD
@@ -127,7 +129,7 @@ class ModernPinyinQuizScene(Scene):
         
         mode_title = Text(
             "THỬ ĐOÁN XEM!",
-            font="sans-serif",
+            font=VIETNAMESE_FONT,
             font_size=25,
             color="#fbbf24",
             weight=BOLD
@@ -135,7 +137,7 @@ class ModernPinyinQuizScene(Scene):
         
         mode_sub = Text(
             "🇻🇳 ➔ 🇨🇳 (Pinyin)",
-            font="sans-serif",
+            font=VIETNAMESE_FONT,
             font_size=23,
             color=WHITE,
             weight=SEMIBOLD
@@ -165,8 +167,8 @@ class ModernPinyinQuizScene(Scene):
         else:
             avatar_group = Dot(radius=0.4, color=BLUE_D).move_to(footer_card.get_left() + RIGHT * 0.75)
 
-        footer_title = Text("Học Tiếng Trung FREE", font="sans-serif", font_size=26, color=WHITE, weight=BOLD)
-        footer_sub = Text("cùng Lê Lệ Học Tiếng Trung", font="sans-serif", font_size=22, color="#94a3b8")
+        footer_title = Text("Học Tiếng Trung FREE", font=VIETNAMESE_FONT, font_size=26, color=WHITE, weight=BOLD)
+        footer_sub = Text("cùng Lê Lệ Học Tiếng Trung", font=VIETNAMESE_FONT, font_size=22, color="#94a3b8")
         footer_text_group = VGroup(footer_title, footer_sub).arrange(DOWN, aligned_edge=LEFT, buff=0.1)
         footer_text_group.next_to(avatar_group, RIGHT, buff=0.3)
 
@@ -185,7 +187,7 @@ class ModernPinyinQuizScene(Scene):
             ex_vi = w.get("example_vi", "")
 
             # Word counter
-            counter_text = Text(f"Từ {idx}/{total_words}", font="sans-serif", font_size=26, color="#94a3b8", weight=SEMIBOLD)
+            counter_text = Text(f"Từ {idx}/{total_words}", font=VIETNAMESE_FONT, font_size=26, color="#94a3b8", weight=SEMIBOLD)
             counter_text.move_to(footer_card.get_right() + LEFT * 0.9)
             self.play(FadeIn(counter_text, run_time=0.2))
 
@@ -203,7 +205,7 @@ class ModernPinyinQuizScene(Scene):
             # Meaning Title
             meaning_text = Text(
                 meaning,
-                font="sans-serif",
+                font=VIETNAMESE_FONT,
                 font_size=50,
                 color=WHITE,
                 weight=BOLD
@@ -214,7 +216,7 @@ class ModernPinyinQuizScene(Scene):
             # Part of speech
             pos_text = Text(
                 pos,
-                font="sans-serif",
+                font=VIETNAMESE_FONT,
                 font_size=28,
                 color="#94a3b8"
             ).next_to(meaning_text, DOWN, buff=0.25)
@@ -224,7 +226,7 @@ class ModernPinyinQuizScene(Scene):
             # Hidden Pinyin
             hidden_text = Text(
                 hidden_py,
-                font="sans-serif",
+                font=VIETNAMESE_FONT,
                 font_size=58,
                 color="#facc15",
                 weight=BOLD
@@ -233,8 +235,8 @@ class ModernPinyinQuizScene(Scene):
                 hidden_text.scale_to_fit_width(6.4)
 
             # Time Countdown
-            time_label = Text("TIME", font="sans-serif", font_size=30, color="#94a3b8", weight=BOLD)
-            timer_num = Text("4", font="sans-serif", font_size=54, color=WHITE, weight=BOLD)
+            time_label = Text("TIME", font=VIETNAMESE_FONT, font_size=30, color="#94a3b8", weight=BOLD)
+            timer_num = Text("4", font=VIETNAMESE_FONT, font_size=54, color=WHITE, weight=BOLD)
             timer_group = VGroup(time_label, timer_num).arrange(RIGHT, buff=0.25).next_to(hidden_text, DOWN, buff=0.6)
 
             # Progress Bar
@@ -277,7 +279,7 @@ class ModernPinyinQuizScene(Scene):
                 )
                 new_active_bar.align_to(bar_track, LEFT)
                 
-                new_timer_num = Text(str(s), font="sans-serif", font_size=54, color=WHITE if s > 1 else "#f43f5e", weight=BOLD)
+                new_timer_num = Text(str(s), font=VIETNAMESE_FONT, font_size=54, color=WHITE if s > 1 else "#f43f5e", weight=BOLD)
                 new_timer_num.move_to(timer_num.get_center())
 
                 self.play(
@@ -313,7 +315,7 @@ class ModernPinyinQuizScene(Scene):
 
             pinyin_sub = Text(
                 f"/{pinyin_full}/",
-                font="sans-serif",
+                font=VIETNAMESE_FONT,
                 font_size=30,
                 color="#94a3b8",
                 slant=ITALIC
@@ -324,8 +326,8 @@ class ModernPinyinQuizScene(Scene):
             example_group = VGroup()
             if ex_hz:
                 ex_hz_txt = Text(ex_hz, font=CHINESE_FONT, font_size=30, color=WHITE, weight=MEDIUM)
-                ex_py_txt = Text(ex_py, font="sans-serif", font_size=23, color="#cbd5e1")
-                ex_vi_txt = Text(f"({ex_vi})", font="sans-serif", font_size=23, color="#94a3b8")
+                ex_py_txt = Text(ex_py, font=VIETNAMESE_FONT, font_size=23, color="#cbd5e1")
+                ex_vi_txt = Text(f"({ex_vi})", font=VIETNAMESE_FONT, font_size=23, color="#94a3b8")
                 example_group = VGroup(ex_hz_txt, ex_py_txt, ex_vi_txt).arrange(DOWN, buff=0.12)
                 if example_group.width > 6.4:
                     example_group.scale_to_fit_width(6.4)
@@ -380,10 +382,10 @@ class ModernPinyinQuizScene(Scene):
         else:
             logo_badge = Dot(radius=0.6, color="#0284c7")
 
-        end_title = Text("BẠN ĐOÁN ĐÚNG MẤY CÂU?", font="sans-serif", font_size=34, color="#fbbf24", weight=BOLD)
-        end_sub1 = Text("Comment số điểm của bạn bên dưới nha! 👇", font="sans-serif", font_size=25, color=WHITE)
-        end_sub2 = Text("Follow Lê Lệ Học Tiếng Trung", font="sans-serif", font_size=25, color="#38bdf8", weight=BOLD)
-        end_sub3 = Text("để luyện tập mỗi ngày! ✨", font="sans-serif", font_size=24, color="#cbd5e1")
+        end_title = Text("BẠN ĐOÁN ĐÚNG MẤY CÂU?", font=VIETNAMESE_FONT, font_size=34, color="#fbbf24", weight=BOLD)
+        end_sub1 = Text("Comment số điểm của bạn bên dưới nha! 👇", font=VIETNAMESE_FONT, font_size=25, color=WHITE)
+        end_sub2 = Text("Follow Lê Lệ Học Tiếng Trung", font=VIETNAMESE_FONT, font_size=25, color="#38bdf8", weight=BOLD)
+        end_sub3 = Text("để luyện tập mỗi ngày! ✨", font=VIETNAMESE_FONT, font_size=24, color="#cbd5e1")
         
         end_text_group = VGroup(end_title, end_sub1, end_sub2, end_sub3).arrange(DOWN, buff=0.25)
         if end_text_group.width > 6.8:
