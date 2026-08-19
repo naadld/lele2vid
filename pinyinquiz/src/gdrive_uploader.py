@@ -80,9 +80,9 @@ class GDriveUploader:
 
         raise FileNotFoundError("No valid Google credentials (OAuth 2.0 or Service Account) found!")
 
-    def upload_file(self, file_path: str, custom_filename: Optional[str] = None) -> Optional[str]:
+    def upload_file(self, file_path: str, custom_filename: Optional[str] = None, mimetype: Optional[str] = None) -> Optional[str]:
         """
-        Uploads a video file to Google Drive folder and returns the direct web view link.
+        Uploads a video or image thumbnail file to Google Drive folder and returns the direct web view link.
         """
         if not os.path.exists(file_path):
             logger.error(f"File not found for upload: {file_path}")
@@ -91,11 +91,21 @@ class GDriveUploader:
         filename = custom_filename or os.path.basename(file_path)
         logger.info(f"Uploading '{filename}' to Google Drive folder [{self.folder_id}]...")
 
+        if not mimetype:
+            if filename.lower().endswith(".jpg") or filename.lower().endswith(".jpeg"):
+                mimetype = "image/jpeg"
+            elif filename.lower().endswith(".png"):
+                mimetype = "image/png"
+            elif filename.lower().endswith(".mp4"):
+                mimetype = "video/mp4"
+            else:
+                mimetype = "application/octet-stream"
+
         file_metadata = {
             "name": filename,
             "parents": [self.folder_id]
         }
-        media = MediaFileUpload(file_path, mimetype="video/mp4", resumable=True)
+        media = MediaFileUpload(file_path, mimetype=mimetype, resumable=True)
 
         try:
             file = self.service.files().create(

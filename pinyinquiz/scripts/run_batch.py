@@ -18,6 +18,7 @@ from src.audio_generator import ensure_bell_sound, ensure_tick_sound
 from src.gdrive_uploader import GDriveUploader
 from src.metadata_generator import save_and_upload_metadata
 from src.pre_render_validator import PreRenderValidator
+from src.thumbnail_generator import create_high_ctr_thumbnail
 
 logging.basicConfig(
     level=logging.INFO,
@@ -60,8 +61,8 @@ def send_telegram_alert_message(text: str, reply_markup: dict = None):
     except Exception as e:
         logger.warning(f"Telegram alert error: {e}")
 
-def send_telegram_video(video_path: str, caption: str, row_id: str = "", gdrive_link: str = ""):
-    """Send rendered video file directly to Telegram bot chat with moderation inline keyboard."""
+def send_telegram_video(video_path: str, caption: str, row_id: str = "", gdrive_link: str = "", thumb_path: str = "", thumb_gdrive_link: str = ""):
+    """Send rendered video file directly to Telegram bot chat with moderation inline keyboard and high-CTR thumbnail."""
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
     chat_id = os.getenv("TELEGRAM_CHAT_ID", "").strip() or "6800539169"
     
@@ -82,10 +83,33 @@ def send_telegram_video(video_path: str, caption: str, row_id: str = "", gdrive_
         ]
     }
 
-    # If video file doesn't exist locally, send text fallback
+    # Helper function to send thumbnail photo if video sending is not feasible
+    def _send_thumbnail_photo():
+        if thumb_path and os.path.exists(thumb_path):
+            try:
+                photo_url = f"https://api.telegram.org/bot{bot_token}/sendPhoto"
+                with open(thumb_path, "rb") as pf:
+                    p_files = {"photo": pf}
+                    p_data = {
+                        "chat_id": chat_id,
+                        "caption": caption[:1024],
+                        "parse_mode": "HTML",
+                        "reply_markup": json.dumps(reply_markup)
+                    }
+                    import requests
+                    p_res = requests.post(photo_url, data=p_data, files=p_files, timeout=60)
+                    if p_res.status_code == 200:
+                        logger.info("Sent High-CTR Thumbnail photo to Telegram bot with moderation buttons!")
+                        return True
+            except Exception as pe:
+                logger.warning(f"Failed to send thumbnail photo to Telegram: {pe}")
+        return False
+
+    # If video file doesn't exist locally, send thumbnail photo or text fallback
     if not (video_path and os.path.exists(video_path)):
-        logger.info(f"Video file not found locally ({video_path}). Sending Telegram alert with GDrive link.")
-        send_telegram_alert_message(caption, reply_markup=reply_markup)
+        logger.info(f"Video file not found locally ({video_path}). Sending Telegram alert.")
+        if not _send_thumbnail_photo():
+            send_telegram_alert_message(caption, reply_markup=reply_markup)
         return
 
     url = f"https://api.telegram.org/bot{bot_token}/sendVideo"
@@ -95,12 +119,21 @@ def send_telegram_video(video_path: str, caption: str, row_id: str = "", gdrive_
 
         # Telegram Bot API standard sendVideo limit is 50MB
         if file_size_mb > 49.0:
-            logger.warning(f"Video size ({file_size_mb:.2f} MB) exceeds Telegram 50MB limit. Sending text with GDrive link.")
-            send_telegram_alert_message(caption, reply_markup=reply_markup)
+            logger.warning(f"Video size ({file_size_mb:.2f} MB) exceeds Telegram 50MB limit. Sending thumbnail photo with GDrive link.")
+            if not _send_thumbnail_photo():
+                send_telegram_alert_message(caption, reply_markup=reply_markup)
             return
 
         with open(video_path, "rb") as video_file:
             files = {"video": video_file}
+            thumb_file = None
+            if thumb_path and os.path.exists(thumb_path):
+                try:
+                    thumb_file = open(thumb_path, "rb")
+                    files["thumbnail"] = thumb_file
+                except Exception as e:
+                    logger.warning(f"Could not attach thumbnail to sendVideo: {e}")
+
             data = {
                 "chat_id": chat_id,
                 "caption": caption[:1024],
@@ -110,14 +143,19 @@ def send_telegram_video(video_path: str, caption: str, row_id: str = "", gdrive_
             }
             import requests
             res = requests.post(url, data=data, files=files, timeout=120)
+            if thumb_file:
+                thumb_file.close()
+
             if res.status_code == 200:
-                logger.info("Successfully sent video to Telegram bot with moderation buttons!")
+                logger.info("Successfully sent video & high-CTR thumbnail to Telegram bot with moderation buttons!")
             else:
-                logger.warning(f"Failed to send video to Telegram: {res.status_code} - {res.text}. Falling back to text message.")
-                send_telegram_alert_message(caption, reply_markup=reply_markup)
+                logger.warning(f"Failed to send video to Telegram: {res.status_code} - {res.text}. Falling back to thumbnail photo / text.")
+                if not _send_thumbnail_photo():
+                    send_telegram_alert_message(caption, reply_markup=reply_markup)
     except Exception as e:
-        logger.warning(f"Error sending video to Telegram: {e}. Falling back to text message.")
-        send_telegram_alert_message(caption, reply_markup=reply_markup)
+        logger.warning(f"Error sending video to Telegram: {e}. Falling back to thumbnail photo / text.")
+        if not _send_thumbnail_photo():
+            send_telegram_alert_message(caption, reply_markup=reply_markup)
 
 def run_batch_job(from_sheet: bool = True, target_id: str = None, sample: bool = False, quality: str = "qh", upload_gdrive: bool = False):
     """
@@ -217,8 +255,18 @@ def run_batch_job(from_sheet: bool = True, target_id: str = None, sample: bool =
         scene_file, scene_name = create_scene_file(batch)
         logger.info(f"Generated scene: {scene_name} at {scene_file}")
 
-        # 2. Render Video with Manim
+        # 1.5 Generate High-CTR Thumbnail (1080x1920 9:16)
         clean_topic_name = sanitize_filename(topic)
+        thumb_filename = f"#{row_id}.{clean_topic_name}_thumbnail.jpg"
+        thumb_path = os.path.join(config.output_videos_dir, thumb_filename)
+        try:
+            create_high_ctr_thumbnail(batch, output_path=thumb_path)
+            logger.info(f"✨ Generated High-CTR Thumbnail: {thumb_path}")
+        except Exception as te:
+            logger.warning(f"Could not generate thumbnail: {te}")
+            thumb_path = ""
+
+        # 2. Render Video with Manim
         final_video_name = f"#{row_id}.{clean_topic_name}.mp4"
         custom_video_path = os.path.join(config.output_videos_dir, final_video_name)
 
@@ -233,9 +281,12 @@ def run_batch_job(from_sheet: bool = True, target_id: str = None, sample: bool =
             logger.info(f"Video rendered successfully: {video_path}")
             
             gdrive_link = ""
+            thumb_gdrive_link = ""
             if gdrive_uploader:
                 try:
                     gdrive_link = gdrive_uploader.upload_file(video_path, final_video_name) or ""
+                    if thumb_path and os.path.exists(thumb_path):
+                        thumb_gdrive_link = gdrive_uploader.upload_file(thumb_path, thumb_filename, mimetype="image/jpeg") or ""
                 except Exception as ue:
                     logger.error(f"GDrive upload error: {ue}")
 
@@ -261,18 +312,20 @@ def run_batch_job(from_sheet: bool = True, target_id: str = None, sample: bool =
                     metadata_link=metadata_text
                 )
 
-            # Send video directly to Telegram bot chat with moderation buttons
+            # Send video directly to Telegram bot chat with moderation buttons & thumbnail
+            thumb_info = f"\n🖼️ <b>Thumbnail:</b> {thumb_gdrive_link or 'Đã tạo đính kèm'}" if (thumb_gdrive_link or thumb_path) else ""
             tg_caption = (
                 f"🎬 <b>[Kiểm Duyệt Video] #{row_id}: {topic} ({level})</b>\n\n"
                 f"📊 <b>Trạng thái hiện tại:</b> <code>Video</code> (Đã lưu GDrive)\n"
-                f"🔗 <b>GDrive:</b> {gdrive_link or 'Đã lưu local'}\n\n"
+                f"🔗 <b>GDrive Video:</b> {gdrive_link or 'Đã lưu local'}"
+                f"{thumb_info}\n\n"
                 f"👇 <i>Vui lòng chọn thao tác kiểm duyệt:</i>\n"
                 f"• <b>Approve</b> ➔ Chuyển thành <code>Ready</code> (Đăng tự động lúc 07:00 / 13:00)\n"
                 f"• <b>Reset</b> ➔ Chuyển về <code>Pending</code> (Để render lại)\n"
                 f"• <b>Delete</b> ➔ Xóa dòng khỏi Sheet\n"
                 f"• <b>Cancel</b> ➔ Giữ nguyên <code>Video</code> (Để sau)"
             )
-            send_telegram_video(video_path, tg_caption, row_id=str(row_id), gdrive_link=gdrive_link)
+            send_telegram_video(video_path, tg_caption, row_id=str(row_id), gdrive_link=gdrive_link, thumb_path=thumb_path, thumb_gdrive_link=thumb_gdrive_link)
             logger.info(f" Batch [{row_id}] finished successfully -> {video_path}")
         else:
             logger.error(f"❌ Failed to render batch [{row_id}]")
