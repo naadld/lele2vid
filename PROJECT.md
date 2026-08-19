@@ -19,35 +19,35 @@ Pipeline 2.0 implements a High-Security Zero-Secret & Multi-Tier AI Gatekeeper a
    - Google Drive: Central video asset archive (`1Y240J5-oXA-UDm2IKvp7qCBVsRempbCB`).
 
 ## Feature Inventory
-| # | Feature | Description | Milestone | Source |
-|---|---------|-------------|-----------|--------|
-| 1 | `ScriptNewIdeation.yml` Batch 30 | 30 ideas weekly with 60s delay, 6-key rotation, 100-row Sheet negative context | M1 | Survey |
-| 2 | `ScriptNewIdeation.yml` Single-Row Re-gen | Targeted single-row re-generation upon Gatekeeper rejection | M1 | Survey |
-| 3 | `Render.yml` Manim High-Quality Render | 1080x1920 60fps, 0.75s Cover frame, Edge-TTS audio, GDrive upload, auto-QC trigger | M1 | Survey |
-| 4 | `ProductQC.yml` Physical Video Inspection | OpenCV & FFprobe check (brightness, contrast, cover stability, audio, duration) | M1 | Survey |
-| 5 | Gatekeeper 1 AI Judge | Agnes AI + Workers AI fallback independent linguistic evaluation | M2 | Survey |
-| 6 | 5 Strict Linguistic & Content Criteria | 100% Simplified Chinese, Single Topic Only, 100% VN meaning, 1:1 Pinyin tone, zero pair repetition | M2 | Survey |
-| 7 | Retry 2x & 3rd-Violation Row Deletion | Retry tracking with Step 2 dispatch, row deletion from Google Sheet on 3rd failure | M2 | Survey |
-| 8 | `POST /api/receive-ideas` Webhook | Ingests ideas from GitHub Actions, runs Gatekeeper 1, updates Google Sheet | M2 | Survey |
-| 9 | Dynamic Ephemeral Key Dispatch | Injects Gemini keys into GitHub workflow_dispatch payload (zero GitHub secrets) | M2 | Survey |
-| 10 | Production & 3x Publishing Crons | Saturday 00:01 GMT+7 ideation; 07:00, 13:00, 19:00 GMT+7 Buffer publishing | M2 | Survey |
-| 11 | Buffer GraphQL Multi-Platform Publishing | Publishes video to YouTube Shorts, TikTok, Facebook Reels with tailored metadata | M2 | Survey |
-| 12 | `generate_daily_batches.py` Dynamic Key Engine | Supports dynamic keys, 100-row Sheet negative context, 60s delay, single-row re-gen, webhook POST | M3 | Survey |
-| 13 | Direct Google AI Studio Integration | `llm_client.py` direct Gemini 3.7 Flash API calls with model failover and key rotation | M3 | Survey |
-| 14 | Pipeline 2.0 Runner Updates | Update `run_batch.py` and `run_qc.py` for GDrive folder ID and workflow chaining | M3 | Survey |
-| 15 | Corrupted Asset Cleanup | Remove/fix corrupted font `NotoSansSC-Bold.otf` | M3 | Survey |
-| 16 | Comprehensive Test Suite (Tiers 1-4) | Unit & integration tests for validators, QC inspector, Pinyin utils, Gatekeeper rules | M4 | Survey |
-| 17 | Cloudflare Worker Node 22 Deployment | Deploy Cloudflare Worker with Wrangler CLI and verify live diagnostic endpoints | M5 | Survey |
-| 18 | Git Commit & Push | Commit with message `"feat: upgrade pipeline to v2.0 with zero-secret GitHub Actions and multi-tier gatekeeper"` | M5 | Survey |
+| # | Feature | Description | Milestone | Source | Status |
+|---|---------|-------------|-----------|--------|--------|
+| 1 | `ScriptNewIdeation.yml` Batch 30 | 30 ideas weekly with 60s delay, 6-key rotation, 100-row Sheet negative context | M1 | Survey | DONE |
+| 2 | `ScriptNewIdeation.yml` Single-Row Re-gen | Targeted single-row re-generation upon Gatekeeper rejection | M1 | Survey | DONE |
+| 3 | `Render.yml` Manim High-Quality Render | 1080x1920 60fps, 0.75s Cover frame, Edge-TTS audio, GDrive upload, auto-QC trigger | M1 | Survey | DONE |
+| 4 | `ProductQC.yml` Physical Video Inspection | OpenCV & FFprobe check (brightness, contrast, cover stability, audio, duration) | M1 | Survey | DONE |
+| 5 | Gatekeeper 1 AI Judge | Agnes AI + Workers AI fallback independent linguistic evaluation | M2 | Survey | DONE |
+| 6 | 5 Strict Linguistic & Content Criteria | 100% Simplified Chinese, Single Topic Only, 100% VN meaning, 1:1 Pinyin tone, zero pair repetition | M2 | Survey | DONE |
+| 7 | Retry 2x & 3rd-Violation Row Deletion | Retry tracking with Step 2 dispatch, row deletion from Google Sheet on 3rd failure | M2 | Survey | DONE |
+| 8 | `POST /api/receive-ideas` Webhook | Ingests ideas from GitHub Actions, runs Gatekeeper 1, updates Google Sheet | M2 | Survey | DONE |
+| 9 | Dynamic Ephemeral Key Dispatch | Injects Gemini keys into GitHub workflow_dispatch payload (zero GitHub secrets) | M2 | Survey | DONE |
+| 10 | Production & 3x Publishing Crons | Saturday 00:01 GMT+7 ideation; 07:00, 13:00, 19:00 GMT+7 Buffer publishing | M2 | Survey | DONE |
+| 11 | Buffer GraphQL Multi-Platform Publishing | Publishes video to YouTube Shorts, TikTok, Facebook Reels with tailored metadata | M2 | Survey | DONE |
+| 12 | `generate_daily_batches.py` Dynamic Key Engine | Supports dynamic keys, 100-row Sheet negative context, 60s delay, single-row re-gen, webhook POST | M3 | Survey | DONE |
+| 13 | Direct Google AI Studio Integration | `llm_client.py` direct Gemini 3.7 Flash API calls with model failover and key rotation | M3 | Survey | DONE |
+| 14 | Pipeline 2.0 Runner Updates | Update `run_batch.py` and `run_qc.py` for GDrive folder ID and workflow chaining | M3 | Survey | DONE |
+| 15 | Corrupted Asset Cleanup | Remove/fix corrupted font `NotoSansSC-Bold.otf` | M3 | Survey | DONE |
+| 16 | Comprehensive Test Suite (Tiers 1-4) | Unit & integration tests for validators, QC inspector, Pinyin utils, Gatekeeper rules | M4 | Survey | DONE |
+| 17 | Cloudflare Worker Node 22 Deployment | Deploy Cloudflare Worker with Wrangler CLI and verify live diagnostic endpoints | M5 | Survey | DONE |
+| 18 | Git Commit & Push | Commit with message `"feat: upgrade pipeline to v2.0 with zero-secret GitHub Actions and multi-tier gatekeeper"` | M5 | Survey | DONE |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| M1 | GitHub Actions 3-Workflow Architecture | Create `ScriptNewIdeation.yml`, `Render.yml`, `ProductQC.yml` | None | PLANNED |
-| M2 | Cloudflare Worker Gatekeeper & Control Plane | Implement `gatekeeper.js`, update `index.js`, `github_trigger.js`, `wrangler.toml` | None | PLANNED |
-| M3 | Python Engine & Script Optimization | Overhaul `generate_daily_batches.py`, `llm_client.py`, `run_batch.py`, clean assets | None | PLANNED |
-| M4 | Comprehensive Unit & E2E Testing Suite | Build and run test suite across Tiers 1-4; publish `TEST_READY.md` | M1, M2, M3 | PLANNED |
-| M5 | Deployment, Verification & Git Commit/Push | Deploy worker with Node 22 Wrangler, verify endpoints, git commit & push | M1, M2, M3, M4 | PLANNED |
+| M1 | GitHub Actions 3-Workflow Architecture | Create `ScriptNewIdeation.yml`, `Render.yml`, `ProductQC.yml` | None | DONE |
+| M2 | Cloudflare Worker Gatekeeper & Control Plane | Implement `gatekeeper.js`, update `index.js`, `github_trigger.js`, `wrangler.toml` | None | DONE |
+| M3 | Python Engine & Script Optimization | Overhaul `generate_daily_batches.py`, `llm_client.py`, `run_batch.py`, clean assets | None | DONE |
+| M4 | Comprehensive Unit & E2E Testing Suite | Build and run test suite across Tiers 1-4; publish `TEST_READY.md` | M1, M2, M3 | DONE |
+| M5 | Deployment, Verification & Git Commit/Push | Deploy worker with Node 22 Wrangler, verify endpoints, git commit & push | M1, M2, M3, M4 | DONE |
 
 ## Interface Contracts
 ### GitHub Actions (`ScriptNewIdeation.yml`) ↔ Cloudflare Worker (`/api/receive-ideas`)
@@ -86,52 +86,3 @@ Pipeline 2.0 implements a High-Security Zero-Secret & Multi-Tier AI Gatekeeper a
 
 ### Render Workflow (`Render.yml`) ↔ QC Workflow (`ProductQC.yml`)
 - Trigger: Upon successful render and GDrive upload, `Render.yml` triggers `ProductQC.yml` via GitHub API with `row_id`.
-
-## Code Layout
-```
-/media/vpsg16gb/HaRiDisk/CHANNELS/lelehoctiengtrung/
-├── .github/workflows/
-│   ├── ScriptNewIdeation.yml
-│   ├── Render.yml
-│   └── ProductQC.yml
-├── pinyinquiz/
-│   ├── cloudflare/
-│   │   ├── wrangler.toml
-│   │   ├── package.json
-│   │   └── src/
-│   │       ├── index.js
-│   │       ├── gatekeeper.js
-│   │       ├── github_trigger.js
-│   │       ├── buffer_publisher.js
-│   │       ├── google_sheets.js
-│   │       ├── ai_ideation.js
-│   │       ├── metadata_helper.js
-│   │       ├── pinyin_helper.js
-│   │       ├── telegram.js
-│   │       └── config.js
-│   ├── src/
-│   │   ├── config.py
-│   │   ├── pinyin_utils.py
-│   │   ├── audio_generator.py
-│   │   ├── metadata_generator.py
-│   │   ├── thumbnail_generator.py
-│   │   ├── scene_generator.py
-│   │   ├── render_engine.py
-│   │   ├── pre_render_validator.py
-│   │   ├── qc_inspector.py
-│   │   ├── gsheet_manager.py
-│   │   ├── gdrive_uploader.py
-│   │   └── llm_client.py
-│   ├── scripts/
-│   │   ├── generate_daily_batches.py
-│   │   ├── run_batch.py
-│   │   └── run_qc.py
-│   ├── tests/
-│   │   ├── conftest.py
-│   │   ├── test_linguistic_validator.py
-│   │   ├── test_pinyin_utils.py
-│   │   ├── test_qc_inspector.py
-│   │   ├── test_metadata_generator.py
-│   │   └── test_gatekeeper_rules.py
-│   └── assets/
-```
