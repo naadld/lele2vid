@@ -289,6 +289,62 @@ class QCInspector:
         passed = len(errors) == 0
         return passed, errors, details
 
+    def check_cover_thumbnail(self, video_path: str) -> Tuple[bool, List[str], Dict[str, Any]]:
+        """
+        Verify that Frame 00:00 (Cover Thumbnail) is present, correctly rendered,
+        has valid contrast/brightness, and runs for ~0.75s intro cover duration.
+        """
+        errors = []
+        details = {}
+        
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            return False, ["Không thể mở video để kiểm tra ảnh bìa."], details
+
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        duration = total_frames / fps if fps > 0 else 0
+
+        # 1. Read Frame at t = 0.05s (First frame of Cover)
+        cap.set(cv2.CAP_PROP_POS_FRAMES, 1)
+        ret, frame0 = cap.read()
+        if not ret or frame0 is None:
+            cap.release()
+            return False, ["Không thể giải mã khung hình đầu tiên (Frame 00:00 - Ảnh bìa Cover)."], details
+
+        h, w, _ = frame0.shape
+        mean_brightness = float(np.mean(frame0))
+        std_contrast = float(np.std(frame0))
+        details["cover_brightness"] = round(mean_brightness, 2)
+        details["cover_contrast"] = round(std_contrast, 2)
+        details["cover_resolution"] = f"{w}x{h}"
+
+        # 2. Brightness & Contrast check on Cover Frame
+        if mean_brightness < 10.0:
+            errors.append("Ảnh bìa đầu video (Frame 00:00) bị màn hình đen hoàn toàn.")
+        elif mean_brightness > 245.0:
+            errors.append("Ảnh bìa đầu video (Frame 00:00) bị màn hình trắng xóa/cháy sáng.")
+
+        if std_contrast < 15.0:
+            errors.append(f"Ảnh bìa đầu video thiếu độ tương phản đồ họa (std={std_contrast:.1f}).")
+
+        # 3. Check Cover stability across the 0.75s intro hold
+        if duration >= 1.0 and fps > 0:
+            frame_0_5s_idx = int(0.5 * fps)
+            cap.set(cv2.CAP_PROP_POS_FRAMES, frame_0_5s_idx)
+            ret5, frame5 = cap.read()
+            if ret5 and frame5 is not None:
+                diff = float(np.mean(np.abs(frame0.astype(np.float32) - frame5.astype(np.float32))))
+                details["cover_hold_diff"] = round(diff, 2)
+                if diff > 60.0:
+                    errors.append(f"Ảnh bìa không duy trì đủ 0.75s ở đầu video (Biến đổi đột ngột tại 0.5s, diff={diff:.1f}).")
+                else:
+                    details["cover_verified"] = True
+
+        cap.release()
+        passed = len(errors) == 0
+        return passed, errors, details
+
     def check_audio_stream(self, video_path: str) -> Tuple[bool, List[str]]:
         """
         Check that audio stream exists, has active channels and valid sample rate via ffprobe.
@@ -349,7 +405,14 @@ class QCInspector:
         if not vid_pass:
             all_errors.extend(vid_errs)
 
-        # 3. Check Audio Stream
+        # 3. Check Cover Thumbnail (Frame 00:00 - 0.75s Hold)
+        if vid_pass:
+            cover_pass, cover_errs, cover_details = self.check_cover_thumbnail(video_path)
+            details.update(cover_details)
+            if not cover_pass:
+                all_errors.extend(cover_errs)
+
+        # 4. Check Audio Stream
         if vid_pass:
             audio_pass, audio_errs = self.check_audio_stream(video_path)
             if not audio_pass:
