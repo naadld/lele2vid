@@ -429,57 +429,11 @@ export default {
       }
     }
 
-    // 4c. Notify Videos Endpoint (triggered by GitHub Actions post-render or manually)
+    // 4c. Notify Videos Endpoint (Disabled to prevent duplicate notifications)
     if ((url.pathname === "/api/notify-videos" || url.pathname === "/api/notify-render-done") && (request.method === "POST" || request.method === "GET")) {
-      try {
-        const targetChat = url.searchParams.get("chat_id") || config.telegramChatId;
-        const gsheet = new GoogleSheetsClient(
-          config.gcpClientEmail,
-          config.gcpPrivateKey,
-          config.spreadsheetId,
-          config.sheetTabName
-        );
-        const videoRows = await gsheet.getBatchesByStatus("Video");
-        
-        if (videoRows.length === 0) {
-          return new Response(JSON.stringify({ success: true, count: 0, message: "No video rows waiting for moderation." }), {
-            headers: { "Content-Type": "application/json" }
-          });
-        }
-
-        // Send a SINGLE consolidated batch summary message instead of flooding the chat
-        const videoListText = videoRows
-          .map(v => `• <b>#${v.id}:</b> ${v.topic} (<code>${v.level || "HSK 1"}</code>)`)
-          .join("\n");
-
-        const summaryCaption = (
-          `🎬 <b>[HOÀN THÀNH KẾT XUẤT MẺ VIDEO]</b>\n` +
-          `━o0o━\n\n` +
-          `🚀 Đã render thành công <b>${videoRows.length} video mới</b> kèm ảnh bìa 0.75s và lưu vào Google Drive!\n\n` +
-          `📋 <b>Danh sách video chờ duyệt:</b>\n` +
-          `${videoListText}\n\n` +
-          `💡 <i>Hệ thống Auto-QC sẽ tự động kiểm duyệt lúc 12:30 hoặc bạn có thể bấm nút duyệt ngay bên dưới:</i>`
-        );
-
-        const replyMarkup = {
-          inline_keyboard: [
-            [
-              { text: "🛡️ Chạy Auto-QC Duyệt", callback_data: "cmd_qc" },
-              { text: "📊 Xem Dashboard", callback_data: "cmd_refresh_status" }
-            ]
-          ]
-        };
-
-        const tgRes = await sendTelegramMessage(config.telegramBotToken, targetChat, summaryCaption, {
-          reply_markup: replyMarkup
-        });
-
-        return new Response(JSON.stringify({ success: true, count: videoRows.length, summarySent: Boolean(tgRes && tgRes.ok) }, null, 2), {
-          headers: { "Content-Type": "application/json" }
-        });
-      } catch (err) {
-        return new Response(JSON.stringify({ error: err.message, stack: err.stack }), { status: 500, headers: { "Content-Type": "application/json" } });
-      }
+      return new Response(JSON.stringify({ success: true, message: "Disabled to prevent duplicate notifications." }), {
+        headers: { "Content-Type": "application/json" }
+      });
     }
 
     // 4d. Generic Notification Relay Endpoint (for GitHub Actions or external alerts)
