@@ -251,12 +251,13 @@ export function getHelpMessage() {
 🔹 <code>/help</code>:
    👉 Xem lại hướng dẫn này.
 
-━━━━━━━━━━━━━━━━━━━━━
 🕒 <b>LỊCH HOẠT ĐỘNG TỰ ĐỘNG HÀNG NGÀY:</b>
 • <b>01:00 Sáng</b> (UTC 18:00): Tự động sản xuất ý tưởng, render video & gửi về bot chờ duyệt.
-• <b>06:30 Sáng</b> (UTC 23:30): <b>Auto-QC Gatekeeper</b> quét & duyệt tự động video chưa kịp bấm ➔ <code>Ready</code>.
-• <b>07:00 Sáng</b> (UTC 00:00): Tự động retry lỗi Error & đăng 1 video <b>Ready</b> lên YouTube, TikTok, Reels.
-• <b>12:30 Trưa</b> (UTC 05:30): <b>Auto-QC Gatekeeper</b> quét & duyệt tiếp video còn lại ➔ <code>Ready</code>.
-• <b>13:00 Chiều</b> (UTC 06:00): Tự động retry lỗi Error & đăng 1 video <b>Ready</b> tiếp theo.
+• <b>06:30 Sáng</b> (UTC 23:30): <b>Auto-QC Gatekeeper</b> quét & duyệt video ➔ <code>Ready</code>.
+• <b>07:00 Sáng</b> (UTC 00:00): Đăng 1 video <b>Ready</b> lên YouTube, TikTok, Facebook.
+• <b>12:01 Trưa</b> (UTC 05:01): 📊 <b>Báo cáo Dashboard tự động giữa ngày</b>.
+• <b>12:30 Trưa</b> (UTC 05:30): <b>Auto-QC Gatekeeper</b> quét & duyệt tiếp video còn lại.
+• <b>13:00 Chiều</b> (UTC 06:00): Đăng 1 video <b>Ready</b> tiếp theo.
+• <b>18:01 Chiều</b> (UTC 11:01): 📊 <b>Báo cáo Dashboard tự động cuối ngày</b>.
 ━━━━━━━━━━━━━━━━━━━━━`;
 }

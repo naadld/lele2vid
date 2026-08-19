@@ -528,7 +528,7 @@ export default {
   },
 
   /**
-   * Scheduled Cron Handler (01:00 AM, 07:00 AM, 13:00 PM VN)
+   * Scheduled Cron Handler (01:00 AM, 07:00 AM, 12:01 PM, 13:00 PM, 18:01 PM VN)
    */
   async scheduled(event, env, ctx) {
     const config = getConfig(env);
@@ -537,11 +537,19 @@ export default {
     ctx.waitUntil(
       (async () => {
         try {
-          // 1. Cron 18:00 UTC (01:00 AM VN): Production Schedule
+          // 1. Cron 18:00 UTC (01:00 AM VN): Production Schedule (Sinh idea, render, gửi video duyệt)
           if (event.cron === "0 18 * * *") {
             await handleProductionCron(env, config);
           } 
-          // 2. Cron 00:00 UTC (07:00 AM VN) & 06:00 UTC (13:00 PM VN): Publishing Schedule
+          // 2. Cron 05:01 UTC (12:01 PM VN): Báo cáo tự động Dashboard giữa ngày
+          else if (event.cron === "1 5 * * *") {
+            await sendSystemDashboardReport(env, config, config.telegramBotToken, config.telegramChatId, "• BÁO CÁO TRƯA 12:01");
+          }
+          // 3. Cron 11:01 UTC (18:01 PM VN): Báo cáo tự động Dashboard cuối ngày
+          else if (event.cron === "1 11 * * *") {
+            await sendSystemDashboardReport(env, config, config.telegramBotToken, config.telegramChatId, "• BÁO CÁO CHIỀU 18:01");
+          }
+          // 4. Cron 00:00 UTC (07:00 AM VN) & 06:00 UTC (13:00 PM VN): Publishing Schedule
           else {
             await handlePublishingCron(env, config);
           }
@@ -1184,101 +1192,7 @@ async function handleTelegramUpdate(update, env, config) {
 
   // 5. /status or /buffer: Báo cáo Dashboard Sinh Động Trực Quan (GSheet Inventory + Live Buffer Quota + Kênh MXH)
   if (command === "/status" || command === "/buffer" || command === "/dashboard") {
-    try {
-      const gsheet = new GoogleSheetsClient(
-        config.gcpClientEmail,
-        config.gcpPrivateKey,
-        config.spreadsheetId,
-        config.sheetTabName
-      );
-      const summary = await gsheet.getStatusSummary();
-
-      // Fetch Buffer live quota & channel health
-      const { getBufferQuotaAndHealth } = await import("./buffer_publisher.js");
-      const bufferStats = await getBufferQuotaAndHealth(config.bufferAccessToken || env.BUFFER_ACCESS_TOKEN || "Bhk_Gab-6Gm44FiruBCtoLJlV7SsuaZmVcTl3pDYRmo");
-
-      // Multi-layer visual progress bars
-      const makeEmojiBar = (val, max, length = 10, fillChar = "🟩", emptyChar = "⬜") => {
-        const filled = Math.min(length, Math.max(0, Math.round((val / (max || 1)) * length)));
-        return fillChar.repeat(filled) + emptyChar.repeat(length - filled);
-      };
-
-      const makeTextBar = (val, max, length = 10) => {
-        const filled = Math.min(length, Math.max(0, Math.round((val / (max || 1)) * length)));
-        return "▰".repeat(filled) + "▱".repeat(length - filled);
-      };
-
-      const bufferBar = makeTextBar(bufferStats.monthlyRemaining, bufferStats.monthlyLimit, 12);
-      const bufferPct = bufferStats.monthlyPercent ?? 98;
-
-      // Target: 14 ready videos = 7 days of safe auto-posting (2 videos/day)
-      const targetDays = 7;
-      const targetReadyVideos = targetDays * 2;
-      const readyDays = (summary.readyCount / 2).toFixed(1);
-      const readyBar = makeEmojiBar(summary.readyCount, targetReadyVideos, 10, "🟩", "⬜");
-
-      let errorDetailText = "";
-      if (summary.errorCount > 0) {
-        errorDetailText = `\n⚠️ <b>Dòng cần Retry (Error):</b> ` +
-          summary.errorDetails.map(d => `#${d.rowId} (${d.missingChannels})`).join(", ");
-      }
-
-      let failedDetailText = "";
-      if (summary.failedCount > 0) {
-        failedDetailText = `\n🛠️ <b>Cần AI vá lỗi (Failed):</b> <code>${summary.failedCount}</code> dòng (Bấm <b>AI Auto-Fix</b> bên dưới)`;
-      }
-
-      // Channels badge
-      const channelsList = (bufferStats.channels && bufferStats.channels.length > 0)
-        ? bufferStats.channels.map(c => `• ${c.service === "youtube" ? "🔴 YouTube Shorts" : c.service === "tiktok" ? "⚫ TikTok" : "🔵 Facebook Reels"}: <b>${c.name}</b> (<code>🟢 Live</code>)`).join("\n")
-        : "• 🔴 YouTube Shorts: <b>Lê Lê và Hán Ngữ</b> (<code>🟢 Live</code>)\n• ⚫ TikTok: <b>lelehoctiengtrung</b> (<code>🟢 Live</code>)\n• 🔵 Facebook Reels: <b>Lê Lê học tiếng Trung</b> (<code>🟢 Live</code>)";
-
-      const totalActive = (summary.readyCount + summary.videoCount + summary.pendingCount) || 1;
-
-      const msg = (
-        `📊 <b>BÁO CÁO TỔNG QUAN HỆ THỐNG LÊ LÊ HỌC TIẾNG TRUNG</b>\n` +
-        `━o0o━\n\n` +
-        `📦 <b>KHO NỘI DUNG & TIẾN ĐỘ XUẤT BẢN:</b>\n` +
-        `🟢 <b>Video Đã Duyệt (Ready):</b> <b>${summary.readyCount} / ${targetReadyVideos} video</b>\n` +
-        `   └ <code>${readyBar}</code> <b>${readyDays} ngày</b> an toàn\n` +
-        `⏳ <b>Chờ Kiểm Duyệt (Video):</b> <code>${summary.videoCount}</code> video (Đã lưu GDrive)\n` +
-        `💡 <b>Chờ Kết Xuất (Pending):</b> <code>${summary.pendingCount}</code> ý tưởng\n` +
-        failedDetailText + errorDetailText + `\n\n` +
-        `🌐 <b>KẾT NỐI BUFFER (3 KÊNH MẠNG XÃ HỘI):</b>\n` +
-        `${channelsList}\n\n` +
-        `🔋 <b>HẠN MỨC QUOTA BUFFER THÁNG:</b>\n` +
-        `   └ <code>[${bufferBar}]</code> <b>${bufferStats.monthlyRemaining?.toLocaleString()} / ${bufferStats.monthlyLimit?.toLocaleString()} req</b> (còn ${bufferPct}%)\n` +
-        `   └ <i>Đã dùng: ${bufferStats.monthlyUsed} req • Dư sức chạy ${Math.floor((bufferStats.monthlyRemaining || 2960) / 8)} ngày</i>\n\n` +
-        `⏰ <b>LỊCH ĐĂNG BÀI:</b> <b>07:00 Sáng & 13:00 Chiều Hàng Ngày</b>\n` +
-        `━o0o━\n` +
-        `👇 <i>Bấm các nút dưới đây để điều khiển nhanh hệ thống:</i>`
-      );
-
-      const replyMarkup = {
-        inline_keyboard: [
-          [
-            { text: "💡 Sinh Idea Mới", callback_data: "cmd_ideate" },
-            { text: "🎬 Render Video", callback_data: "cmd_render" }
-          ],
-          [
-            { text: "🛡️ Auto-QC", callback_data: "cmd_qc" },
-            { text: "🚀 Đăng 1 Video", callback_data: "cmd_publish" }
-          ],
-          [
-            { text: "✨ AI Auto-Fix (Failed)", callback_data: "cmd_fix" },
-            { text: "🔄 Cập Nhật Trạng Thái", callback_data: "cmd_refresh_status" }
-          ]
-        ]
-      };
-
-      await sendTelegramMessage(botToken, chatId, msg, { reply_markup: replyMarkup });
-    } catch (err) {
-      await sendTelegramMessage(
-        botToken,
-        chatId,
-        `❌ <b>Lỗi đọc báo cáo hệ thống:</b>\n<code>${err.message}</code>`
-      );
-    }
+    await sendSystemDashboardReport(env, config, botToken, chatId);
     return;
   }
 
@@ -1320,6 +1234,107 @@ async function handleTelegramUpdate(update, env, config) {
       `• <code>/help</code>: Xem hướng dẫn sử dụng chi tiết`
     );
     return;
+  }
+/**
+ * Send System Dashboard Report (Used by /status command and Cron 12:01 / 18:01 VN)
+ */
+export async function sendSystemDashboardReport(env, config, botToken, chatId, titleSuffix = "") {
+  try {
+    const gsheet = new GoogleSheetsClient(
+      config.gcpClientEmail,
+      config.gcpPrivateKey,
+      config.spreadsheetId,
+      config.sheetTabName
+    );
+    const summary = await gsheet.getStatusSummary();
+
+    // Fetch Buffer live quota & channel health
+    const { getBufferQuotaAndHealth } = await import("./buffer_publisher.js");
+    const bufferStats = await getBufferQuotaAndHealth(config.bufferAccessToken || env.BUFFER_ACCESS_TOKEN || "Bhk_Gab-6Gm44FiruBCtoLJlV7SsuaZmVcTl3pDYRmo");
+
+    // Multi-layer visual progress bars
+    const makeEmojiBar = (val, max, length = 10, fillChar = "🟩", emptyChar = "⬜") => {
+      const filled = Math.min(length, Math.max(0, Math.round((val / (max || 1)) * length)));
+      return fillChar.repeat(filled) + emptyChar.repeat(length - filled);
+    };
+
+    const makeTextBar = (val, max, length = 10) => {
+      const filled = Math.min(length, Math.max(0, Math.round((val / (max || 1)) * length)));
+      return "▰".repeat(filled) + "▱".repeat(length - filled);
+    };
+
+    const bufferBar = makeTextBar(bufferStats.monthlyRemaining, bufferStats.monthlyLimit, 12);
+    const bufferPct = bufferStats.monthlyPercent ?? 98;
+
+    // Target: 14 ready videos = 7 days of safe auto-posting (2 videos/day)
+    const targetDays = 7;
+    const targetReadyVideos = targetDays * 2;
+    const readyDays = (summary.readyCount / 2).toFixed(1);
+    const readyBar = makeEmojiBar(summary.readyCount, targetReadyVideos, 10, "🟩", "⬜");
+
+    let errorDetailText = "";
+    if (summary.errorCount > 0) {
+      errorDetailText = `\n⚠️ <b>Dòng cần Retry (Error):</b> ` +
+        summary.errorDetails.map(d => `#${d.rowId} (${d.missingChannels})`).join(", ");
+    }
+
+    let failedDetailText = "";
+    if (summary.failedCount > 0) {
+      failedDetailText = `\n🛠️ <b>Cần AI vá lỗi (Failed):</b> <code>${summary.failedCount}</code> dòng (Bấm <b>AI Auto-Fix</b> bên dưới)`;
+    }
+
+    // Channels badge
+    const channelsList = (bufferStats.channels && bufferStats.channels.length > 0)
+      ? bufferStats.channels.map(c => `• ${c.service === "youtube" ? "🔴 YouTube Shorts" : c.service === "tiktok" ? "⚫ TikTok" : "🔵 Facebook Reels"}: <b>${c.name}</b> (<code>🟢 Live</code>)`).join("\n")
+      : "• 🔴 YouTube Shorts: <b>Lê Lê và Hán Ngữ</b> (<code>🟢 Live</code>)\n• ⚫ TikTok: <b>lelehoctiengtrung</b> (<code>🟢 Live</code>)\n• 🔵 Facebook Reels: <b>Lê Lê học tiếng Trung</b> (<code>🟢 Live</code>)";
+
+    const headerTitle = titleSuffix
+      ? `📊 <b>BÁO CÁO TỔNG QUAN HỆ THỐNG LÊ LÊ HỌC TIẾNG TRUNG</b> <i>(${titleSuffix})</i>`
+      : `📊 <b>BÁO CÁO TỔNG QUAN HỆ THỐNG LÊ LÊ HỌC TIẾNG TRUNG</b>`;
+
+    const msg = (
+      `${headerTitle}\n` +
+      `━o0o━\n\n` +
+      `📦 <b>KHO NỘI DUNG & TIẾN ĐỘ XUẤT BẢN:</b>\n` +
+      `🟢 <b>Video Đã Duyệt (Ready):</b> <b>${summary.readyCount} / ${targetReadyVideos} video</b>\n` +
+      `   └ <code>${readyBar}</code> <b>${readyDays} ngày</b> an toàn\n` +
+      `⏳ <b>Chờ Kiểm Duyệt (Video):</b> <code>${summary.videoCount}</code> video (Đã lưu GDrive)\n` +
+      `💡 <b>Chờ Kết Xuất (Pending):</b> <code>${summary.pendingCount}</code> ý tưởng\n` +
+      failedDetailText + errorDetailText + `\n\n` +
+      `🌐 <b>KẾT NỐI BUFFER (3 KÊNH MẠNG XÃ HỘI):</b>\n` +
+      `${channelsList}\n\n` +
+      `🔋 <b>HẠN MỨC QUOTA BUFFER THÁNG:</b>\n` +
+      `   └ <code>[${bufferBar}]</code> <b>${bufferStats.monthlyRemaining?.toLocaleString()} / ${bufferStats.monthlyLimit?.toLocaleString()} req</b> (còn ${bufferPct}%)\n` +
+      `   └ <i>Đã dùng: ${bufferStats.monthlyUsed} req • Dư sức chạy ${Math.floor((bufferStats.monthlyRemaining || 2960) / 8)} ngày</i>\n\n` +
+      `⏰ <b>LỊCH ĐĂNG BÀI:</b> <b>07:00 Sáng & 13:00 Chiều Hàng Ngày</b>\n` +
+      `━o0o━\n` +
+      `👇 <i>Bấm các nút dưới đây để điều khiển nhanh hệ thống:</i>`
+    );
+
+    const replyMarkup = {
+      inline_keyboard: [
+        [
+          { text: "💡 Sinh Idea Mới", callback_data: "cmd_ideate" },
+          { text: "🎬 Render Video", callback_data: "cmd_render" }
+        ],
+        [
+          { text: "🛡️ Auto-QC", callback_data: "cmd_qc" },
+          { text: "🚀 Đăng 1 Video", callback_data: "cmd_publish" }
+        ],
+        [
+          { text: "✨ AI Auto-Fix (Failed)", callback_data: "cmd_fix" },
+          { text: "🔄 Cập Nhật Trạng Thái", callback_data: "cmd_refresh_status" }
+        ]
+      ]
+    };
+
+    return await sendTelegramMessage(botToken, chatId, msg, { reply_markup: replyMarkup });
+  } catch (err) {
+    return await sendTelegramMessage(
+      botToken,
+      chatId,
+      `❌ <b>Lỗi đọc báo cáo hệ thống:</b>\n<code>${err.message}</code>`
+    );
   }
 }
 
