@@ -3,7 +3,12 @@ import sys
 import json
 import logging
 import argparse
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+
+def get_vietnam_now_str() -> str:
+    """Get current Vietnam timestamp in YYYY-MM-DD HH:MM:SS (GMT+7)."""
+    tz_vn = timezone(timedelta(hours=7))
+    return datetime.now(tz_vn).strftime("%Y-%m-%d %H:%M:%S")
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
@@ -75,11 +80,6 @@ def run_auto_qc(target_row_id: str = None):
 
     if not video_batches:
         logger.info("No batches found with status 'Video'. QC complete.")
-        send_telegram_qc_alert(
-            f"ℹ️ <b>[Auto-QC Gatekeeper] Hoàn Tất Quét</b>\n\n"
-            f"Hiện không có video nào ở trạng thái <code>Video</code> cần duyệt.\n"
-            f"Tất cả video đã ở trạng thái <code>Ready</code> hoặc đang chờ render."
-        )
         return
 
     logger.info(f"Found {len(video_batches)} batch(es) with status 'Video' to inspect.")
@@ -89,6 +89,7 @@ def run_auto_qc(target_row_id: str = None):
     passed_count = 0
     failed_count = 0
     skipped_count = 0
+    failed_details = []
 
     for batch in video_batches:
         row_id = batch["id"]
@@ -102,7 +103,7 @@ def run_auto_qc(target_row_id: str = None):
         logger.info(f"Video URL: {video_url}")
         logger.info("=" * 50)
 
-        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        now_str = f"{get_vietnam_now_str()} (GMT+7)"
 
         if not video_url:
             logger.warning(f"Batch #{row_id} has status 'Video' but no Video URL. Skipping.")
@@ -143,40 +144,10 @@ def run_auto_qc(target_row_id: str = None):
             except Exception as e:
                 logger.warning(f"Could not update Notes: {e}")
 
-            # Notify Telegram
-            tg_msg = (
-                f"🤖 <b>[Auto-QC Gatekeeper] Đã Duyệt Tự Động Thành Công!</b>\n\n"
-                f"🎬 <b>Batch #{row_id}:</b> <b>{topic}</b> (<code>{level}</code>)\n"
-                f"📊 <b>Trạng thái:</b> <code>Video ➔ Ready</code> (Sẵn sàng đăng)\n"
-                f"✅ <b>Chi tiết kiểm tra:</b>\n"
-                f"• Chữ Hán Giản thể chuẩn HSK: 100%\n"
-                f"• Âm thanh & Khung hình: 1080x1920 9:16 ({result['details'].get('duration_sec', 0)}s, {result['details'].get('fps', 0)} FPS)\n"
-                f"• Bố cục nội dung: Chuẩn an toàn 5 từ\n\n"
-                f"<i>Video sẽ tự động được Buffer đăng lên YouTube, TikTok, Facebook Reels lúc 07:00 / 13:00!</i>"
-            )
-            send_telegram_qc_alert(tg_msg)
-
-        else:
+        # Collect failed details if any
+        if not result["passed"]:
             errors_str = " | ".join(result["errors"])
-            logger.warning(f"❌ Batch #{row_id} FAILED QC checks: {errors_str}. Changing Status to 'Failed'.")
-            failed_count += 1
-
-            # Update status to 'Failed' (KEEP video link intact in Col 11 for manual review)
-            gsheet_mgr.worksheet.update_cell(row_idx, 4, "Failed")
-            try:
-                gsheet_mgr.worksheet.update_cell(row_idx, 16, f"[Auto-QC Lỗi: {errors_str[:150]} lúc {now_str}]")
-            except Exception as e:
-                logger.warning(f"Could not update cell: {e}")
-
-            # Notify Telegram
-            error_bullets = "\n".join([f"• {e}" for e in result["errors"]])
-            tg_msg = (
-                f"⚠️ <b>[Auto-QC Gatekeeper] Phát Hiện Video Lỗi:</b>\n\n"
-                f"🎬 <b>Batch #{row_id}:</b> <b>{topic}</b> (<code>{level}</code>)\n"
-                f"❌ <b>Lý do không đạt chuẩn:</b>\n{error_bullets}\n\n"
-                f"🔄 <b>Trạng thái:</b> <code>Video ➔ Failed</code> (Link video vẫn được giữ để bạn kiểm tra lại)."
-            )
-            send_telegram_qc_alert(tg_msg)
+            failed_details.append(f"• <b>#{row_id}</b> ({topic}): {errors_str}")
 
         # Cleanup local downloaded video
         if os.path.exists(local_video_path):
@@ -189,15 +160,20 @@ def run_auto_qc(target_row_id: str = None):
     logger.info(f"Auto-QC Summary: {passed_count} Passed (Ready), {failed_count} Failed (QC_Failed), {skipped_count} Skipped.")
     logger.info("=" * 50)
 
-    # Send summary notification if checked multiple batches
-    if len(video_batches) > 1:
-        skip_text = f"\n• ⚠️ <b>{skipped_count}</b> video tạm bỏ qua" if skipped_count > 0 else ""
+    # Send strictly 1 single summary message
+    if len(video_batches) > 0:
+        failed_section = ""
+        if len(failed_details) > 0:
+            failed_section = "\n\n⚠️ <b>Chi tiết video cần sửa:</b>\n" + "\n".join(failed_details)
+
         summary_msg = (
-            f"🏁 <b>[Tổng Kết Auto-QC Gatekeeper]</b>\n\n"
-            f"📊 Đã quét <b>{len(video_batches)}</b> video:\n"
-            f"• ✅ <b>{passed_count}</b> video đạt chuẩn ➔ <code>Ready</code>\n"
-            f"• ❌ <b>{failed_count}</b> video lỗi ➔ <code>Failed</code>"
-            f"{skip_text}"
+            f"🛡️ <b>[Auto-QC Gatekeeper Hoàn Tất]</b>\n"
+            f"━o0o━\n\n"
+            f"📊 <b>Kết quả kiểm định {len(video_batches)} video:</b>\n"
+            f"• 🟢 <b>{passed_count} video</b> đạt chuẩn ➔ <code>Ready</code> (Đăng tự động lúc 07:00 & 13:00)\n"
+            f"• 🔴 <b>{failed_count} video</b> không đạt chuẩn ➔ <code>Failed</code>"
+            f"{failed_section}\n\n"
+            f"🕒 <i>Thời gian: {get_vietnam_now_str()} (GMT+7)</i>"
         )
         send_telegram_qc_alert(summary_msg)
 

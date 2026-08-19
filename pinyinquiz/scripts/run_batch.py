@@ -4,7 +4,12 @@ import re
 import json
 import argparse
 import logging
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+
+def get_vietnam_now_str() -> str:
+    """Get current Vietnam timestamp in YYYY-MM-DD HH:MM:SS (GMT+7)."""
+    tz_vn = timezone(timedelta(hours=7))
+    return datetime.now(tz_vn).strftime("%Y-%m-%d %H:%M:%S")
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
@@ -232,8 +237,8 @@ def run_batch_job(from_sheet: bool = True, target_id: str = None, sample: bool =
             if gsheet_mgr and row_index > 0:
                 gsheet_mgr.update_batch_status(row_index, "Failed")
                 try:
-                    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    gsheet_mgr.worksheet.update_cell(row_index, 16, f"[Pre-Render Vi Phạm: {error_str[:150]} lúc {now_str}]")
+                    now_str = get_vietnam_now_str()
+                    gsheet_mgr.worksheet.update_cell(row_index, 16, f"[Pre-Render Vi Phạm: {error_str[:150]} lúc {now_str} (GMT+7)]")
                 except Exception as e:
                     logger.warning(f"Could not update Notes cell: {e}")
 
@@ -308,8 +313,7 @@ def run_batch_job(from_sheet: bool = True, target_id: str = None, sample: bool =
                 f"👇 <i>Vui lòng chọn thao tác kiểm duyệt:</i>\n"
                 f"• <b>Approve</b> ➔ Chuyển thành <code>Ready</code> (Đăng tự động lúc 07:00 / 13:00)\n"
                 f"• <b>Reset</b> ➔ Chuyển về <code>Pending</code> (Để render lại)\n"
-                f"• <b>Delete</b> ➔ Xóa dòng khỏi Sheet\n"
-                f"• <b>Cancel</b> ➔ Giữ nguyên <code>Video</code> (Để sau)"
+                f"• <b>Delete</b> ➔ Xóa dòng khỏi Sheet"
             )
             send_telegram_video(video_path, tg_caption, row_id=str(row_id), gdrive_link=gdrive_link)
             logger.info(f" Batch [{row_id}] finished successfully -> {video_path}")
@@ -318,8 +322,8 @@ def run_batch_job(from_sheet: bool = True, target_id: str = None, sample: bool =
             if gsheet_mgr and row_index > 0:
                 gsheet_mgr.update_batch_status(row_index, "Failed")
                 try:
-                    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    gsheet_mgr.worksheet.update_cell(row_index, 16, f"[Render Thất Bại lúc {now_str}]")
+                    now_str = get_vietnam_now_str()
+                    gsheet_mgr.worksheet.update_cell(row_index, 16, f"[Render Thất Bại lúc {now_str} (GMT+7)]")
                 except Exception:
                     pass
             # Send Telegram alert on render failure

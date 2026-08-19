@@ -1,12 +1,6 @@
-name: Hourly Pinyin TikTok Video Render Pipeline
+name: Pinyin TikTok Video Render Pipeline
 
 on:
-  push:
-    branches:
-      - main
-  schedule:
-    # Runs every 1 hour (at minute 0 of every hour, 24 times a day)
-    - cron: '0 * * * *'
   workflow_dispatch:
     inputs:
       quality:
@@ -130,12 +124,6 @@ jobs:
         run: |
           rm -f pinyinquiz/configs/service_account.json
           echo "Credentials cleaned up. Render workflow completed."
-
-      - name: Trigger Cloudflare Moderation Notification
-        if: success()
-        run: |
-          echo "Triggering Cloudflare Worker to send moderation videos to Telegram..."
-          curl -s -X POST https://lele-pinyinquiz.hothihuong113.workers.dev/api/notify-videos || true
 
       - name: Notify Workflow Failure to Telegram
         if: failure()
