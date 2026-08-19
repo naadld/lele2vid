@@ -270,6 +270,51 @@ export default {
       }
     }
 
+    // 4f. Reset Row Status API Endpoint
+    if ((url.pathname === "/api/reset" || url.pathname === "/api/reset-row") && (request.method === "POST" || request.method === "GET")) {
+      try {
+        const targetRowId = url.searchParams.get("row_id") || url.searchParams.get("id") || "2";
+        const gsheet = new GoogleSheetsClient(
+          config.gcpClientEmail,
+          config.gcpPrivateKey,
+          config.spreadsheetId,
+          config.sheetTabName
+        );
+        const allRows = await gsheet.getSheetValues(`${config.sheetTabName}!A1:N200`);
+        let foundIndex = -1;
+        let rowData = null;
+        for (let i = 1; i < allRows.length; i++) {
+          if (String(allRows[i][0]).trim() === String(targetRowId).trim()) {
+            foundIndex = i + 1; // 1-based index in Sheet
+            rowData = allRows[i];
+            break;
+          }
+        }
+
+        if (foundIndex === -1) {
+          return new Response(JSON.stringify({ success: false, error: `Row ID #${targetRowId} not found` }), { status: 404, headers: { "Content-Type": "application/json" } });
+        }
+
+        // Update Column D (Status) to 'Pending', Column K (Video) to ''
+        await gsheet.updateCell(`${config.sheetTabName}!D${foundIndex}`, "Pending");
+        await gsheet.updateCell(`${config.sheetTabName}!K${foundIndex}`, "");
+
+        return new Response(JSON.stringify({
+          success: true,
+          rowId: targetRowId,
+          rowIndex: foundIndex,
+          topic: rowData[1],
+          level: rowData[2],
+          status: "Pending",
+          message: `Successfully reset row #${targetRowId} to Pending`
+        }, null, 2), {
+          headers: { "Content-Type": "application/json" }
+        });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message, stack: err.stack }), { status: 500, headers: { "Content-Type": "application/json" } });
+      }
+    }
+
     // 4b. Preview Publish Payload Endpoint
     if (url.pathname === "/api/test-publish-preview") {
       try {
@@ -788,6 +833,92 @@ async function handleTelegramUpdate(update, env, config) {
         chatId,
         `❌ <b>Lỗi kích hoạt Auto-QC:</b>\n<code>${err.message}</code>`
       );
+  // 3c. /reset <row_id>: Reset trạng thái dòng về Pending để render lại
+  if (command === "/reset" || command === "/pending") {
+    const rawTarget = rawText.split(" ")[1] || "";
+    const targetRowId = rawTarget.replace("#", "").trim();
+
+    if (!targetRowId) {
+      await sendTelegramMessage(botToken, chatId, "⚠️ <i>Vui lòng nhập ID dòng cần reset. Ví dụ:</i> <code>/reset 2</code>");
+      return;
+    }
+
+    try {
+      const gsheet = new GoogleSheetsClient(
+        config.gcpClientEmail,
+        config.gcpPrivateKey,
+        config.spreadsheetId,
+        config.sheetTabName
+      );
+      const allRows = await gsheet.getSheetValues(`${config.sheetTabName}!A1:N200`);
+      let foundIndex = -1;
+      let rowData = null;
+      for (let i = 1; i < allRows.length; i++) {
+        if (String(allRows[i][0]).trim() === targetRowId) {
+          foundIndex = i + 1; // 1-based index in Sheet
+          rowData = allRows[i];
+          break;
+        }
+      }
+
+      if (foundIndex === -1) {
+        await sendTelegramMessage(botToken, chatId, `❌ Không tìm thấy dòng ID <b>#${targetRowId}</b> trên Sheet.`);
+        return;
+      }
+
+      // Update Column D (Status) to 'Pending', Column K (Video) to ''
+      await gsheet.updateCell(`${config.sheetTabName}!D${foundIndex}`, "Pending");
+      await gsheet.updateCell(`${config.sheetTabName}!K${foundIndex}`, "");
+
+      await sendTelegramMessage(
+        botToken,
+        chatId,
+        `🔄 <b>ĐÃ RESET DÒNG #${targetRowId} THÀNH CÔNG!</b>\n\n` +
+        `📌 <b>Chủ đề:</b> <b>${rowData[1] || ""}</b> (<code>${rowData[2] || ""}</code>)\n` +
+        `📊 <b>Trạng thái:</b> <code>Pending</code> (Đã xóa video cũ để sẵn sàng render lại)\n\n` +
+        `<i>Bạn có thể gõ <code>/render ${targetRowId}</code> để bắt đầu render lại video kèm bìa mới ngay bây giờ!</i>`
+      );
+    } catch (err) {
+      await sendTelegramMessage(botToken, chatId, `❌ <b>Lỗi khi reset dòng #${targetRowId}:</b>\n<code>${err.message}</code>`);
+    }
+    return;
+  }
+
+  // 3d. /approve <row_id>: Duyệt dòng sang Ready
+  if (command === "/approve" || command === "/ready") {
+    const rawTarget = rawText.split(" ")[1] || "";
+    const targetRowId = rawTarget.replace("#", "").trim();
+
+    if (!targetRowId) {
+      await sendTelegramMessage(botToken, chatId, "⚠️ <i>Vui lòng nhập ID dòng cần duyệt. Ví dụ:</i> <code>/approve 2</code>");
+      return;
+    }
+
+    try {
+      const gsheet = new GoogleSheetsClient(
+        config.gcpClientEmail,
+        config.gcpPrivateKey,
+        config.spreadsheetId,
+        config.sheetTabName
+      );
+      const allRows = await gsheet.getSheetValues(`${config.sheetTabName}!A1:N200`);
+      let foundIndex = -1;
+      for (let i = 1; i < allRows.length; i++) {
+        if (String(allRows[i][0]).trim() === targetRowId) {
+          foundIndex = i + 1;
+          break;
+        }
+      }
+
+      if (foundIndex === -1) {
+        await sendTelegramMessage(botToken, chatId, `❌ Không tìm thấy dòng ID <b>#${targetRowId}</b> trên Sheet.`);
+        return;
+      }
+
+      await gsheet.updateCell(`${config.sheetTabName}!D${foundIndex}`, "Ready");
+      await sendTelegramMessage(botToken, chatId, `✅ <b>ĐÃ DUYỆT DÒNG #${targetRowId}!</b> Trạng thái: <code>Ready</code> (Sẵn sàng đăng tự động lúc 07:00 / 13:00)`);
+    } catch (err) {
+      await sendTelegramMessage(botToken, chatId, `❌ <b>Lỗi duyệt dòng #${targetRowId}:</b>\n<code>${err.message}</code>`);
     }
     return;
   }
