@@ -155,7 +155,7 @@ class {scene_name}(Scene):
         else:
             avatar_group = Dot(radius=0.4, color=BLUE_D).move_to(footer_card.get_left() + RIGHT * 0.75)
 
-        footer_title = Text("lelehoctiengtrung", font="sans-serif", font_size=32, color=WHITE, weight=BOLD)
+        footer_title = Text("lelehoctiengtrung", font=VIETNAMESE_FONT, font_size=32, color=WHITE, weight=BOLD)
         footer_title.next_to(avatar_group, RIGHT, buff=0.35)
 
         footer_base = Group(footer_card, avatar_group, footer_title)
@@ -210,7 +210,7 @@ class {scene_name}(Scene):
             # 3. Khu vực chạy Pinyin (Ẩn)
             hidden_text = Text(
                 hidden_py,
-                font="sans-serif",
+                font=VIETNAMESE_FONT,
                 font_size=68,
                 color="#facc15",
                 weight=BOLD
@@ -219,8 +219,8 @@ class {scene_name}(Scene):
                 hidden_text.scale_to_fit_width(6.4)
 
             # 4. Countdown 5 giây
-            time_label = Text("TIME", font="sans-serif", font_size=30, color="#94a3b8", weight=BOLD)
-            timer_num = Text("5", font="sans-serif", font_size=54, color=WHITE, weight=BOLD)
+            time_label = Text("TIME", font=VIETNAMESE_FONT, font_size=30, color="#94a3b8", weight=BOLD)
+            timer_num = Text("5", font=VIETNAMESE_FONT, font_size=54, color=WHITE, weight=BOLD)
             timer_group = VGroup(time_label, timer_num).arrange(RIGHT, buff=0.25).next_to(hidden_text, DOWN, buff=0.6)
 
             # Progress Bar Track
@@ -271,7 +271,7 @@ class {scene_name}(Scene):
                 ).move_to(bar_track.get_center()).align_to(bar_track, LEFT)
                 
                 display_num = str(s - 1) if s > 1 else "0"
-                new_timer_num = Text(display_num, font="sans-serif", font_size=54, color=WHITE if s > 2 else "#f43f5e", weight=BOLD)
+                new_timer_num = Text(display_num, font=VIETNAMESE_FONT, font_size=54, color=WHITE if s > 2 else "#f43f5e", weight=BOLD)
                 new_timer_num.move_to(timer_num.get_center())
 
                 self.play(
@@ -297,7 +297,7 @@ class {scene_name}(Scene):
             # Hiện Pinyin đầy đủ (tự động co nhỏ font nếu dài quá để vừa khuôn)
             answer_pinyin = Text(
                 pinyin_full,
-                font="sans-serif",
+                font=VIETNAMESE_FONT,
                 font_size=75,
                 color="#38bdf8",
                 weight=BOLD
