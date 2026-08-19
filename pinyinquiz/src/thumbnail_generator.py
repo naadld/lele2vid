@@ -1,7 +1,8 @@
 import os
 import sys
+import re
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -64,8 +65,8 @@ def clean_topic_title(raw_topic: str) -> str:
         t = parts[1].strip()
     return t.upper()
 
-def wrap_text(text: str, max_chars_per_line: int = 14) -> list:
-    """Wrap long topic title into clean balanced lines."""
+def wrap_text(text: str, max_chars_per_line: int = 12) -> list:
+    """Wrap long phrase into clean balanced lines."""
     words = text.split()
     lines = []
     curr = []
@@ -83,12 +84,39 @@ def wrap_text(text: str, max_chars_per_line: int = 14) -> list:
         lines.append(" ".join(curr))
     return lines if lines else [text]
 
+def parse_topic_elements(raw_topic: str) -> List[Dict[str, str]]:
+    """
+    Parses topic into balanced lines.
+    If '&', 'VÀ', '/' exists, puts the connector on its own standalone line.
+    """
+    clean_t = clean_topic_title(raw_topic)
+    
+    # Split by standard connectors: ' & ', ' VÀ ', ' / ', ' + '
+    parts = re.split(r'\s+(&|VÀ|\/|\+)\s+', clean_t, flags=re.IGNORECASE)
+    if len(parts) >= 3:
+        items = []
+        for p in parts:
+            p_str = p.strip().upper()
+            if not p_str:
+                continue
+            if p_str in ["&", "VÀ", "/", "+"]:
+                items.append({"text": p_str, "type": "connector"})
+            else:
+                wrapped = wrap_text(p_str, max_chars_per_line=12)
+                for w_line in wrapped:
+                    items.append({"text": w_line, "type": "main"})
+        return items
+
+    # Fallback if no connector
+    wrapped = wrap_text(clean_t, max_chars_per_line=12)
+    return [{"text": line, "type": "main"} for line in wrapped]
+
 def create_high_ctr_thumbnail(batch_data: Dict[str, Any], output_path: Optional[str] = None) -> str:
     """
-    Generate a clean, high-impact 1080x1920 9:16 vertical thumbnail:
-    - Top: HSK Level Badge
-    - Middle: Huge Topic Title (Chủ đề ở giữa, chữ cực to)
-    - Bottom: Pinyin trong 5 giây (Pinyin in 5 seconds Badge)
+    Generate a clean, balanced, high-impact 1080x1920 9:16 vertical thumbnail:
+    - Top: HSK Level Badge (Gọn gàng)
+    - Middle: Huge Topic Title with separate balanced lines for '&' and 'VÀ'
+    - Bottom: PINYIN TRONG 5 GIÂY Badge
     """
     width = 1080
     height = 1920
@@ -96,14 +124,12 @@ def create_high_ctr_thumbnail(batch_data: Dict[str, Any], output_path: Optional[
     raw_topic = batch_data.get("topic", "ĐỒ ĂN & THỨC UỐNG")
     level = batch_data.get("level", "HSK 1").upper()
     batch_id = batch_data.get("id", "0")
-    topic_clean = clean_topic_title(raw_topic)
 
     # 1. Base Canvas & Cinematic Background
     bg_img_path = os.path.join(config.base_dir, "assets", "images", "background.jpg")
     if os.path.exists(bg_img_path):
         base_bg = Image.open(bg_img_path).convert("RGBA")
         base_bg = base_bg.resize((width, height), Image.Resampling.LANCZOS)
-        # Apply smooth blur to background
         base_bg = base_bg.filter(ImageFilter.GaussianBlur(radius=10))
     else:
         base_bg = Image.new("RGBA", (width, height), "#090d16")
@@ -113,7 +139,6 @@ def create_high_ctr_thumbnail(batch_data: Dict[str, Any], output_path: Optional[
     overlay_draw = ImageDraw.Draw(overlay)
     
     for y in range(height):
-        # Darkness from 0.50 in center to 0.88 at edges
         dist = abs(y - height / 2) / (height / 2)
         alpha = int(140 + 85 * (dist ** 1.3))
         overlay_draw.line([(0, y), (width, y)], fill=(4, 7, 20, min(alpha, 245)))
@@ -165,18 +190,21 @@ def create_high_ctr_thumbnail(batch_data: Dict[str, Any], output_path: Optional[
     )
 
     # =========================================================================
-    # 2. PHẦN Ở GIỮA: CHỦ ĐỀ CHỮ CỰC TO & NỔI BẬT (TÂM ĐIỂM CHÍNH)
+    # 2. PHẦN Ở GIỮA: CHỦ ĐỀ CHỮ TO BẢN & CÂN ĐỐI DÒNG ("&" VÀ "VÀ" RIÊNG BIỆT)
     # =========================================================================
-    topic_lines = wrap_text(topic_clean, max_chars_per_line=13)
+    topic_elements = parse_topic_elements(raw_topic)
     
-    # Calculate card height based on lines
-    num_lines = len(topic_lines)
-    line_spacing = 130 if num_lines <= 2 else 115
-    font_size = 96 if num_lines <= 2 else 82
-    font_topic = get_font(font_size, bold=True)
-
-    card_padding_v = 110
-    card_h = (num_lines * line_spacing) + card_padding_v * 2
+    # Calculate heights and spacing dynamically
+    element_heights = []
+    for elem in topic_elements:
+        if elem["type"] == "connector":
+            element_heights.append(80) # connector line height
+        else:
+            element_heights.append(130) # main text line height
+            
+    total_text_h = sum(element_heights)
+    card_padding_v = 90
+    card_h = total_text_h + card_padding_v * 2
     card_y_center = 960
     card_y1 = int(card_y_center - card_h / 2)
     card_y2 = card_y1 + card_h
@@ -202,20 +230,42 @@ def create_high_ctr_thumbnail(batch_data: Dict[str, Any], output_path: Optional[
         width=4
     )
 
-    # Draw each line of Topic with Gold color & 3D shadow
-    first_line_y = card_y_center - ((num_lines - 1) * line_spacing) / 2
-    for i, line_text in enumerate(topic_lines):
-        ly = int(first_line_y + i * line_spacing)
-        draw_text_with_shadow(
-            draw,
-            (width / 2, ly),
-            line_text,
-            font_topic,
-            fill="#fde047",
-            shadow_color="#78350f",
-            shadow_offset=(6, 6),
-            anchor="mm"
-        )
+    # Render each element with balanced typography
+    font_main = get_font(96, bold=True)
+    font_connector = get_font(64, bold=True)
+
+    current_y = card_y_center - total_text_h / 2
+    for elem in topic_elements:
+        if elem["type"] == "connector":
+            h = 80
+            cy = int(current_y + h / 2)
+            # Connector in vivid Cyan or Amber
+            draw_text_with_shadow(
+                draw,
+                (width / 2, cy),
+                elem["text"],
+                font_connector,
+                fill="#38bdf8",
+                shadow_color="#082f49",
+                shadow_offset=(4, 4),
+                anchor="mm"
+            )
+            current_y += h
+        else:
+            h = 130
+            cy = int(current_y + h / 2)
+            # Main topic text in vibrant Gold with deep 3D shadow
+            draw_text_with_shadow(
+                draw,
+                (width / 2, cy),
+                elem["text"],
+                font_main,
+                fill="#fde047",
+                shadow_color="#78350f",
+                shadow_offset=(6, 6),
+                anchor="mm"
+            )
+            current_y += h
 
     # =========================================================================
     # 3. PHẦN BÊN DƯỚI: PINYIN TRONG 5 GIÂY
@@ -274,11 +324,11 @@ def create_high_ctr_thumbnail(batch_data: Dict[str, Any], output_path: Optional[
     return output_path
 
 if __name__ == "__main__":
-    test_batch = {
-        "id": "2",
-        "topic": "HSK 1 • Đồ Ăn & Thức Uống",
-        "level": "HSK 1",
-        "words": []
-    }
-    path = create_high_ctr_thumbnail(test_batch, "/media/vpsg16gb/HaRiDisk/CHANNELS/lelehoctiengtrung/pinyinquiz/output/#2.HSK_1_Do_An_Thuc_Uong_thumbnail.jpg")
-    print("Generated Minimal Thumbnail for Row 2:", path)
+    test_batches = [
+        {"id": "2", "topic": "HSK 1 • Đồ Ăn & Thức Uống", "level": "HSK 1"},
+        {"id": "3", "topic": "HSK 2 • Cảm Xúc và Nhu Cầu", "level": "HSK 2"}
+    ]
+    for b in test_batches:
+        out = f"/media/vpsg16gb/HaRiDisk/CHANNELS/lelehoctiengtrung/pinyinquiz/output/test_thumb_balanced_{b['id']}.jpg"
+        create_high_ctr_thumbnail(b, out)
+        print("Generated:", out)
