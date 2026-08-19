@@ -100,6 +100,8 @@ class PreRenderValidator:
                 errors.append(f"Từ #{idx} '{hanzi}': Nghĩa '{meaning}' quá dài ({len(meaning)} ký tự, tối đa {self.max_meaning_len}) gây rớt dòng lệch thẻ.")
             elif "\ufffd" in meaning or "□" in meaning:
                 errors.append(f"Từ #{idx} '{hanzi}': Nghĩa '{meaning}' chứa ký tự lỗi font/encoding (□ hoặc ).")
+            elif re.search(r'\b(chair|window|lamp|bookshelf|washing machine|table|door|bed|house|school|teacher|student|father|mother|brother|sister|water|apple|bread|food|drink|rice|noodle|dog|cat|car|bus|train|airplane|taxi|bicycle|happy|sad|angry|afraid|cold|hot|warm|weather|rain|snow|sun|wind|cloud|sky|money|cheap|expensive|buy|sell|eat|drink|watch|look|see|listen|speak|read|write|learn|study|work|office|hospital|doctor|nurse)\b', meaning, re.IGNORECASE):
+                errors.append(f"Từ #{idx} '{hanzi}': Nghĩa '{meaning}' bị dính Tiếng Anh (Yêu cầu 100% Nghĩa Tiếng Việt).")
 
         # 3e. Check Topic Artifacts
         if "\ufffd" in topic or "□" in topic:

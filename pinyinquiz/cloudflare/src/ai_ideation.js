@@ -12,10 +12,10 @@ import { generateHiddenPinyin } from "./pinyin_helper.js";
 import { generateSocialMetadata } from "./metadata_helper.js";
 import { getVietnamTimestamp } from "./google_sheets.js";
 
-// Built-in verified HSK 1-2 curated topics bank (Fallback)
+// Built-in verified HSK 1-2 curated topics bank (Fallback - 100% Single Topics)
 const BUILTIN_VOCAB_BANK = [
   {
-    topic: "HSK 1 • Đồ Ăn Quen Thuộc",
+    topic: "HSK 1 • Đồ Ăn",
     level: "HSK 1",
     words: [
       { hanzi: "米饭", pinyin: "mǐ fàn", meaning: "Cơm" },
@@ -26,7 +26,7 @@ const BUILTIN_VOCAB_BANK = [
     ]
   },
   {
-    topic: "HSK 1 • Đồ Uống Hàng Ngày",
+    topic: "HSK 1 • Thức Uống",
     level: "HSK 1",
     words: [
       { hanzi: "喝水", pinyin: "hē shuǐ", meaning: "Uống nước" },
@@ -37,7 +37,7 @@ const BUILTIN_VOCAB_BANK = [
     ]
   },
   {
-    topic: "HSK 2 • Sức Khỏe & Thể Thao",
+    topic: "HSK 2 • Sức Khỏe",
     level: "HSK 2",
     words: [
       { hanzi: "生病", pinyin: "shēng bìng", meaning: "Bị ốm / Bị bệnh" },
@@ -48,7 +48,7 @@ const BUILTIN_VOCAB_BANK = [
     ]
   },
   {
-    topic: "HSK 2 • Mua Sắm & Thanh Toán",
+    topic: "HSK 2 • Mua Sắm",
     level: "HSK 2",
     words: [
       { hanzi: "打折", pinyin: "dǎ zhé", meaning: "Giảm giá" },
@@ -59,7 +59,7 @@ const BUILTIN_VOCAB_BANK = [
     ]
   },
   {
-    topic: "HSK 1 • Số Đếm & Tiền Tệ",
+    topic: "HSK 1 • Số Đếm",
     level: "HSK 1",
     words: [
       { hanzi: "多少", pinyin: "duō shao", meaning: "Bao nhiêu" },
@@ -70,7 +70,7 @@ const BUILTIN_VOCAB_BANK = [
     ]
   },
   {
-    topic: "HSK 2 • Phương Tiện Đi Lại",
+    topic: "HSK 2 • Giao Thông",
     level: "HSK 2",
     words: [
       { hanzi: "飞机", pinyin: "fēi jī", meaning: "Máy bay" },
@@ -81,7 +81,7 @@ const BUILTIN_VOCAB_BANK = [
     ]
   },
   {
-    topic: "HSK 2 • Thời Tiết & Bốn Mùa",
+    topic: "HSK 2 • Thời Tiết",
     level: "HSK 2",
     words: [
       { hanzi: "晴天", pinyin: "qíng tiān", meaning: "Trời nắng" },
@@ -92,7 +92,7 @@ const BUILTIN_VOCAB_BANK = [
     ]
   },
   {
-    topic: "HSK 2 • Cảm Xúc & Tính Cách",
+    topic: "HSK 2 • Cảm Xúc",
     level: "HSK 2",
     words: [
       { hanzi: "快乐", pinyin: "kuài lè", meaning: "Vui vẻ / Hạnh phúc" },
@@ -105,36 +105,46 @@ const BUILTIN_VOCAB_BANK = [
 ];
 
 function buildSystemPrompt(history = {}, count = 1) {
-  const allUsedWords = Array.isArray(history) ? history : (history.allUsedWords || history.recent5Words || []);
-  const allUsedWordsStr = allUsedWords.slice(-150).join(", ");
-  const allTopicsStr = (history.allTopics || history.recentTopics || []).slice(-20).join(", ");
+  const recentTopics = history.recentTopics || [];
+  const recentTopicsStr = recentTopics.join(", ");
+  
+  // Format past batches summary for LLM context
+  const pastBatches = history.pastBatches || [];
+  const recentBatchesStr = pastBatches.slice(-15).map(b => `[${b.topic}: ${b.words.join(",")}]`).join(" | ");
 
   return `Bạn là chuyên gia biên soạn giáo trình HSK cho kênh TikTok/YouTube Shorts "Lê Lê Học Tiếng Trung".
-Nhiệm vụ: Tạo ${count} bộ chủ đề từ vựng HSK 1, HSK 2 hoặc HSK 3 hấp dẫn, sinh động, giàu tính ứng dụng thực tế.
+Nhiệm vụ: Tạo ${count} bộ chủ đề từ vựng HSK 1, HSK 2 hoặc HSK 3 hấp dẫn, sinh động, chuẩn sư phạm.
 
-QUY TẮC CHỐNG TRÙNG LẶP & ĐA DẠNG HÓA TỪ VỰNG:
-1. Mỗi bộ gồm đúng 5 từ vựng tiếng Trung (từ 1 đến 4 chữ Hán mỗi từ).
-2. TUYỆT ĐỐI CẤM trùng lặp các chủ đề đã có trên kênh: [${allTopicsStr}]. Hãy sáng tạo các chủ đề cụ thể, thú vị (ví dụ: 'Đi Siêu Thị', 'Khám Bệnh', 'Đồ Dùng Học Tập', 'Thời Tiết Bốn Mùa', 'Thể Thao & Vận Động', 'Khách Sạn & Du Lịch', 'Phương Hướng & Địa Điểm', 'Cảm Xúc & Tính Cách', 'Nghề Nghiệp & Công Sở', 'Trang Phục & Màu Sắc', 'Động Vật Quanh Ta', 'Nhà Bếp & Nấu Ăn'...).
-3. TUYỆT ĐỐI CẤM sử dụng lại bất kỳ từ nào đã từng xuất hiện trên kênh trong danh sách sau:
-   [${allUsedWordsStr}]
-   (CẤM quanh quẩn các từ quá quen thuộc như: 爸爸, 妈妈, 老师, 学生, 朋友, 苹果, 米饭, 吃, 喝, 看 nếu chúng đã có trong danh sách trên). 100% cả 5 từ trong bộ PHẢI LÀ TỪ MỚI CHƯA CÓ TRONG DANH SÁCH!
-4. CÂN ĐỐI CẤP ĐỘ: Ưu tiên chọn lọc từ vựng thuộc HSK 1, HSK 2 và HSK 3 để mở rộng vốn từ phong phú cho người học.
-5. Pinyin phải CHUẨN XÁC, có ĐẦY ĐỦ THANH ĐIỆU (ā, á, ǎ, à, ē, é, ě, è, ī, í, ǐ, ì, ō, ó, ǒ, ò, ū, ú, ǔ, ù, ǖ, ǘ, ǚ, ǜ) và BẮT BUỘC MỖI CHỮ HÁN PHẢI CÓ ĐÚNG 1 ÂM TIẾT CÁCH NHAU BẰNG DẤU CÁCH (1-to-1 match). Ví dụ: '公共汽车' -> 'gōng gòng qì chē', '自行车' -> 'zì xíng chē', '出租车' -> 'chū zū chē' (TUYỆT ĐỐI KHÔNG viết dính liền 'gōnggòng qìchē').
-6. Nghĩa tiếng Việt ngắn gọn, súc tích, TỐI ĐA 30 KÝ TỰ (tuyệt đối không quá 35 ký tự để không tràn khung video).
-7. Toàn bộ chữ Hán BẮT BUỘC là chữ Giản thể (Simplified Chinese).
-8. Phản hồi DUY NHẤT một chuỗi JSON hợp lệ không có văn bản giải thích thừa.
+QUY TẮC BẮT BUỘC VỀ CHỦ ĐỀ & TỪ VỰNG:
+1. 🏷️ CHỈ SỬ DỤNG 1 CHỦ ĐỀ ĐƠN DUY NHẤT (SINGLE TOPIC ONLY):
+   - Tên chủ đề PHẢI là 1 chủ đề đơn lẻ, ngắn gọn (Ví dụ: 'HSK 1 • Đồ Ăn', 'HSK 1 • Thức Uống', 'HSK 1 • Gia Đình', 'HSK 2 • Giao Thông', 'HSK 2 • Thời Tiết', 'HSK 2 • Cảm Xúc', 'HSK 2 • Mua Sắm', 'HSK 2 • Khách Sạn', 'HSK 2 • Thể Thao', 'HSK 2 • Bệnh Viện', 'HSK 2 • Nhà Hàng'...).
+   - TUYỆT ĐỐI CẤM dùng cặp chủ đề ghép có từ nối như '&', 'VÀ', '+', '/' (CẤM: 'Đồ Ăn & Thức Uống', 'Cảm Xúc và Nhu Cầu'...).
+2. 🔄 TẦNG SUẤT LẶP LẠI CHỦ ĐỀ (RECURRENCE AFTER 5-6 VIDEOS):
+   - CẤM lặp lại các chủ đề đã xuất hiện trong 5-6 video gần nhất: [${recentTopicsStr}].
+   - (Sau 5-6 video, có thể sử dụng lại chủ đề đó nhưng với bộ từ mới).
+3. 🔒 QUY TẮC CẶP TỪ DUY NHẤT TRONG LỊCH SỬ (NO 2-WORD PAIR OVERLAP):
+   - Được phép tái sử dụng tối đa 1 từ của một video cũ bất kỳ trong lịch sử để ôn tập.
+   - TUYỆT ĐỐI CẤM 2 từ từng cùng xuất hiện trong 1 video cũ lại cùng xuất hiện trong video mới!
+   - Ngữ cảnh các video gần đây: ${recentBatchesStr}
+4. 🎯 100% TỪ VỰNG PHẢI LIÊN QUAN TRỰC TIẾP ĐẾN CHỦ ĐỀ:
+   - Cả 5 từ vựng BẮT BUỘC thuộc đúng chủ đề đơn đó (Ví dụ: Chủ đề 'Nhà Hàng' thì 5 từ phải về ăn uống/phục vụ, cấm lớp học, bài tập).
+5. 🇻🇳 NGHĨA TIẾNG VIỆT 100% (VIETNAMESE MEANING ONLY):
+   - Cột nghĩa BẮT BUỘC LÀ TIẾNG VIỆT CHUẨN. TUYỆT ĐỐI CẤM DÙNG TIẾNG ANH (CẤM 'Chair', 'Window', 'Lamp'...).
+6. 🔤 Pinyin CHUẨN XÁC, CÓ THANH ĐIỆU ĐẦY ĐỦ VÀ KHỚP 1-1 VỚI TỪNG CHỮ HÁN.
+7. 🇨🇳 100% CHỮ HÁN LÀ GIẢN THỂ (Simplified Chinese).
+8. 📦 Phản hồi DUY NHẤT một chuỗi JSON hợp lệ.
 
 CẤU TRÚC JSON MẪU:
 [
   {
-    "topic": "HSK 2 • Đồ Dùng Công Sở",
+    "topic": "HSK 2 • Nhà Hàng",
     "level": "HSK 2",
     "words": [
-      {"hanzi": "电脑", "pinyin": "diàn nǎo", "meaning": "Máy vi tính"},
-      {"hanzi": "打印", "pinyin": "dǎ yìn", "meaning": "In ấn"},
-      {"hanzi": "会议", "pinyin": "huì yì", "meaning": "Cuộc họp"},
-      {"hanzi": "经理", "pinyin": "jīng lǐ", "meaning": "Giám đốc / Quản lý"},
-      {"hanzi": "文件", "pinyin": "wén jiàn", "meaning": "Tài liệu / Hồ sơ"}
+      {"hanzi": "服务员", "pinyin": "fú wù yuán", "meaning": "Nhân viên phục vụ"},
+      {"hanzi": "菜单", "pinyin": "cài dān", "meaning": "Thực đơn"},
+      {"hanzi": "点菜", "pinyin": "diǎn cài", "meaning": "Gọi món / Đặt món"},
+      {"hanzi": "买单", "pinyin": "mǎi dān", "meaning": "Tính tiền / Thanh toán"},
+      {"hanzi": "好吃", "pinyin": "hǎo chī", "meaning": "Ngon miệng"}
     ]
   }
 ]`;
@@ -362,25 +372,41 @@ async function callCloudflareAI(env, model, systemPrompt, userPrompt) {
  * Validates AI output BEFORE saving to Google Sheet
  */
 export function validateTopicUniquenessAndQuality(topicItem, history = {}) {
-  const allUsedWords = new Set(history.allUsedWords || history.recent5Words || []);
-  const allTopics = (history.allTopics || []).map(t => t.toLowerCase().trim());
+  const recentTopics = (history.recentTopics || []).map(t => t.toLowerCase().trim());
+  const pastBatches = history.pastBatches || [];
 
   const errors = [];
-  const topicTitle = (topicItem?.topic || "").trim();
+  const rawTopicTitle = (topicItem?.topic || "").trim();
   const words = topicItem?.words || [];
 
-  // 1. Topic Title Duplicate Check
-  if (topicTitle && allTopics.includes(topicTitle.toLowerCase())) {
-    errors.push(`Chủ đề '${topicTitle}' đã tồn tại trên kênh.`);
+  // Clean topic for comparison (e.g. 'HSK 1 • Đồ Ăn' -> 'đồ ăn')
+  let cleanTopic = rawTopicTitle.toLowerCase();
+  if (cleanTopic.includes("•")) cleanTopic = cleanTopic.split("•")[1].trim();
+  else if (cleanTopic.includes("-")) cleanTopic = cleanTopic.split("-")[1].trim();
+
+  // 1. Single Topic Policy Check (TUYỆT ĐỐI CẤM cặp chủ đề ghép & / VÀ / +)
+  if (/\b(&|và|\/|\+)\b/i.test(rawTopicTitle)) {
+    errors.push(`Chủ đề '${rawTopicTitle}' là cặp chủ đề ghép. Yêu cầu chỉ dùng 1 CHỦ ĐỀ ĐƠN DUY NHẤT (Ví dụ: 'HSK 1 • Đồ Ăn', 'HSK 2 • Nhà Hàng').`);
   }
 
-  // 2. Exactly 5 Words Check
+  // 2. Topic Recurrence Check (Cấm lặp lại trong 5-6 video gần nhất)
+  const isRecentTopic = recentTopics.some(rt => {
+    let cleanRt = rt;
+    if (cleanRt.includes("•")) cleanRt = cleanRt.split("•")[1].trim();
+    else if (cleanRt.includes("-")) cleanRt = cleanRt.split("-")[1].trim();
+    return cleanRt === cleanTopic;
+  });
+  if (isRecentTopic) {
+    errors.push(`Chủ đề '${rawTopicTitle}' vừa mới xuất hiện trong 5-6 video gần nhất trên kênh. Hãy chọn chủ đề khác!`);
+  }
+
+  // 3. Exactly 5 Words Check
   if (!Array.isArray(words) || words.length !== 5) {
     errors.push(`Số lượng từ vựng không đúng 5 từ (hiện có: ${words.length}).`);
   }
 
-  // 3. Word Uniqueness Check against entire Sheet history & internal duplicates
-  const duplicatedWords = [];
+  // 4. Internal Duplicates Check within the batch
+  const newHanziList = [];
   const internalDuplicates = new Set();
 
   for (const w of words) {
@@ -393,20 +419,49 @@ export function validateTopicUniquenessAndQuality(topicItem, history = {}) {
       errors.push(`Từ '${hz}' bị lặp lại 2 lần trong cùng một video.`);
     }
     internalDuplicates.add(hz);
+    newHanziList.push(hz);
+  }
 
-    if (allUsedWords.has(hz)) {
-      duplicatedWords.push(hz);
+  // 5. Strict Pair Overlap Check against ALL Past Batches in History
+  // (Cho phép dùng lại 1 từ của video cũ để ôn tập, CẤM trùng >= 2 từ từ cùng 1 video cũ)
+  if (Array.isArray(pastBatches) && pastBatches.length > 0) {
+    for (const pb of pastBatches) {
+      const pastWords = pb.words || [];
+      const overlap = newHanziList.filter(hz => pastWords.includes(hz));
+      if (overlap.length >= 2) {
+        errors.push(`Vi phạm nguyên tắc: Trùng cặp ${overlap.length} từ [${overlap.join(", ")}] với video cũ #${pb.id} (${pb.topic}). Mỗi video cũ tối đa chỉ được trùng 1 từ!`);
+      }
     }
   }
 
-  if (duplicatedWords.length > 0) {
-    errors.push(`Từ vựng [${duplicatedWords.join(", ")}] đã từng xuất hiện trên kênh.`);
+  // 6. Strict Vietnamese Meaning Check (Reject English words like Chair, Window, Lamp, Bookshelf)
+  const englishWordPattern = /\b(chair|window|lamp|bookshelf|washing machine|table|door|bed|house|school|teacher|student|father|mother|brother|sister|water|apple|bread|food|drink|rice|noodle|dog|cat|car|bus|train|airplane|taxi|bicycle|happy|sad|angry|afraid|cold|hot|warm|weather|rain|snow|sun|wind|cloud|sky|money|cheap|expensive|buy|sell|eat|drink|watch|look|see|listen|speak|read|write|learn|study|work|office|hospital|doctor|nurse)\b/i;
+
+  for (let i = 0; i < words.length; i++) {
+    const m = (words[i]?.meaning || "").trim();
+    if (!m) {
+      errors.push(`Từ #${i + 1} (${words[i]?.hanzi}): Nghĩa tiếng Việt bị rỗng.`);
+    } else if (englishWordPattern.test(m)) {
+      errors.push(`Từ #${i + 1} (${words[i]?.hanzi}): Nghĩa '${m}' bị trả về bằng Tiếng Anh thay vì Tiếng Việt.`);
+    }
+  }
+
+  // 7. Semantic Relevance Check (Chặn các trường hợp vô lý "râu ông nọ cắm cằm bà kia")
+  const lowerTopic = rawTopicTitle.toLowerCase();
+  const allMeanings = words.map(w => (w?.meaning || "").toLowerCase()).join(" ");
+  if ((lowerTopic.includes("nhà hàng") || lowerTopic.includes("quán ăn") || lowerTopic.includes("đồ ăn")) && 
+      (allMeanings.includes("sách giáo khoa") || allMeanings.includes("phòng học") || allMeanings.includes("bài tập"))) {
+    errors.push("Lệch chủ đề nghiêm trọng: Chủ đề Nhà hàng/Ăn uống nhưng từ vựng lại chứa trường học/bài tập!");
+  }
+  if ((lowerTopic.includes("thời gian") || lowerTopic.includes("ngày tháng")) && 
+      (allMeanings.includes("ghế") || allMeanings.includes("cửa sổ") || allMeanings.includes("máy giặt"))) {
+    errors.push("Lệch chủ đề nghiêm trọng: Chủ đề Thời gian nhưng từ vựng lại chứa đồ đạc gia dụng!");
   }
 
   return {
     isValid: errors.length === 0,
     errors: errors,
-    duplicatedWords: duplicatedWords
+    newWords: newHanziList
   };
 }
 
@@ -517,20 +572,33 @@ export async function generateBatchesWithMultiAI(env, config, vocabHistory = {},
     }
   }
 
-  // 4. Fallback to Curated Vocab Bank (Filtered against used words)
+  // 4. Fallback to Curated Vocab Bank (Filtered against recent topics and pair overlaps)
   if (!resultTopics || resultTopics.length === 0) {
     console.log("ℹ️ Filtering Built-in High Quality Vocab Bank for unique topics...");
-    const allUsedWords = new Set(vocabHistory.allUsedWords || []);
+    const recentTopics = (vocabHistory.recentTopics || []).map(t => t.toLowerCase().trim());
+    const pastBatches = vocabHistory.pastBatches || [];
+
     const validBankTopics = BUILTIN_VOCAB_BANK.filter(topicItem => {
-      const words = topicItem.words || [];
-      const hasDup = words.some(w => allUsedWords.has(w.hanzi));
-      return !hasDup;
+      const topicTitle = (topicItem.topic || "").toLowerCase();
+      let cleanTopic = topicTitle;
+      if (cleanTopic.includes("•")) cleanTopic = cleanTopic.split("•")[1].trim();
+      
+      // Check recent topic
+      if (recentTopics.some(rt => rt.includes(cleanTopic))) return false;
+
+      // Check pair overlap >= 2 with past batches
+      const bankWords = (topicItem.words || []).map(w => w.hanzi);
+      for (const pb of pastBatches) {
+        const overlap = bankWords.filter(hz => (pb.words || []).includes(hz));
+        if (overlap.length >= 2) return false;
+      }
+      return true;
     });
 
     const chosenBank = validBankTopics.length > 0 ? validBankTopics : BUILTIN_VOCAB_BANK;
     const shuffledBank = [...chosenBank].sort(() => 0.5 - Math.random());
     resultTopics = shuffledBank.slice(0, count);
-    providerUsed = "Fallback VOCAB_BANK (Unique Verified)";
+    providerUsed = "Fallback VOCAB_BANK (Single Topic Verified)";
   }
 
   // Auto-enrich each word with hidden_pinyin

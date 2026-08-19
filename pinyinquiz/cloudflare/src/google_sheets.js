@@ -273,13 +273,29 @@ export class GoogleSheetsClient {
     }
 
     const allTopics = rows.map(r => (r[1] || "").trim()).filter(Boolean);
-    const recentTopics = allTopics.slice(-10);
+    const recentTopics = allTopics.slice(-6);
+
+    const pastBatches = rows.map((r, idx) => {
+      const batchWords = [];
+      for (let i = 4; i <= 8; i++) {
+        if (r[i]) {
+          const hz = r[i].split("|")[0].trim();
+          if (hz) batchWords.push(hz);
+        }
+      }
+      return {
+        id: r[0] || String(idx + 1),
+        topic: (r[1] || "").trim(),
+        words: batchWords
+      };
+    }).filter(b => b.words.length > 0);
 
     return {
       allUsedWords: Array.from(allUsedWordsSet),
       recent5Words: Array.from(recentWordsSet),
       allTopics: allTopics,
-      recentTopics: recentTopics
+      recentTopics: recentTopics,
+      pastBatches: pastBatches
     };
   }
 
