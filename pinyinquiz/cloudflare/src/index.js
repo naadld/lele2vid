@@ -1164,10 +1164,14 @@ async function handleTelegramUpdate(update, env, config) {
       botToken,
       chatId,
       `❓ <b>Lệnh không xác định:</b> <code>${command}</code>\n\n` +
-      `📌 <b>Các lệnh hợp lệ của hệ thống:</b>\n` +
-      `• <code>/ideate</code>: Tạo 1 bộ ý tưởng từ vựng HSK mới\n` +
-      `• <code>/render</code>: Kích hoạt render video (Pending ➔ Video)\n` +
-      `• <code>/qc</code>: Kích hoạt Auto-QC Gatekeeper kiểm tra video\n` +
+      `📌 <b>DANH SÁCH LỆNH HỢP LỆ CỦA HỆ THỐNG:</b>\n` +
+      `• <code>/ideate</code>: Tạo 1 bộ ý tưởng từ vựng HSK mới (Status: Pending)\n` +
+      `• <code>/fix</code> hoặc <code>/heal</code>: AI Auto-Healing sửa lỗi các dòng Failed (giữ nguyên chủ đề)\n` +
+      `• <code>/render [id]</code>: Kích hoạt render video kèm bìa Cover 0.75s\n` +
+      `• <code>/resetall</code>: Reset toàn bộ dòng Video về Pending để render lại\n` +
+      `• <code>/reset [id]</code>: Reset 1 dòng cụ thể về Pending\n` +
+      `• <code>/approve [id]</code>: Duyệt 1 dòng sang Ready (Sẵn sàng đăng)\n` +
+      `• <code>/qc</code>: Kích hoạt Auto-QC Gatekeeper kiểm tra video & bìa\n` +
       `• <code>/publish</code>: Đăng 1 video lên Buffer (YouTube, TikTok, Facebook)\n` +
       `• <code>/status</code>: Xem thống kê hàng đợi trên Google Sheets\n` +
       `• <code>/myid</code>: Xem Chat ID Telegram của bạn\n` +
