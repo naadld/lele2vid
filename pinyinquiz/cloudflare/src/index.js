@@ -1197,14 +1197,25 @@ async function handleTelegramUpdate(update, env, config) {
       const { getBufferQuotaAndHealth } = await import("./buffer_publisher.js");
       const bufferStats = await getBufferQuotaAndHealth(config.bufferAccessToken || env.BUFFER_ACCESS_TOKEN || "Bhk_Gab-6Gm44FiruBCtoLJlV7SsuaZmVcTl3pDYRmo");
 
-      // Visual progress bar helper
-      const makeBar = (val, max, length = 10) => {
+      // Multi-layer visual progress bars
+      const makeEmojiBar = (val, max, length = 10, fillChar = "🟩", emptyChar = "⬜") => {
         const filled = Math.min(length, Math.max(0, Math.round((val / (max || 1)) * length)));
-        return "█".repeat(filled) + "░".repeat(length - filled);
+        return fillChar.repeat(filled) + emptyChar.repeat(length - filled);
       };
 
-      const bufferBar = makeBar(bufferStats.monthlyRemaining, bufferStats.monthlyLimit, 10);
+      const makeTextBar = (val, max, length = 10) => {
+        const filled = Math.min(length, Math.max(0, Math.round((val / (max || 1)) * length)));
+        return "▰".repeat(filled) + "▱".repeat(length - filled);
+      };
+
+      const bufferBar = makeTextBar(bufferStats.monthlyRemaining, bufferStats.monthlyLimit, 12);
       const bufferPct = bufferStats.monthlyPercent ?? 98;
+
+      // Target: 14 ready videos = 7 days of safe auto-posting (2 videos/day)
+      const targetDays = 7;
+      const targetReadyVideos = targetDays * 2;
+      const readyDays = (summary.readyCount / 2).toFixed(1);
+      const readyBar = makeEmojiBar(summary.readyCount, targetReadyVideos, 10, "🟩", "⬜");
 
       let errorDetailText = "";
       if (summary.errorCount > 0) {
@@ -1214,33 +1225,31 @@ async function handleTelegramUpdate(update, env, config) {
 
       let failedDetailText = "";
       if (summary.failedCount > 0) {
-        failedDetailText = `\n🛠️ <b>Cần AI vá lỗi (Failed):</b> <code>${summary.failedCount}</code> dòng (Gõ <code>/fix</code> để sửa)`;
+        failedDetailText = `\n🛠️ <b>Cần AI vá lỗi (Failed):</b> <code>${summary.failedCount}</code> dòng (Bấm <b>AI Auto-Fix</b> bên dưới)`;
       }
 
       // Channels badge
       const channelsList = (bufferStats.channels && bufferStats.channels.length > 0)
-        ? bufferStats.channels.map(c => `• ${c.service === "youtube" ? "🔴 YouTube" : c.service === "tiktok" ? "⚫ TikTok" : "🔵 Facebook"}: <b>${c.name}</b> (<code>🟢 Live</code>)`).join("\n")
-        : "• 🔴 YouTube Shorts: <b>Lê Lê và Hán Ngữ</b> (<code>🟢 Live</code>)\n• ⚫ TikTok: <b>lelehoctiengtrung</b> (<code>🟢 Live</code>)\n• 🔵 FB Reels: <b>Lê Lê học tiếng Trung</b> (<code>🟢 Live</code>)";
+        ? bufferStats.channels.map(c => `• ${c.service === "youtube" ? "🔴 YouTube Shorts" : c.service === "tiktok" ? "⚫ TikTok" : "🔵 Facebook Reels"}: <b>${c.name}</b> (<code>🟢 Live</code>)`).join("\n")
+        : "• 🔴 YouTube Shorts: <b>Lê Lê và Hán Ngữ</b> (<code>🟢 Live</code>)\n• ⚫ TikTok: <b>lelehoctiengtrung</b> (<code>🟢 Live</code>)\n• 🔵 Facebook Reels: <b>Lê Lê học tiếng Trung</b> (<code>🟢 Live</code>)";
 
-      const totalItems = (summary.pendingCount + summary.videoCount + summary.readyCount) || 1;
-      const readyPct = Math.round((summary.readyCount / totalItems) * 100);
-      const readyBar = makeBar(summary.readyCount, totalItems, 10);
+      const totalActive = (summary.readyCount + summary.videoCount + summary.pendingCount) || 1;
 
       const msg = (
-        `📊 <b>BÁO CÁO TRẠNG THÁI HỆ THỐNG LÊ LÊ HỌC TIẾNG TRUNG</b>\n` +
+        `📊 <b>BÁO CÁO TỔNG QUAN HỆ THỐNG LÊ LÊ HỌC TIẾNG TRUNG</b>\n` +
         `━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-        `📦 <b>KHO NỘI DUNG TRÊN GOOGLE SHEETS:</b>\n` +
-        `🟢 <b>Sẵn sàng đăng (Ready):</b> <code>${summary.readyCount}</code> video\n` +
-        `   └ Tiến độ kho: [<code>${readyBar}</code>] ${readyPct}%\n` +
-        `⏳ <b>Chờ kiểm duyệt (Video):</b> <code>${summary.videoCount}</code> video\n` +
-        `💡 <b>Chờ kết xuất (Pending):</b> <code>${summary.pendingCount}</code> ý tưởng\n` +
+        `📦 <b>KHO NỘI DUNG & TIẾN ĐỘ XUẤT BẢN:</b>\n` +
+        `🟢 <b>Video Đã Duyệt (Ready):</b> <b>${summary.readyCount} / ${targetReadyVideos} video</b>\n` +
+        `   └ <code>${readyBar}</code> <b>${readyDays} ngày</b> an toàn\n` +
+        `⏳ <b>Chờ Kiểm Duyệt (Video):</b> <code>${summary.videoCount}</code> video (Đã lưu GDrive)\n` +
+        `💡 <b>Chờ Kết Xuất (Pending):</b> <code>${summary.pendingCount}</code> ý tưởng\n` +
         failedDetailText + errorDetailText + `\n\n` +
-        `🌐 <b>KẾT NỐI BUFFER & MẠNG XÃ HỘI:</b>\n` +
+        `🌐 <b>KẾT NỐI BUFFER (3 KÊNH MẠNG XÃ HỘI):</b>\n` +
         `${channelsList}\n\n` +
         `🔋 <b>HẠN MỨC QUOTA BUFFER THÁNG:</b>\n` +
-        `   └ [<code>${bufferBar}</code>] <b>${bufferStats.monthlyRemaining?.toLocaleString()} / ${bufferStats.monthlyLimit?.toLocaleString()} req</b> (còn ${bufferPct}%)\n` +
-        `   └ <i>Dư thừa an toàn ~${Math.floor((bufferStats.monthlyRemaining || 2960) / 8)} ngày xuất bản</i>\n\n` +
-        `⏰ <b>LỊCH ĐĂNG TỰ ĐỘNG TIẾP THEO:</b> <b>07:00 & 13:00 Hàng Ngày</b>\n` +
+        `   └ <code>[${bufferBar}]</code> <b>${bufferStats.monthlyRemaining?.toLocaleString()} / ${bufferStats.monthlyLimit?.toLocaleString()} req</b> (còn ${bufferPct}%)\n` +
+        `   └ <i>Đã dùng: ${bufferStats.monthlyUsed} req • Dư sức chạy ${Math.floor((bufferStats.monthlyRemaining || 2960) / 8)} ngày</i>\n\n` +
+        `⏰ <b>LỊCH ĐĂNG BÀI:</b> <b>07:00 Sáng & 13:00 Chiều Hàng Ngày</b>\n` +
         `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
         `👇 <i>Bấm các nút dưới đây để điều khiển nhanh hệ thống:</i>`
       );
