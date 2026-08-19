@@ -455,8 +455,7 @@ export default {
             `👇 <i>Vui lòng chọn thao tác kiểm duyệt:</i>\n` +
             `• <b>Approve</b> ➔ Chuyển thành <code>Ready</code> (Đăng tự động lúc 07:00 / 13:00)\n` +
             `• <b>Reset</b> ➔ Chuyển về <code>Pending</code> (Để render lại)\n` +
-            `• <b>Delete</b> ➔ Xóa dòng khỏi Sheet\n` +
-            `• <b>Cancel</b> ➔ Giữ nguyên <code>Video</code> (Để sau)`
+            `• <b>Delete</b> ➔ Xóa dòng khỏi Sheet`
           );
 
           const replyMarkup = {
