@@ -152,7 +152,7 @@ def create_high_ctr_thumbnail(batch_data: Dict[str, Any], output_path: Optional[
     )
 
     font_level = get_font(52, bold=True)
-    level_label = f"🎯 {level}" if "HSK" in level else f"🎯 HSK {level}"
+    level_label = level if "HSK" in level else f"HSK {level}"
     draw_text_with_shadow(
         draw,
         (width / 2, top_badge_y),
@@ -251,7 +251,7 @@ def create_high_ctr_thumbnail(batch_data: Dict[str, Any], output_path: Optional[
     draw_text_with_shadow(
         draw,
         (width / 2, bottom_badge_y),
-        "⚡ PINYIN TRONG 5 GIÂY ⏱️",
+        "PINYIN TRONG 5 GIÂY",
         font_bottom,
         fill="#ffffff",
         shadow_color="#4c0519",
