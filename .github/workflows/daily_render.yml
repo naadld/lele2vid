@@ -11,15 +11,16 @@ on:
         description: 'Specific Row ID to render (leave empty to render all Pending)'
         required: false
         default: ''
-      generate_ideas:
-        description: 'Tự động tạo 5 bộ ý tưởng & metadata mới (true/false)'
-        required: false
-        default: 'false'
+
+# 🛑 TỰ ĐỘNG HỦY TIẾN TRÌNH CŨ: Ngăn chặn các Action thừa xếp hàng gây nghẽn
+concurrency:
+  group: pinyin-render-pipeline
+  cancel-in-progress: true
 
 jobs:
   render_videos:
     runs-on: ubuntu-latest
-    timeout-minutes: 240
+    timeout-minutes: 60
 
     steps:
       - name: Checkout Repository
@@ -29,9 +30,8 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-          cache: 'pip'
 
-      # 1. Cache CJK Fonts for Manim Chinese Rendering
+      # 1. Caching CJK Fonts (Khôi phục trong 1 giây)
       - name: Cache CJK Fonts
         id: cache-fonts
         uses: actions/cache@v4
@@ -45,11 +45,11 @@ jobs:
       - name: Install CJK Fonts (Only on cache miss)
         if: steps.cache-fonts.outputs.cache-hit != 'true'
         run: |
-          sudo apt-get update -o Acquire::Retries=2 -o Acquire::http::Timeout="15" || true
+          sudo apt-get update -o Acquire::Retries=2 -o Acquire::http::Timeout="10" || true
           sudo apt-get install -y --no-install-recommends fonts-noto-cjk fonts-wqy-zenhei sox libsox-fmt-all || true
           fc-cache -f -v || true
 
-      # 2. Cache Python Virtual Environment (Full site-packages cache)
+      # 2. Caching Python Virtual Environment (Khôi phục trong 2-3 giây)
       - name: Cache Python Virtualenv
         id: cache-venv
         uses: actions/cache@v4
@@ -67,7 +67,7 @@ jobs:
           fi
           echo "$HOME/.venv/bin" >> $GITHUB_PATH
 
-      # 3. Cache Edge-TTS generated speech audio files
+      # 3. Caching Edge-TTS Speech Audio Files
       - name: Cache Edge-TTS Word Audio
         uses: actions/cache@v4
         with:
@@ -76,6 +76,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-edge-tts-
 
+      # 4. Setup Service Account Credentials
       - name: Setup Service Account Credentials
         env:
           GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
@@ -86,27 +87,8 @@ jobs:
             echo "Service account credentials configured."
           fi
 
-      # Optional: Sinh 5 ý tưởng + Metadata mới nếu được kích hoạt
-      - name: Generate Daily Batches & Metadata
-        working-directory: pinyinquiz
-        env:
-          GEN_IDEAS: ${{ github.event.inputs.generate_ideas }}
-          PYTHONPATH: .
-          GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
-          GDRIVE_CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
-          GDRIVE_CLIENT_SECRET: ${{ secrets.GDRIVE_CLIENT_SECRET }}
-          GDRIVE_REFRESH_TOKEN: ${{ secrets.GDRIVE_REFRESH_TOKEN }}
-        run: |
-          if [ "$GEN_IDEAS" = "true" ]; then
-            echo "Generating 5 new HSK batches with social media metadata..."
-            python scripts/generate_daily_batches.py
-          else
-            echo "Skipping batch generation (GEN_IDEAS != true)."
-          fi
-
-      # Thực thi kết xuất video Manim và tải lên Google Drive
+      # 5. Execute High-Speed Video Render & Upload
       - name: Execute Video Render & Upload
-        id: render_step
         working-directory: pinyinquiz
         env:
           INPUT_QUALITY: ${{ github.event.inputs.quality }}
@@ -119,33 +101,31 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          QUALITY="$INPUT_QUALITY"
-          if [ -z "$QUALITY" ]; then
-            QUALITY="qh"
-          fi
-          
+          QUALITY="${INPUT_QUALITY:-qh}"
           CMD="python scripts/run_batch.py --from-sheet --quality $QUALITY --upload-gdrive"
           if [ -n "$INPUT_ROW" ]; then
             CMD="$CMD --row-id $INPUT_ROW"
           fi
-          echo "Executing: $CMD"
+          echo "🚀 Executing Render Command: $CMD"
           eval $CMD
 
+      # 6. Cleanup Credentials
       - name: Cleanup Credentials
         if: always()
         run: |
           rm -f pinyinquiz/configs/service_account.json
           echo "Credentials cleaned up. Render workflow completed."
 
+      # 7. Notify Workflow Failure to Telegram (Chỉ gửi khi có lỗi thật sự)
       - name: Notify Workflow Failure to Telegram
         if: failure()
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          CHAT_ID="${TELEGRAM_CHAT_ID:-6800539169}"
+          CHAT_ID="${TELEGRAM_CHAT_ID:-1187577977}"
           if [ -n "$TELEGRAM_BOT_TOKEN" ]; then
-            MSG="🚨 <b>[GitHub Actions Lỗi] Pipeline Render Thất Bại!</b>%0A%0A• <b>Workflow:</b> <code>daily_render.yml</code>%0A• <b>Run ID:</b> <a href=\"https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\">${{ github.run_id }}</a>%0A• Vui lòng kiểm tra log chi tiết trên GitHub Actions."
+            MSG="🚨 <b>[GitHub Actions Lỗi] Pipeline Render Thất Bại!</b>%0A%0A• <b>Workflow:</b> <code>daily_render.yml</code>%0A• <b>Run ID:</b> <a href=\"https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\">${{ github.run_id }}</a>"
             curl -s "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
               -d "chat_id=${CHAT_ID}" \
               -d "text=${MSG}" \
