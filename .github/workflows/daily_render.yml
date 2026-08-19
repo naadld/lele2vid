@@ -57,12 +57,10 @@ jobs:
             pkg-config \
             libpango1.0-dev \
             libcairo2-dev \
-            fonts-noto-cjk \
             fonts-wqy-zenhei || true
           mkdir -p ~/.fonts
-          cp -r /usr/share/fonts/truetype/noto/* ~/.fonts/ 2>/dev/null || true
           cp -r /usr/share/fonts/truetype/wqy/* ~/.fonts/ 2>/dev/null || true
-          fc-cache -f -v || true
+          fc-cache -f || true
 
       # 4. Setup Python Virtualenv (Chỉ biên dịch khi thiếu cache)
       - name: Setup Virtualenv & Dependencies
