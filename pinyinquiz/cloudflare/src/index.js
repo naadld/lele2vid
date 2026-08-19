@@ -479,13 +479,11 @@ export default {
   },
 
   /**
-   * Scheduled Cron Handler:
-   * • 01:00 Sáng VN (UTC 18:00): Production Cron Mẻ 1 (Sinh Idea & Kích hoạt Render)
-   * • 07:00 Sáng VN (UTC 00:00): Publishing Cron Lần 1 (Đăng 1 video Ready lên Buffer)
-   * • 08:00 Sáng VN (UTC 01:00): Báo cáo Dashboard tự động buổi sáng
-   * • 10:00 Sáng VN (UTC 03:00): Production Cron Mẻ 2 (Sinh Idea & Kích hoạt Render)
-   * • 13:00 Chiều VN (UTC 06:00): Publishing Cron Lần 2 (Đăng 1 video Ready lên Buffer)
-   * • 18:01 Chiều VN (UTC 11:01): Báo cáo Dashboard tự động cuối ngày
+   * Scheduled Cron Handler (4 cron expressions within Cloudflare Free Limit):
+   * • "0 18,3 * * *": Sản xuất video Mẻ 1 (01:00 Sáng VN) & Mẻ 2 (10:00 Sáng VN)
+   * • "0 0,6 * * *" : Đăng bài Buffer Lần 1 (07:00 Sáng VN) & Lần 2 (13:00 Chiều VN)
+   * • "0 1 * * *"   : Báo cáo Dashboard tự động buổi sáng (08:00 Sáng VN)
+   * • "1 11 * * *"  : Báo cáo Dashboard tự động cuối ngày (18:01 Chiều VN)
    */
   async scheduled(event, env, ctx) {
     const config = getConfig(env);
@@ -494,22 +492,25 @@ export default {
     ctx.waitUntil(
       (async () => {
         try {
-          // 1. Cron 18:00 UTC (01:00 AM VN) & 03:00 UTC (10:00 AM VN): Production Schedule (Sinh idea & Render)
-          if (event.cron === "0 18 * * *" || event.cron === "0 3 * * *") {
-            const label = event.cron === "0 18 * * *" ? "01:00 Sáng" : "10:00 Sáng";
+          const nowUtc = new Date();
+          const utcHours = nowUtc.getUTCHours();
+
+          // 1. Production Schedule (Sinh idea & Render): 18:00 UTC (01:00 AM VN) or 03:00 UTC (10:00 AM VN)
+          if (event.cron === "0 18,3 * * *" || event.cron === "0 18 * * *" || event.cron === "0 3 * * *") {
+            const label = (utcHours >= 16 || utcHours <= 2) ? "01:00 Sáng" : "10:00 Sáng";
             await handleProductionCron(env, config, label);
           } 
-          // 2. Cron 01:00 UTC (08:00 AM VN): Báo cáo tự động Dashboard buổi sáng
+          // 2. Publishing Schedule (Đăng Buffer): 00:00 UTC (07:00 AM VN) or 06:00 UTC (13:00 PM VN)
+          else if (event.cron === "0 0,6 * * *" || event.cron === "0 0 * * *" || event.cron === "0 6 * * *") {
+            await handlePublishingCron(env, config);
+          }
+          // 3. Báo cáo tự động Dashboard buổi sáng (08:00 AM VN / 01:00 UTC)
           else if (event.cron === "0 1 * * *") {
             await sendSystemDashboardReport(env, config, config.telegramBotToken, config.telegramChatId, "• BÁO CÁO SÁNG 08:00");
           }
-          // 3. Cron 11:01 UTC (18:01 PM VN): Báo cáo tự động Dashboard cuối ngày
+          // 4. Báo cáo tự động Dashboard cuối ngày (18:01 PM VN / 11:01 UTC)
           else if (event.cron === "1 11 * * *") {
             await sendSystemDashboardReport(env, config, config.telegramBotToken, config.telegramChatId, "• BÁO CÁO CHIỀU 18:01");
-          }
-          // 4. Cron 00:00 UTC (07:00 AM VN) & 06:00 UTC (13:00 PM VN): Publishing Schedule (Đăng Buffer)
-          else if (event.cron === "0 0 * * *" || event.cron === "0 6 * * *") {
-            await handlePublishingCron(env, config);
           }
         } catch (err) {
           console.error("[CRON] Automation execution error:", err);
