@@ -256,9 +256,24 @@ export default {
       }
     }
 
+    // 4e. Trigger Render API Endpoint
+    if ((url.pathname === "/api/render" || url.pathname === "/api/trigger-render") && (request.method === "POST" || request.method === "GET")) {
+      try {
+        const rowId = url.searchParams.get("row_id") || "";
+        const quality = url.searchParams.get("quality") || "qh";
+        const ghRes = await triggerGitHubRenderWorkflow(env, { row_id: rowId, quality: quality });
+        return new Response(JSON.stringify({ success: true, row_id: rowId, quality, result: ghRes }, null, 2), {
+          headers: { "Content-Type": "application/json" }
+        });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message, stack: err.stack }), { status: 500, headers: { "Content-Type": "application/json" } });
+      }
+    }
+
     // 4b. Preview Publish Payload Endpoint
     if (url.pathname === "/api/test-publish-preview") {
       try {
+        const targetRowIdx = parseInt(url.searchParams.get("row") || "1", 10);
         const gsheet = new GoogleSheetsClient(
           config.gcpClientEmail,
           config.gcpPrivateKey,
@@ -268,8 +283,8 @@ export default {
         const { getBatchMetadata } = await import("./metadata_helper.js");
         const { convertGDriveToDirectUrl, getBufferChannels } = await import("./buffer_publisher.js");
 
-        const allRows = await gsheet.getSheetValues(`${config.sheetTabName}!A1:P5`);
-        const sampleRow = allRows[1] || [];
+        const allRows = await gsheet.getSheetValues(`${config.sheetTabName}!A1:P20`);
+        const sampleRow = allRows[targetRowIdx] || allRows[1] || [];
         const words = [];
         for (let wIdx = 4; wIdx <= 8; wIdx++) {
           const wVal = sampleRow[wIdx] || "";
