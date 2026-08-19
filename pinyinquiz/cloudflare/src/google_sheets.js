@@ -7,6 +7,14 @@ let cachedAccessToken = null;
 let tokenExpiryTime = 0;
 
 /**
+ * Get Vietnam Timestamp string (GMT+7) in YYYY-MM-DD HH:MM:SS format
+ */
+export function getVietnamTimestamp(date = new Date()) {
+  const vnTime = new Date(date.getTime() + (7 * 60 * 60 * 1000));
+  return vnTime.toISOString().replace("T", " ").substring(0, 19);
+}
+
+/**
  * Base64URL encode string or buffer
  */
 function base64UrlEncode(data) {
@@ -384,14 +392,6 @@ export class GoogleSheetsClient {
         wordCols.push("");
       }
     }
-
-/**
- * Get Vietnam Timestamp string (GMT+7) in YYYY-MM-DD HH:MM:SS format
- */
-export function getVietnamTimestamp(date = new Date()) {
-  const vnTime = new Date(date.getTime() + (7 * 60 * 60 * 1000));
-  return vnTime.toISOString().replace("T", " ").substring(0, 19);
-}
 
     const rowUpdates = [[
       topic,           // Col B
