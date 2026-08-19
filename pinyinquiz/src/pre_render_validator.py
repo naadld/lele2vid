@@ -41,6 +41,15 @@ class PreRenderValidator:
         if len(words) != self.required_word_count:
             errors.append(f"Số lượng từ không đúng ({len(words)}/5 từ).")
 
+        # 2b. Check Duplicate Hanzi within Batch
+        hanzi_seen = set()
+        for idx, w in enumerate(words, start=1):
+            h_clean = w.get("hanzi", "").strip()
+            if h_clean:
+                if h_clean in hanzi_seen:
+                    errors.append(f"Trùng lặp từ vựng trong cùng mẻ: Từ #{idx} '{h_clean}' bị lặp lại!")
+                hanzi_seen.add(h_clean)
+
         # 3. Check Each Word
         for idx, w in enumerate(words, start=1):
             hanzi = w.get("hanzi", "").strip()
@@ -64,7 +73,7 @@ class PreRenderValidator:
             if _opencc_converter:
                 simplified = _opencc_converter.convert(hanzi)
                 if simplified != hanzi:
-                    errors.append(f"Từ #{idx} '{hanzi}': Chứa chữ Phồn thể (Nên dùng: '{simplified}').")
+                    errors.append(f"Từ #{idx} '{hanzi}': Chứa chữ Phồn thể (Nên dùng Giản thể: '{simplified}').")
 
             # 3b. Pinyin Check
             if not pinyin:
@@ -78,11 +87,23 @@ class PreRenderValidator:
                 if len(pinyin_syllables) != len(hanzi):
                     errors.append(f"Từ #{idx} '{hanzi}': Số âm tiết Pinyin ({len(pinyin_syllables)}) không khớp với số chữ Hán ({len(hanzi)}).")
 
-            # 3c. Meaning (Nghĩa tiếng Việt) Check
+            # 3c. Hidden Pinyin Check
+            if not hidden_pinyin:
+                errors.append(f"Từ #{idx} '{hanzi}': Pinyin ẩn (Hidden Pinyin) bị rỗng.")
+            elif "_" not in hidden_pinyin:
+                errors.append(f"Từ #{idx} '{hanzi}': Pinyin ẩn '{hidden_pinyin}' không chứa ký tự gạch chân '_' để người xem đoán.")
+
+            # 3d. Meaning (Nghĩa tiếng Việt) Check
             if not meaning:
                 errors.append(f"Từ #{idx} '{hanzi}': Nghĩa tiếng Việt bị rỗng.")
             elif len(meaning) > self.max_meaning_len:
                 errors.append(f"Từ #{idx} '{hanzi}': Nghĩa '{meaning}' quá dài ({len(meaning)} ký tự, tối đa {self.max_meaning_len}) gây rớt dòng lệch thẻ.")
+            elif "\ufffd" in meaning or "□" in meaning:
+                errors.append(f"Từ #{idx} '{hanzi}': Nghĩa '{meaning}' chứa ký tự lỗi font/encoding (□ hoặc ).")
+
+        # 3e. Check Topic Artifacts
+        if "\ufffd" in topic or "□" in topic:
+            errors.append(f"Chủ đề '{topic}' chứa ký tự lỗi font/encoding (□ hoặc ).")
 
         # 4. Strict Metadata Inspection (Kiểm tra đầy đủ 3 nền tảng + Hashtags)
         if not metadata or metadata.strip() == "":

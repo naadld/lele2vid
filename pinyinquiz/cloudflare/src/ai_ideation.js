@@ -37,25 +37,25 @@ const BUILTIN_VOCAB_BANK = [
     ]
   },
   {
-    topic: "HSK 1 • Gia Đình Yêu Thương",
-    level: "HSK 1",
+    topic: "HSK 2 • Sức Khỏe & Thể Thao",
+    level: "HSK 2",
     words: [
-      { hanzi: "爸爸", pinyin: "bà ba", meaning: "Bố / Ba" },
-      { hanzi: "妈妈", pinyin: "mā ma", meaning: "Mẹ" },
-      { hanzi: "哥哥", pinyin: "gē ge", meaning: "Anh trai" },
-      { hanzi: "姐姐", pinyin: "jiě jie", meaning: "Chị gái" },
-      { hanzi: "弟弟", pinyin: "dì di", meaning: "Em trai" }
+      { hanzi: "生病", pinyin: "shēng bìng", meaning: "Bị ốm / Bị bệnh" },
+      { hanzi: "发烧", pinyin: "fā shāo", meaning: "Phát sốt" },
+      { hanzi: "吃药", pinyin: "chī yào", meaning: "Uống thuốc" },
+      { hanzi: "跑步", pinyin: "pǎo bù", meaning: "Chạy bộ" },
+      { hanzi: "游泳", pinyin: "yóu yǒng", meaning: "Bơi lội" }
     ]
   },
   {
-    topic: "HSK 1 • Trường Học & Đồ Dùng",
-    level: "HSK 1",
+    topic: "HSK 2 • Mua Sắm & Thanh Toán",
+    level: "HSK 2",
     words: [
-      { hanzi: "老师", pinyin: "lǎo shī", meaning: "Thầy cô giáo" },
-      { hanzi: "学生", pinyin: "xué sheng", meaning: "Học sinh" },
-      { hanzi: "同学", pinyin: "tóng xué", meaning: "Bạn học" },
-      { hanzi: "书包", pinyin: "shū bāo", meaning: "Cặp sách" },
-      { hanzi: "汉语", pinyin: "hàn yǔ", meaning: "Tiếng Hán" }
+      { hanzi: "打折", pinyin: "dǎ zhé", meaning: "Giảm giá" },
+      { hanzi: "刷卡", pinyin: "shuā kǎ", meaning: "Quẹt thẻ" },
+      { hanzi: "现金", pinyin: "xiàn jīn", meaning: "Tiền mặt" },
+      { hanzi: "收据", pinyin: "shōu jù", meaning: "Hóa đơn / Biên lai" },
+      { hanzi: "找钱", pinyin: "zhǎo qián", meaning: "Trả lại tiền thừa" }
     ]
   },
   {

@@ -177,9 +177,19 @@ class QCInspector:
         if len(words) != 5:
             errors.append(f"Số lượng từ không đúng ({len(words)}/5 từ).")
 
+        # Check duplicate Hanzi within batch
+        hanzi_seen = set()
+        for idx, w in enumerate(words, start=1):
+            h_clean = w.get("hanzi", "").strip()
+            if h_clean:
+                if h_clean in hanzi_seen:
+                    errors.append(f"Trùng lặp từ vựng trong cùng mẻ: Từ #{idx} '{h_clean}' bị lặp lại!")
+                hanzi_seen.add(h_clean)
+
         for idx, w in enumerate(words, start=1):
             hanzi = w.get("hanzi", "").strip()
             pinyin = w.get("pinyin", "").strip()
+            hidden_pinyin = w.get("hidden_pinyin", "").strip()
             meaning = w.get("meaning", "").strip()
 
             if not hanzi:
@@ -189,7 +199,7 @@ class QCInspector:
             if _opencc_converter:
                 simplified = _opencc_converter.convert(hanzi)
                 if simplified != hanzi:
-                    errors.append(f"Từ #{idx} '{hanzi}' chứa ký tự Phồn thể (Nên dùng: '{simplified}').")
+                    errors.append(f"Từ #{idx} '{hanzi}' chứa ký tự Phồn thể (Nên dùng Giản thể: '{simplified}').")
 
             if not any('\u4e00' <= char <= '\u9fff' for char in hanzi):
                 errors.append(f"Từ #{idx} '{hanzi}' không chứa chữ Hán hợp lệ.")
@@ -204,10 +214,15 @@ class QCInspector:
                 if len(p_syllables) != len(hanzi):
                     errors.append(f"Từ #{idx} '{hanzi}': Số âm tiết Pinyin ({len(p_syllables)}) không khớp số chữ Hán ({len(hanzi)}).")
 
+            if hidden_pinyin and "_" not in hidden_pinyin:
+                errors.append(f"Từ #{idx} '{hanzi}': Pinyin ẩn '{hidden_pinyin}' không chứa gạch chân '_' để đố vui.")
+
             if not meaning:
                 errors.append(f"Từ #{idx} '{hanzi}': Nghĩa tiếng Việt bị rỗng.")
             elif len(meaning) > 35:
                 errors.append(f"Từ #{idx} '{hanzi}': Nghĩa '{meaning}' quá dài ({len(meaning)} ký tự, tối đa 35).")
+            elif "\ufffd" in meaning or "□" in meaning:
+                errors.append(f"Từ #{idx} '{hanzi}': Nghĩa '{meaning}' chứa ký tự lỗi font/encoding (□ hoặc ).")
 
         passed = len(errors) == 0
         return passed, errors
