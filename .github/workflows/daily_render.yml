@@ -31,10 +31,9 @@ jobs:
         with:
           python-version: '3.11'
 
-      # 1. Install FFmpeg & System Libraries (1-2 giây)
+      # 1. Install FFmpeg & System Libraries (2 giây)
       - name: Install FFmpeg & System Dependencies
         run: |
-          sudo apt-get update -y || true
           sudo apt-get install -y --no-install-recommends ffmpeg pkg-config libpango1.0-dev libcairo2-dev || true
 
       # 2. Register Bundled CJK Fonts (0.1 giây)
