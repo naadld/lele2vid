@@ -31,8 +31,25 @@ jobs:
         with:
           python-version: '3.12'
 
-      # 1. Install System Dependencies & Fonts (Anti-Hang Mirror Fix)
-      - name: Install System Dependencies & Fonts
+      # 1. Cache Python Virtual Environment (Khôi phục trong 2-3 giây)
+      - name: Cache Python Virtualenv
+        id: cache-venv
+        uses: actions/cache@v4
+        with:
+          path: ~/.venv
+          key: ${{ runner.os }}-venv-${{ hashFiles('pinyinquiz/requirements.txt') }}
+
+      # 2. Cache CJK Fonts (Khôi phục trong 1 giây)
+      - name: Cache CJK Fonts
+        id: cache-fonts
+        uses: actions/cache@v4
+        with:
+          path: ~/.fonts
+          key: ${{ runner.os }}-cjk-fonts-v3
+
+      # 3. Install System Dependencies & Fonts (CHỈ CHẠY KHI THIẾU CACHE - Bỏ qua 100% khi đã có Cache)
+      - name: Install System Dependencies & Fonts (Only on Cache Miss)
+        if: steps.cache-venv.outputs.cache-hit != 'true' || steps.cache-fonts.outputs.cache-hit != 'true'
         run: |
           sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu/|http://archive.ubuntu.com/ubuntu/|g' /etc/apt/sources.list /etc/apt/sources.list.d/* || true
           timeout 45s sudo apt-get update -y || true
@@ -45,16 +62,12 @@ jobs:
             libsox-fmt-all \
             fonts-noto-cjk \
             fonts-wqy-zenhei || true
+          mkdir -p ~/.fonts
+          cp -r /usr/share/fonts/truetype/noto/* ~/.fonts/ 2>/dev/null || true
+          cp -r /usr/share/fonts/truetype/wqy/* ~/.fonts/ 2>/dev/null || true
           fc-cache -f -v || true
 
-      # 2. Caching Python Virtual Environment (Khôi phục trong 2-3 giây)
-      - name: Cache Python Virtualenv
-        id: cache-venv
-        uses: actions/cache@v4
-        with:
-          path: ~/.venv
-          key: ${{ runner.os }}-venv-${{ hashFiles('pinyinquiz/requirements.txt') }}
-
+      # 4. Setup Python Virtualenv (Chỉ biên dịch khi thiếu cache)
       - name: Setup Virtualenv & Dependencies
         run: |
           if [ "${{ steps.cache-venv.outputs.cache-hit }}" != "true" ]; then
@@ -64,6 +77,7 @@ jobs:
             pip install -r pinyinquiz/requirements.txt
           fi
           echo "$HOME/.venv/bin" >> $GITHUB_PATH
+          fc-cache -f -v || true
 
       # 2. Setup Service Account Credentials
       - name: Setup Service Account Credentials
