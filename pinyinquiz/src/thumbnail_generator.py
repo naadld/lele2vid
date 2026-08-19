@@ -1,6 +1,5 @@
 import os
 import sys
-import math
 import logging
 from typing import Dict, Any, Optional
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
@@ -43,7 +42,7 @@ def draw_text_with_shadow(
     font: ImageFont.FreeTypeFont,
     fill: str = "#ffffff",
     shadow_color: str = "#000000",
-    shadow_offset: tuple = (3, 3),
+    shadow_offset: tuple = (5, 5),
     anchor: str = "mm"
 ):
     """Draw text with high-contrast drop shadow for maximum readability."""
@@ -54,196 +53,216 @@ def draw_text_with_shadow(
     # Draw text
     draw.text((x, y), text, font=font, fill=fill, anchor=anchor)
 
+def clean_topic_title(raw_topic: str) -> str:
+    """Clean topic title by removing redundant 'HSK X • ' prefixes."""
+    t = raw_topic.strip()
+    if "•" in t:
+        parts = t.split("•", 1)
+        t = parts[1].strip()
+    elif "-" in t:
+        parts = t.split("-", 1)
+        t = parts[1].strip()
+    return t.upper()
+
+def wrap_text(text: str, max_chars_per_line: int = 14) -> list:
+    """Wrap long topic title into clean balanced lines."""
+    words = text.split()
+    lines = []
+    curr = []
+    curr_len = 0
+    for w in words:
+        if curr_len + len(w) + (1 if curr else 0) <= max_chars_per_line:
+            curr.append(w)
+            curr_len += len(w) + (1 if len(curr) > 1 else 0)
+        else:
+            if curr:
+                lines.append(" ".join(curr))
+            curr = [w]
+            curr_len = len(w)
+    if curr:
+        lines.append(" ".join(curr))
+    return lines if lines else [text]
+
 def create_high_ctr_thumbnail(batch_data: Dict[str, Any], output_path: Optional[str] = None) -> str:
     """
-    Generate an eye-catching, high-CTR 1080x1920 9:16 vertical thumbnail for TikTok/Shorts/Reels.
+    Generate a clean, high-impact 1080x1920 9:16 vertical thumbnail:
+    - Top: HSK Level Badge
+    - Middle: Huge Topic Title (Chủ đề ở giữa, chữ cực to)
+    - Bottom: Pinyin trong 5 giây (Pinyin in 5 seconds Badge)
     """
     width = 1080
     height = 1920
     
-    topic = batch_data.get("topic", "HSK 1-2 • ĐOÁN TỪ VỰNG")
-    level = batch_data.get("level", "HSK 1-2")
-    words = batch_data.get("words", [])
+    raw_topic = batch_data.get("topic", "ĐỒ ĂN & THỨC UỐNG")
+    level = batch_data.get("level", "HSK 1").upper()
     batch_id = batch_data.get("id", "0")
+    topic_clean = clean_topic_title(raw_topic)
 
-    # Pick the most interesting word for the hero teaser
-    hero_word = words[0] if words else {"hanzi": "汉语", "pinyin": "hàn yǔ", "hidden_pinyin": "h _ _   y _", "meaning": "Tiếng Trung"}
-    if len(words) >= 3:
-        hero_word = words[1]
-
-    hz = hero_word.get("hanzi", "中文")
-    py = hero_word.get("pinyin", "")
-    hidden_py = hero_word.get("hidden_pinyin", "")
-    meaning = hero_word.get("meaning", "")
-
-    # 1. Base Canvas & Background
+    # 1. Base Canvas & Cinematic Background
     bg_img_path = os.path.join(config.base_dir, "assets", "images", "background.jpg")
     if os.path.exists(bg_img_path):
         base_bg = Image.open(bg_img_path).convert("RGBA")
         base_bg = base_bg.resize((width, height), Image.Resampling.LANCZOS)
-        # Apply slight blur to background to make foreground pop
-        base_bg = base_bg.filter(ImageFilter.GaussianBlur(radius=8))
+        # Apply smooth blur to background
+        base_bg = base_bg.filter(ImageFilter.GaussianBlur(radius=10))
     else:
-        base_bg = Image.new("RGBA", (width, height), "#0f172a")
+        base_bg = Image.new("RGBA", (width, height), "#090d16")
 
-    # Overlay dark gradient for high contrast
+    # Dark gradient vignette overlay
     overlay = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     overlay_draw = ImageDraw.Draw(overlay)
     
-    # Top & bottom vignette
     for y in range(height):
-        alpha = int(120 + 90 * (abs(y - height / 2) / (height / 2)) ** 1.5)
-        overlay_draw.line([(0, y), (width, y)], fill=(3, 7, 18, min(alpha, 240)))
+        # Darkness from 0.50 in center to 0.88 at edges
+        dist = abs(y - height / 2) / (height / 2)
+        alpha = int(140 + 85 * (dist ** 1.3))
+        overlay_draw.line([(0, y), (width, y)], fill=(4, 7, 20, min(alpha, 245)))
 
     combined = Image.alpha_composite(base_bg, overlay)
     draw = ImageDraw.Draw(combined)
 
-    # 2. Top Super Badge: "🔥 THỬ THÁCH TIẾNG TRUNG • 99% ĐOÁN SAI!"
-    top_badge_y = 260
+    # =========================================================================
+    # 1. PHẦN TRÊN CÙNG: LEVEL HSK (Gọn gàng, nổi bật, sang trọng)
+    # =========================================================================
+    top_badge_y = 380
+    badge_w = 420
+    badge_h = 100
+    bx1 = int((width - badge_w) / 2)
+    by1 = int(top_badge_y - badge_h / 2)
+    bx2 = bx1 + badge_w
+    by2 = by1 + badge_h
+
+    # Glowing border
     draw_rounded_rect(
         draw,
-        (100, top_badge_y - 45, width - 100, top_badge_y + 45),
-        radius=45,
-        fill="#ff0055",
-        outline="#ff77aa",
+        (bx1 - 4, by1 - 4, bx2 + 4, by2 + 4),
+        radius=52,
+        fill=None,
+        outline="#38bdf8",
         width=3
     )
-    font_badge = get_font(36, bold=True)
-    draw.text((width / 2, top_badge_y), "🔥 THỬ THÁCH HSK • BẠN ĐOÁN ĐƯỢC 5/5?", font=font_badge, fill="#ffffff", anchor="mm")
+    # Badge background (Cyan gradient look)
+    draw_rounded_rect(
+        draw,
+        (bx1, by1, bx2, by2),
+        radius=50,
+        fill="#0284c7",
+        outline="#7dd3fc",
+        width=3
+    )
 
-    # 3. Main Hook Header (Huge & Bold): "ĐỐ BẠN BIẾT TỪ NÀY?"
-    header_y = 420
-    font_hook = get_font(68, bold=True)
+    font_level = get_font(52, bold=True)
+    level_label = f"🎯 {level}" if "HSK" in level else f"🎯 HSK {level}"
     draw_text_with_shadow(
         draw,
-        (width / 2, header_y),
-        "ĐỐ BẠN BIẾT TỪ NÀY?",
-        font_hook,
-        fill="#facc15",
-        shadow_color="#000000",
-        shadow_offset=(4, 4),
+        (width / 2, top_badge_y),
+        level_label,
+        font_level,
+        fill="#ffffff",
+        shadow_color="#082f49",
+        shadow_offset=(3, 3),
         anchor="mm"
     )
 
-    # Topic Sub-Pill
-    topic_pill_y = 530
-    draw_rounded_rect(
-        draw,
-        (140, topic_pill_y - 35, width - 140, topic_pill_y + 35),
-        radius=35,
-        fill="#0284c7",
-        outline="#38bdf8",
-        width=2
-    )
-    font_topic = get_font(34, bold=True)
-    draw.text((width / 2, topic_pill_y), f"📚 {topic.upper()}", font=font_topic, fill="#ffffff", anchor="mm")
-
-    # 4. Central Hero Card (Glassmorphism & Neon Glow)
-    card_x1, card_y1 = 80, 640
-    card_x2, card_y2 = width - 80, 1380
+    # =========================================================================
+    # 2. PHẦN Ở GIỮA: CHỦ ĐỀ CHỮ CỰC TO & NỔI BẬT (TÂM ĐIỂM CHÍNH)
+    # =========================================================================
+    topic_lines = wrap_text(topic_clean, max_chars_per_line=13)
     
-    # Outer Glow Border
+    # Calculate card height based on lines
+    num_lines = len(topic_lines)
+    line_spacing = 130 if num_lines <= 2 else 115
+    font_size = 96 if num_lines <= 2 else 82
+    font_topic = get_font(font_size, bold=True)
+
+    card_padding_v = 110
+    card_h = (num_lines * line_spacing) + card_padding_v * 2
+    card_y_center = 960
+    card_y1 = int(card_y_center - card_h / 2)
+    card_y2 = card_y1 + card_h
+    card_x1 = 70
+    card_x2 = width - 70
+
+    # Outer Neon Glow Frame
     draw_rounded_rect(
         draw,
         (card_x1 - 6, card_y1 - 6, card_x2 + 6, card_y2 + 6),
         radius=46,
         fill=None,
-        outline="#00f0ff",
+        outline="#f59e0b",
         width=4
     )
-    # Card Background
+    # Central Glass Card
     draw_rounded_rect(
         draw,
         (card_x1, card_y1, card_x2, card_y2),
         radius=40,
-        fill=(15, 23, 42, 235),
-        outline="#38bdf8",
-        width=3
-    )
-
-    # Question Header in Card
-    card_header_y = card_y1 + 80
-    font_card_head = get_font(38, bold=True)
-    draw.text((width / 2, card_header_y), "🇨🇳 PHIÊN ÂM CHUẨN LÀ GÌ? 🇨🇳", font=font_card_head, fill="#38bdf8", anchor="mm")
-
-    # Giant Chinese Character (Hanzi)
-    hanzi_y = card_y1 + 270
-    font_hanzi = get_font(180, bold=True)
-    draw_text_with_shadow(
-        draw,
-        (width / 2, hanzi_y),
-        hz,
-        font_hanzi,
-        fill="#ffffff",
-        shadow_color="#0284c7",
-        shadow_offset=(6, 6),
-        anchor="mm"
-    )
-
-    # Mystery Pinyin Box with blanks and question marks
-    pinyin_box_y = card_y1 + 470
-    draw_rounded_rect(
-        draw,
-        (140, pinyin_box_y - 55, width - 140, pinyin_box_y + 55),
-        radius=30,
-        fill="#1e293b",
-        outline="#f59e0b",
-        width=3
-    )
-    
-    display_pinyin_teaser = hidden_py if hidden_py else f"{py[:2]} _ _ _ ?"
-    font_pinyin = get_font(60, bold=True)
-    draw.text((width / 2, pinyin_box_y), f"❓  {display_pinyin_teaser}  ❓", font=font_pinyin, fill="#fbbf24", anchor="mm")
-
-    # Vietnamese Meaning Teaser
-    meaning_y = card_y1 + 610
-    font_meaning = get_font(46, bold=True)
-    draw.text((width / 2, meaning_y), f"Nghĩa: \"{meaning}\"", font=font_meaning, fill="#a7f3d0", anchor="mm")
-
-    # 5. Timer & Score Badge Teaser
-    badge_info_y = 1460
-    draw_rounded_rect(
-        draw,
-        (180, badge_info_y - 40, width - 180, badge_info_y + 40),
-        radius=40,
-        fill="#dc2626",
-        outline="#f87171",
-        width=2
-    )
-    font_info = get_font(34, bold=True)
-    draw.text((width / 2, badge_info_y), f"⏱️ 5 GIÂY / CÂU • CẤP ĐỘ {level.upper()}", font=font_info, fill="#ffffff", anchor="mm")
-
-    # 6. Bottom Big CTA Button (Click-Through Magnet)
-    cta_y = 1620
-    draw_rounded_rect(
-        draw,
-        (100, cta_y - 65, width - 100, cta_y + 65),
-        radius=50,
-        fill="#10b981",
-        outline="#34d399",
+        fill=(15, 23, 42, 240),
+        outline="#fbbf24",
         width=4
     )
-    font_cta = get_font(48, bold=True)
-    draw_text_with_shadow(
+
+    # Draw each line of Topic with Gold color & 3D shadow
+    first_line_y = card_y_center - ((num_lines - 1) * line_spacing) / 2
+    for i, line_text in enumerate(topic_lines):
+        ly = int(first_line_y + i * line_spacing)
+        draw_text_with_shadow(
+            draw,
+            (width / 2, ly),
+            line_text,
+            font_topic,
+            fill="#fde047",
+            shadow_color="#78350f",
+            shadow_offset=(6, 6),
+            anchor="mm"
+        )
+
+    # =========================================================================
+    # 3. PHẦN BÊN DƯỚI: PINYIN TRONG 5 GIÂY
+    # =========================================================================
+    bottom_badge_y = 1520
+    b_badge_w = 760
+    b_badge_h = 120
+    bbx1 = int((width - b_badge_w) / 2)
+    bby1 = int(bottom_badge_y - b_badge_h / 2)
+    bbx2 = bbx1 + b_badge_w
+    bby2 = bby1 + b_badge_h
+
+    # Outer Neon Glow
+    draw_rounded_rect(
         draw,
-        (width / 2, cta_y),
-        "👉 XEM VIDEO ĐỂ TRẢ LỜI 👈",
-        font_cta,
-        fill="#ffffff",
-        shadow_color="#064e3b",
-        shadow_offset=(3, 3),
-        anchor="mm"
+        (bbx1 - 5, bby1 - 5, bbx2 + 5, bby2 + 5),
+        radius=65,
+        fill=None,
+        outline="#ff0055",
+        width=4
+    )
+    # Bottom Red-Pink Vibrant Badge
+    draw_rounded_rect(
+        draw,
+        (bbx1, bby1, bbx2, bby2),
+        radius=60,
+        fill="#e11d48",
+        outline="#fda4af",
+        width=3
     )
 
-    # 7. Channel Signature Watermark & Avatar
-    footer_y = 1790
-    font_footer = get_font(32, bold=True)
-    draw.text((width / 2, footer_y), "✨ Kênh: Lê Lê Học Tiếng Trung (HSK Quiz 24/7) ✨", font=font_footer, fill="#94a3b8", anchor="mm")
+    font_bottom = get_font(52, bold=True)
+    draw_text_with_shadow(
+        draw,
+        (width / 2, bottom_badge_y),
+        "⚡ PINYIN TRONG 5 GIÂY ⏱️",
+        font_bottom,
+        fill="#ffffff",
+        shadow_color="#4c0519",
+        shadow_offset=(4, 4),
+        anchor="mm"
+    )
 
     # Save Output File
     if not output_path:
-        clean_topic = "".join([c if c.isalnum() else "_" for c in topic]).strip("_")
-        output_filename = f"#{batch_id}.{clean_topic}_thumbnail.jpg"
+        clean_topic_name = "".join([c if c.isalnum() else "_" for c in raw_topic]).strip("_")
+        output_filename = f"#{batch_id}.{clean_topic_name}_thumbnail.jpg"
         output_path = os.path.join(config.output_videos_dir, output_filename)
 
     os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
@@ -251,18 +270,15 @@ def create_high_ctr_thumbnail(batch_data: Dict[str, Any], output_path: Optional[
     # Save as high-quality progressive JPEG
     rgb_img = combined.convert("RGB")
     rgb_img.save(output_path, "JPEG", quality=95, optimize=True)
-    logger.info(f"✨ High-CTR Thumbnail generated successfully: {output_path}")
+    logger.info(f"✨ Minimal High-Impact Thumbnail generated successfully: {output_path}")
     return output_path
 
 if __name__ == "__main__":
     test_batch = {
-        "id": "1",
+        "id": "2",
         "topic": "HSK 1 • Đồ Ăn & Thức Uống",
         "level": "HSK 1",
-        "words": [
-            {"hanzi": "米饭", "pinyin": "mǐ fàn", "hidden_pinyin": "m _   f _ _", "meaning": "Cơm trắng"},
-            {"hanzi": "苹果", "pinyin": "píng guǒ", "hidden_pinyin": "p _ _ _   g _ _", "meaning": "Quả táo"}
-        ]
+        "words": []
     }
-    path = create_high_ctr_thumbnail(test_batch, "/media/vpsg16gb/HaRiDisk/CHANNELS/lelehoctiengtrung/pinyinquiz/output/test_thumbnail.jpg")
-    print("Generated Test Thumbnail:", path)
+    path = create_high_ctr_thumbnail(test_batch, "/media/vpsg16gb/HaRiDisk/CHANNELS/lelehoctiengtrung/pinyinquiz/output/#2.HSK_1_Do_An_Thuc_Uong_thumbnail.jpg")
+    print("Generated Minimal Thumbnail for Row 2:", path)
