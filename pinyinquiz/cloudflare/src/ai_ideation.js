@@ -10,6 +10,7 @@
 
 import { generateHiddenPinyin } from "./pinyin_helper.js";
 import { generateSocialMetadata } from "./metadata_helper.js";
+import { getVietnamTimestamp } from "./google_sheets.js";
 
 // Built-in verified HSK 1-2 curated topics bank (Fallback)
 const BUILTIN_VOCAB_BANK = [
@@ -484,7 +485,7 @@ export async function generateBatchesWithMultiAI(env, config, vocabHistory = {},
  */
 export function formatTopicsToSheetRows(topics, providerUsed, startId = 1) {
   const rows = [];
-  const now = new Date().toISOString().substring(0, 19).replace("T", " ");
+  const now = getVietnamTimestamp();
 
   topics.forEach((t, idx) => {
     const rowId = startId + idx;

@@ -385,6 +385,14 @@ export class GoogleSheetsClient {
       }
     }
 
+/**
+ * Get Vietnam Timestamp string (GMT+7) in YYYY-MM-DD HH:MM:SS format
+ */
+export function getVietnamTimestamp(date = new Date()) {
+  const vnTime = new Date(date.getTime() + (7 * 60 * 60 * 1000));
+  return vnTime.toISOString().replace("T", " ").substring(0, 19);
+}
+
     const rowUpdates = [[
       topic,           // Col B
       level,           // Col C
@@ -399,7 +407,7 @@ export class GoogleSheetsClient {
       "",              // Col L: Youtube
       "",              // Col M: Tiktok
       "",              // Col N: Facebook
-      new Date().toISOString().substring(0, 19).replace("T", " "), // Col O
+      getVietnamTimestamp(), // Col O: Created_At in GMT+7
       notes            // Col P: Notes
     ]];
 

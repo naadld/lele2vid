@@ -19,7 +19,7 @@
  */
 
 import { getConfig } from "./config.js";
-import { GoogleSheetsClient } from "./google_sheets.js";
+import { GoogleSheetsClient, getVietnamTimestamp } from "./google_sheets.js";
 import { generateBatchesWithMultiAI, formatTopicsToSheetRows } from "./ai_ideation.js";
 import { triggerGitHubRenderWorkflow, triggerGitHubQCWorkflow } from "./github_trigger.js";
 import { publishBatchToBuffer } from "./buffer_publisher.js";
@@ -813,7 +813,7 @@ async function handleTelegramUpdate(update, env, config) {
         const updatedText = (
           `❌ <b>[Đã Hủy Ý Tưởng] #${rowId}: ${rowInfo.topic}</b>\n\n` +
           `📊 <b>Trạng thái:</b> <code>Đã xóa khỏi hàng đợi (Deleted)</code>\n` +
-          `🕒 <i>Cập nhật lúc: ${new Date().toISOString().substring(0, 16).replace("T", " ")}</i>`
+          `🕒 <i>Cập nhật lúc: ${getVietnamTimestamp()} (GMT+7)</i>`
         );
         await editTelegramMessageText(botToken, chatId, msgId, updatedText, { inline_keyboard: [] });
       }
@@ -829,7 +829,7 @@ async function handleTelegramUpdate(update, env, config) {
         `🎬 <b>[Kết Quả Kiểm Duyệt] #${rowId}: ${rowInfo.topic}</b>\n\n` +
         `📊 <b>Trạng thái mới:</b> <code>${newStatus}</code>\n` +
         `📌 <b>Quyết định:</b> ${statusLabel}\n` +
-        `🕒 <i>Cập nhật lúc: ${new Date().toISOString().substring(0, 16).replace("T", " ")}</i>`
+        `🕒 <i>Cập nhật lúc: ${getVietnamTimestamp()} (GMT+7)</i>`
       );
       await editTelegramMessageCaption(botToken, chatId, msgId, updatedCaption, { inline_keyboard: [] });
     }
@@ -1579,9 +1579,9 @@ export async function handleProductionCron(env, config) {
   );
 
   const pendingBatches = await gsheet.getBatchesByStatus("Pending");
-  const nowStr = new Date().toISOString().substring(0, 16).replace("T", " ");
+  const nowStr = getVietnamTimestamp();
 
-  console.log(`[PRODUCTION-CRON] Fired at ${nowStr}. Pending count: ${pendingBatches.length}`);
+  console.log(`[PRODUCTION-CRON] Fired at ${nowStr} (GMT+7). Pending count: ${pendingBatches.length}`);
 
   let ideaGenerated = null;
   // 1. Repair Failed batches if any
@@ -1626,9 +1626,9 @@ export async function handlePublishingCron(env, config) {
 
   const errorBatches = await gsheet.getBatchesByStatus("Error");
   const readyBatches = await gsheet.getBatchesByStatus("Ready");
-  const nowStr = new Date().toISOString().substring(0, 16).replace("T", " ");
+  const nowStr = getVietnamTimestamp();
 
-  console.log(`[PUBLISHING-CRON] Fired at ${nowStr}. Found ${errorBatches.length} Error and ${readyBatches.length} Ready batches.`);
+  console.log(`[PUBLISHING-CRON] Fired at ${nowStr} (GMT+7). Found ${errorBatches.length} Error and ${readyBatches.length} Ready batches.`);
 
   // 1. Quét và thử lại (retry tối đa 2 lần) cho TẤT CẢ các dòng Error
   if (errorBatches.length > 0) {

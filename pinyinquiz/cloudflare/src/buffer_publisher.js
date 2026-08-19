@@ -4,6 +4,7 @@
  */
 
 import { generateSocialMetadata, getBatchMetadata } from "./metadata_helper.js";
+import { getVietnamTimestamp } from "./google_sheets.js";
 
 const BUFFER_GRAPHQL_ENDPOINT = "https://api.buffer.com";
 
@@ -259,7 +260,7 @@ export async function publishBatchToBuffer(env, batch) {
 
   const meta = getBatchMetadata(batch.metadata, batch.topic, batch.level, batch.words);
   const directVideoUrl = convertGDriveToDirectUrl(batch.videoUrl);
-  const nowStr = new Date().toISOString().substring(0, 16).replace("T", " ");
+  const nowStr = getVietnamTimestamp();
 
   console.log(`Publishing Batch #${batch.id} (${batch.topic}) - Video: ${directVideoUrl ? "YES" : "NO"}...`);
 
