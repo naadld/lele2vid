@@ -18,7 +18,7 @@ crons = ["0 18 * * *", "0 0 * * *", "0 6 * * *"]
 [vars]
 SPREADSHEET_ID = "1b6LNl7JHRiCsjK1w9VuD86GLqAfmSOtDUOm5whrGdH0"
 SHEET_TAB_NAME = "pinyin"
-TELEGRAM_CHAT_ID = "6800539169"
+TELEGRAM_CHAT_ID = "1187577977"
 GITHUB_REPO_OWNER = "naadld"
 GITHUB_REPO_NAME = "lele2vid"
 GITHUB_WORKFLOW_FILE = "daily_render.yml"
