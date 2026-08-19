@@ -358,7 +358,60 @@ async function callCloudflareAI(env, model, systemPrompt, userPrompt) {
 }
 
 /**
- * Multi-Provider Key Rotation & Failover Orchestrator
+ * Gatekeeper #1: Content Uniqueness & Pedagogical Quality Validator
+ * Validates AI output BEFORE saving to Google Sheet
+ */
+export function validateTopicUniquenessAndQuality(topicItem, history = {}) {
+  const allUsedWords = new Set(history.allUsedWords || history.recent5Words || []);
+  const allTopics = (history.allTopics || []).map(t => t.toLowerCase().trim());
+
+  const errors = [];
+  const topicTitle = (topicItem?.topic || "").trim();
+  const words = topicItem?.words || [];
+
+  // 1. Topic Title Duplicate Check
+  if (topicTitle && allTopics.includes(topicTitle.toLowerCase())) {
+    errors.push(`Chủ đề '${topicTitle}' đã tồn tại trên kênh.`);
+  }
+
+  // 2. Exactly 5 Words Check
+  if (!Array.isArray(words) || words.length !== 5) {
+    errors.push(`Số lượng từ vựng không đúng 5 từ (hiện có: ${words.length}).`);
+  }
+
+  // 3. Word Uniqueness Check against entire Sheet history & internal duplicates
+  const duplicatedWords = [];
+  const internalDuplicates = new Set();
+
+  for (const w of words) {
+    const hz = (w?.hanzi || "").trim();
+    if (!hz) {
+      errors.push("Phát hiện từ vựng bị rỗng chữ Hán.");
+      continue;
+    }
+    if (internalDuplicates.has(hz)) {
+      errors.push(`Từ '${hz}' bị lặp lại 2 lần trong cùng một video.`);
+    }
+    internalDuplicates.add(hz);
+
+    if (allUsedWords.has(hz)) {
+      duplicatedWords.push(hz);
+    }
+  }
+
+  if (duplicatedWords.length > 0) {
+    errors.push(`Từ vựng [${duplicatedWords.join(", ")}] đã từng xuất hiện trên kênh.`);
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors: errors,
+    duplicatedWords: duplicatedWords
+  };
+}
+
+/**
+ * Multi-Provider Key Rotation & Failover Orchestrator with Built-in Quality Gatekeeper
  * (Google AI Studio + Agnes AI + Cloudflare Workers AI + Curated Vocab Bank)
  */
 export async function generateBatchesWithMultiAI(env, config, vocabHistory = {}, count = 1) {
@@ -385,11 +438,18 @@ export async function generateBatchesWithMultiAI(env, config, vocabHistory = {},
         console.log(`[AI-Pool] Trying Google AI Studio (Key ${i + 1}/${shuffledGeminiKeys.length}: ${keyShort})...`);
         const res = await callGeminiAPI(key, config.geminiModel, systemPrompt, userPrompt);
         if (res && Array.isArray(res.data) && res.data.length > 0) {
-          resultTopics = res.data.slice(0, count);
-          providerUsed = `Google AI Studio (${res.modelUsed} - Key #${i + 1})`;
-          anyAiSucceeded = true;
-          console.log(`✨ Successfully generated with ${providerUsed}!`);
-          break;
+          const candidate = res.data[0];
+          const gateCheck = validateTopicUniquenessAndQuality(candidate, vocabHistory);
+          if (gateCheck.isValid) {
+            resultTopics = [candidate];
+            providerUsed = `Google AI Studio (${res.modelUsed} - Key #${i + 1})`;
+            anyAiSucceeded = true;
+            console.log(`✨ Successfully generated and PASSED Gatekeeper with ${providerUsed}!`);
+            break;
+          } else {
+            console.warn(`🛑 [Gatekeeper Rejected] Google AI Studio output violated uniqueness: ${gateCheck.errors.join("; ")}`);
+            diagnostics.gemini.push(`Key #${i + 1} (${keyShort}): Vi phạm Gatekeeper (${gateCheck.errors.join(", ")})`);
+          }
         }
       } catch (err) {
         const cleanErr = (err.message || "Unknown error").substring(0, 180);
@@ -410,11 +470,18 @@ export async function generateBatchesWithMultiAI(env, config, vocabHistory = {},
         console.log(`[AI-Pool] Trying Agnes AI (Key ${i + 1}/${shuffledAgnesKeys.length}: ${keyShort})...`);
         const res = await callAgnesAPI(key, config.agnesBaseUrl, config.agnesModel, systemPrompt, userPrompt);
         if (res && Array.isArray(res.data) && res.data.length > 0) {
-          resultTopics = res.data.slice(0, count);
-          providerUsed = `Agnes AI (${res.modelUsed} - Key #${i + 1})`;
-          anyAiSucceeded = true;
-          console.log(`✨ Successfully generated with ${providerUsed}!`);
-          break;
+          const candidate = res.data[0];
+          const gateCheck = validateTopicUniquenessAndQuality(candidate, vocabHistory);
+          if (gateCheck.isValid) {
+            resultTopics = [candidate];
+            providerUsed = `Agnes AI (${res.modelUsed} - Key #${i + 1})`;
+            anyAiSucceeded = true;
+            console.log(`✨ Successfully generated and PASSED Gatekeeper with ${providerUsed}!`);
+            break;
+          } else {
+            console.warn(`🛑 [Gatekeeper Rejected] Agnes AI output violated uniqueness: ${gateCheck.errors.join("; ")}`);
+            diagnostics.agnes.push(`Key #${i + 1} (${keyShort}): Vi phạm Gatekeeper (${gateCheck.errors.join(", ")})`);
+          }
         }
       } catch (err) {
         const cleanErr = (err.message || "Unknown error").substring(0, 180);
@@ -431,10 +498,17 @@ export async function generateBatchesWithMultiAI(env, config, vocabHistory = {},
       console.log(`[AI-Pool] Trying Cloudflare Workers AI (${cfModel})...`);
       const cfRes = await callCloudflareAI(env, cfModel, systemPrompt, userPrompt);
       if (cfRes && Array.isArray(cfRes.data) && cfRes.data.length > 0) {
-        resultTopics = cfRes.data.slice(0, count);
-        providerUsed = `Cloudflare Workers AI (${cfRes.modelUsed})`;
-        anyAiSucceeded = true;
-        console.log(`✨ Successfully generated with ${providerUsed}!`);
+        const candidate = cfRes.data[0];
+        const gateCheck = validateTopicUniquenessAndQuality(candidate, vocabHistory);
+        if (gateCheck.isValid) {
+          resultTopics = [candidate];
+          providerUsed = `Cloudflare Workers AI (${cfRes.modelUsed})`;
+          anyAiSucceeded = true;
+          console.log(`✨ Successfully generated and PASSED Gatekeeper with ${providerUsed}!`);
+        } else {
+          console.warn(`🛑 [Gatekeeper Rejected] Cloudflare AI output violated uniqueness: ${gateCheck.errors.join("; ")}`);
+          diagnostics.cloudflare.push(`CF AI (${cfModel}): Vi phạm Gatekeeper (${gateCheck.errors.join(", ")})`);
+        }
       }
     } catch (err) {
       const cleanErr = (err.message || "Unknown error").substring(0, 180);
@@ -443,12 +517,20 @@ export async function generateBatchesWithMultiAI(env, config, vocabHistory = {},
     }
   }
 
-  // 4. Fallback to Curated Vocab Bank if all AIs failed
+  // 4. Fallback to Curated Vocab Bank (Filtered against used words)
   if (!resultTopics || resultTopics.length === 0) {
-    console.log("ℹ️ Using Built-in High Quality Vocab Bank as fallback.");
-    const shuffledBank = [...BUILTIN_VOCAB_BANK].sort(() => 0.5 - Math.random());
+    console.log("ℹ️ Filtering Built-in High Quality Vocab Bank for unique topics...");
+    const allUsedWords = new Set(vocabHistory.allUsedWords || []);
+    const validBankTopics = BUILTIN_VOCAB_BANK.filter(topicItem => {
+      const words = topicItem.words || [];
+      const hasDup = words.some(w => allUsedWords.has(w.hanzi));
+      return !hasDup;
+    });
+
+    const chosenBank = validBankTopics.length > 0 ? validBankTopics : BUILTIN_VOCAB_BANK;
+    const shuffledBank = [...chosenBank].sort(() => 0.5 - Math.random());
     resultTopics = shuffledBank.slice(0, count);
-    providerUsed = "Fallback VOCAB_BANK";
+    providerUsed = "Fallback VOCAB_BANK (Unique Verified)";
   }
 
   // Auto-enrich each word with hidden_pinyin
