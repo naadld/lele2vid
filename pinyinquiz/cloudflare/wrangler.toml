@@ -9,13 +9,14 @@ account_id = "3591f5b61af3263ca14af7a1765cc954"
 binding = "AI"
 
 # Cron Triggers (UTC):
-# - 18:00 UTC = 01:00 AM VN (UTC+7) -> Lịch sản xuất video & gửi kiểm duyệt Telegram
-# - 00:00 UTC = 07:00 AM VN (UTC+7) -> Lịch đăng video Buffer lần 1 (Sáng)
-# - 05:01 UTC = 12:01 PM VN (UTC+7) -> Báo cáo tự động Dashboard giữa ngày (Trưa)
-# - 06:00 UTC = 13:00 PM VN (UTC+7) -> Lịch đăng video Buffer lần 2 (Chiều)
-# - 11:01 UTC = 18:01 PM VN (UTC+7) -> Báo cáo tự động Dashboard cuối ngày (Tối)
+# - 18:00 UTC = 01:00 AM VN -> Lịch sản xuất mẻ 1: Sinh idea & Render video
+# - 00:00 UTC = 07:00 AM VN -> Lịch đăng video Buffer lần 1 (Sáng)
+# - 01:00 UTC = 08:00 AM VN -> Báo cáo Dashboard tự động buổi sáng (08:00)
+# - 03:00 UTC = 10:00 AM VN -> Lịch sản xuất mẻ 2: Sinh idea & Render video
+# - 06:00 UTC = 13:00 PM VN -> Lịch đăng video Buffer lần 2 (Chiều)
+# - 11:01 UTC = 18:01 PM VN -> Báo cáo Dashboard tự động cuối ngày (18:01)
 [triggers]
-crons = ["0 18 * * *", "0 0 * * *", "1 5 * * *", "0 6 * * *", "1 11 * * *"]
+crons = ["0 18 * * *", "0 0 * * *", "0 1 * * *", "0 3 * * *", "0 6 * * *", "1 11 * * *"]
 
 [vars]
 SPREADSHEET_ID = "1b6LNl7JHRiCsjK1w9VuD86GLqAfmSOtDUOm5whrGdH0"

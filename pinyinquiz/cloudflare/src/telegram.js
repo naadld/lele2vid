@@ -252,12 +252,13 @@ export function getHelpMessage() {
    👉 Xem lại hướng dẫn này.
 
 🕒 <b>LỊCH HOẠT ĐỘNG TỰ ĐỘNG HÀNG NGÀY:</b>
-• <b>01:00 Sáng</b> (UTC 18:00): Tự động sản xuất ý tưởng, render video & gửi về bot chờ duyệt.
-• <b>05:00 Sáng</b> (UTC 22:00): 🛡️ <b>Auto-QC Gatekeeper</b> quét & duyệt video ➔ <code>Ready</code>.
-• <b>07:00 Sáng</b> (UTC 00:00): 🚀 Đăng 1 video <b>Ready</b> lên YouTube, TikTok, Facebook.
-• <b>12:00 Trưa</b> (UTC 05:00): 🛡️ <b>Auto-QC Gatekeeper</b> quét & duyệt tiếp video còn lại.
-• <b>12:01 Trưa</b> (UTC 05:01): 📊 <b>Báo cáo Dashboard tự động giữa ngày</b>.
-• <b>13:00 Chiều</b> (UTC 06:00): 🚀 Đăng 1 video <b>Ready</b> tiếp theo.
-• <b>18:01 Chiều</b> (UTC 11:01): 📊 <b>Báo cáo Dashboard tự động cuối ngày</b>.
+• <b>01:00 Sáng</b> (UTC 18:00): 🏭 <b>Sản xuất mẻ 1</b>: Sinh ý tưởng & Render video.
+• <b>05:00 Sáng</b> (UTC 22:00): 🛡️ <b>Auto-QC Gatekeeper</b>: Quét & duyệt video ➔ <code>Ready</code>.
+• <b>07:00 Sáng</b> (UTC 00:00): 🚀 <b>Lịch đăng lần 1</b>: Đăng 1 video <code>Ready</code> lên 3 MXH.
+• <b>08:00 Sáng</b> (UTC 01:00): 📊 <b>Báo cáo Dashboard sáng</b>: Thống kê kho, Quota & Kênh.
+• <b>10:00 Sáng</b> (UTC 03:00): 🏭 <b>Sản xuất mẻ 2</b>: Sinh ý tưởng & Render video.
+• <b>12:00 Trưa</b> (UTC 05:00): 🛡️ <b>Auto-QC Gatekeeper</b>: Quét & duyệt tiếp video ➔ <code>Ready</code>.
+• <b>13:00 Chiều</b> (UTC 06:00): 🚀 <b>Lịch đăng lần 2</b>: Đăng 1 video <code>Ready</code> tiếp theo.
+• <b>18:01 Chiều</b> (UTC 11:01): 📊 <b>Báo cáo Dashboard tối</b>: Tổng kết tiến độ toàn ngày.
 ━━━━━━━━━━━━━━━━━━━━━`;
 }

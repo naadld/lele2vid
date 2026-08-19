@@ -479,7 +479,13 @@ export default {
   },
 
   /**
-   * Scheduled Cron Handler (01:00 AM, 07:00 AM, 12:01 PM, 13:00 PM, 18:01 PM VN)
+   * Scheduled Cron Handler:
+   * • 01:00 Sáng VN (UTC 18:00): Production Cron Mẻ 1 (Sinh Idea & Kích hoạt Render)
+   * • 07:00 Sáng VN (UTC 00:00): Publishing Cron Lần 1 (Đăng 1 video Ready lên Buffer)
+   * • 08:00 Sáng VN (UTC 01:00): Báo cáo Dashboard tự động buổi sáng
+   * • 10:00 Sáng VN (UTC 03:00): Production Cron Mẻ 2 (Sinh Idea & Kích hoạt Render)
+   * • 13:00 Chiều VN (UTC 06:00): Publishing Cron Lần 2 (Đăng 1 video Ready lên Buffer)
+   * • 18:01 Chiều VN (UTC 11:01): Báo cáo Dashboard tự động cuối ngày
    */
   async scheduled(event, env, ctx) {
     const config = getConfig(env);
@@ -488,20 +494,21 @@ export default {
     ctx.waitUntil(
       (async () => {
         try {
-          // 1. Cron 18:00 UTC (01:00 AM VN): Production Schedule (Sinh idea, render, gửi video duyệt)
-          if (event.cron === "0 18 * * *") {
-            await handleProductionCron(env, config);
+          // 1. Cron 18:00 UTC (01:00 AM VN) & 03:00 UTC (10:00 AM VN): Production Schedule (Sinh idea & Render)
+          if (event.cron === "0 18 * * *" || event.cron === "0 3 * * *") {
+            const label = event.cron === "0 18 * * *" ? "01:00 Sáng" : "10:00 Sáng";
+            await handleProductionCron(env, config, label);
           } 
-          // 2. Cron 05:01 UTC (12:01 PM VN): Báo cáo tự động Dashboard giữa ngày
-          else if (event.cron === "1 5 * * *") {
-            await sendSystemDashboardReport(env, config, config.telegramBotToken, config.telegramChatId, "• BÁO CÁO TRƯA 12:01");
+          // 2. Cron 01:00 UTC (08:00 AM VN): Báo cáo tự động Dashboard buổi sáng
+          else if (event.cron === "0 1 * * *") {
+            await sendSystemDashboardReport(env, config, config.telegramBotToken, config.telegramChatId, "• BÁO CÁO SÁNG 08:00");
           }
           // 3. Cron 11:01 UTC (18:01 PM VN): Báo cáo tự động Dashboard cuối ngày
           else if (event.cron === "1 11 * * *") {
             await sendSystemDashboardReport(env, config, config.telegramBotToken, config.telegramChatId, "• BÁO CÁO CHIỀU 18:01");
           }
-          // 4. Cron 00:00 UTC (07:00 AM VN) & 06:00 UTC (13:00 PM VN): Publishing Schedule
-          else {
+          // 4. Cron 00:00 UTC (07:00 AM VN) & 06:00 UTC (13:00 PM VN): Publishing Schedule (Đăng Buffer)
+          else if (event.cron === "0 0 * * *" || event.cron === "0 6 * * *") {
             await handlePublishingCron(env, config);
           }
         } catch (err) {
@@ -1521,10 +1528,10 @@ export async function handlePublishSingleBatch(env, config, source = "Manual") {
 }
 
 /**
- * Production Cron: Runs at 01:00 AM VN (UTC 18:00)
+ * Production Cron: Runs at 01:00 AM VN (UTC 18:00) and 10:00 AM VN (UTC 03:00)
  * Generates Idea (Pending) -> Triggers GitHub Actions Render -> Produces Video -> Telegram Moderation
  */
-export async function handleProductionCron(env, config) {
+export async function handleProductionCron(env, config, timeLabel = "01:00 Sáng VN") {
   const gsheet = new GoogleSheetsClient(
     config.gcpClientEmail,
     config.gcpPrivateKey,
@@ -1535,7 +1542,7 @@ export async function handleProductionCron(env, config) {
   const pendingBatches = await gsheet.getBatchesByStatus("Pending");
   const nowStr = getVietnamTimestamp();
 
-  console.log(`[PRODUCTION-CRON] Fired at ${nowStr} (GMT+7). Pending count: ${pendingBatches.length}`);
+  console.log(`[PRODUCTION-CRON] Fired at ${nowStr} (GMT+7) for ${timeLabel}. Pending count: ${pendingBatches.length}`);
 
   let ideaGenerated = null;
   // 1. Repair Failed batches if any
@@ -1545,7 +1552,7 @@ export async function handleProductionCron(env, config) {
       console.log(`[PRODUCTION-CRON] Found ${failedBatches.length} Failed batch(es). Repairing to Pending...`);
       ideaGenerated = await handleIdeateSingleBatch(env, config);
     } else if (pendingBatches.length === 0) {
-      console.log("[PRODUCTION-CRON] Generating 1 new idea batch for today...");
+      console.log(`[PRODUCTION-CRON] Generating 1 new idea batch for ${timeLabel}...`);
       ideaGenerated = await handleIdeateSingleBatch(env, config);
     }
   } catch (e) {
@@ -1559,10 +1566,10 @@ export async function handleProductionCron(env, config) {
   await sendTelegramMessage(
     config.telegramBotToken,
     config.telegramChatId,
-    `🏭 <b>[Lịch Sản Xuất 01:00 Sáng VN]</b>\n\n` +
+    `🏭 <b>[Lịch Sản Xuất ${timeLabel}]</b>\n\n` +
     (ideaGenerated ? `💡 Đã sinh ý tưởng mới: <b>#${ideaGenerated.rowId} - ${ideaGenerated.topic}</b>\n` : `💡 Đang có <b>${pendingBatches.length}</b> ý tưởng Pending.\n`) +
     `🚀 <b>Đã kích hoạt GitHub Actions Render Video!</b>\n` +
-    `<i>Khi render xong, video sẽ được gửi kèm nút kiểm duyệt (Approve / Reset / Delete) để bạn duyệt trước khi đăng lúc 07:00 & 13:00.</i>`
+    `<i>Khi render xong, video sẽ được lưu vào GDrive và Auto-QC sẽ tự động kiểm duyệt đạt chuẩn sang Ready.</i>`
   );
 }
 
