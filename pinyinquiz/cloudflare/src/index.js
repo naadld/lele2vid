@@ -1235,6 +1235,8 @@ async function handleTelegramUpdate(update, env, config) {
     );
     return;
   }
+}
+
 /**
  * Send System Dashboard Report (Used by /status command and Cron 12:01 / 18:01 VN)
  */
