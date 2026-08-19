@@ -6,6 +6,8 @@ on:
     - cron: '0 22 * * *'
     # 12:00 PM VN (05:00 UTC) - Auto-QC Gatekeeper duyệt video mẻ trưa
     - cron: '0 5 * * *'
+    # 20:00 PM VN (13:00 UTC) - Auto-QC Gatekeeper duyệt video mẻ tối
+    - cron: '0 13 * * *'
   workflow_dispatch:
     inputs:
       row_id:

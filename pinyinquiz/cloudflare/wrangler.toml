@@ -8,13 +8,13 @@ account_id = "3591f5b61af3263ca14af7a1765cc954"
 [ai]
 binding = "AI"
 
-# Cron Triggers (UTC) - Total 4 triggers (within Cloudflare Free 5-cron limit):
-# 1. "0 18,3 * * *" -> 01:00 Sáng (18:00 UTC) & 10:00 Sáng (03:00 UTC) VN: Sản xuất video
-# 2. "0 0,6 * * *"  -> 07:00 Sáng (00:00 UTC) & 13:00 Chiều (06:00 UTC) VN: Đăng bài Buffer
-# 3. "0 1 * * *"    -> 08:00 Sáng (01:00 UTC) VN: Báo cáo Dashboard sáng
-# 4. "1 11 * * *"   -> 18:01 Chiều (11:01 UTC) VN: Báo cáo Dashboard tối
+# Cron Triggers (UTC) - 4 triggers (within Cloudflare Free 5-cron limit):
+# 1. "0 12,18 * * *" -> 19:00 Tối (12:00 UTC) & 01:00 Sáng (18:00 UTC) VN: Sản xuất video (Sinh idea & Render)
+# 2. "0 0,6,14 * * *" -> 07:00 Sáng (00:00 UTC), 13:00 Chiều (06:00 UTC), 21:00 Tối (14:00 UTC) VN: Đăng bài Buffer 3 ca
+# 3. "1 5 * * *"     -> 12:01 Trưa (05:01 UTC) VN: Báo cáo Dashboard giữa ngày
+# 4. "0 15 * * *"    -> 22:00 Đêm (15:00 UTC) VN: Báo cáo Dashboard cuối ngày
 [triggers]
-crons = ["0 18,3 * * *", "0 0,6 * * *", "0 1 * * *", "1 11 * * *"]
+crons = ["0 12,18 * * *", "0 0,6,14 * * *", "1 5 * * *", "0 15 * * *"]
 
 [vars]
 SPREADSHEET_ID = "1b6LNl7JHRiCsjK1w9VuD86GLqAfmSOtDUOm5whrGdH0"

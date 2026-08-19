@@ -479,11 +479,11 @@ export default {
   },
 
   /**
-   * Scheduled Cron Handler (4 cron expressions within Cloudflare Free Limit):
-   * • "0 18,3 * * *": Sản xuất video Mẻ 1 (01:00 Sáng VN) & Mẻ 2 (10:00 Sáng VN)
-   * • "0 0,6 * * *" : Đăng bài Buffer Lần 1 (07:00 Sáng VN) & Lần 2 (13:00 Chiều VN)
-   * • "0 1 * * *"   : Báo cáo Dashboard tự động buổi sáng (08:00 Sáng VN)
-   * • "1 11 * * *"  : Báo cáo Dashboard tự động cuối ngày (18:01 Chiều VN)
+   * Cron Trigger Event Handler (Tự động hóa hoàn toàn 24/7)
+   * • "0 12,18 * * *" : Sản xuất video (19:00 Tối & 01:00 Sáng VN)
+   * • "0 0,6,14 * * *": Đăng bài Buffer 3 ca (07:00 Sáng, 13:00 Chiều, 21:00 Tối VN)
+   * • "1 5 * * *"     : Báo cáo Dashboard giữa ngày (12:01 Trưa VN)
+   * • "0 15 * * *"    : Báo cáo Dashboard cuối ngày (22:00 Đêm VN)
    */
   async scheduled(event, env, ctx) {
     const config = getConfig(env);
@@ -495,22 +495,22 @@ export default {
           const nowUtc = new Date();
           const utcHours = nowUtc.getUTCHours();
 
-          // 1. Production Schedule (Sinh idea & Render): 18:00 UTC (01:00 AM VN) or 03:00 UTC (10:00 AM VN)
-          if (event.cron === "0 18,3 * * *" || event.cron === "0 18 * * *" || event.cron === "0 3 * * *") {
-            const label = (utcHours >= 16 || utcHours <= 2) ? "01:00 Sáng" : "10:00 Sáng";
+          // 1. Production Schedule (Sinh idea & Render): 18:00 UTC (01:00 Sáng VN) or 12:00 UTC (19:00 Tối VN)
+          if (event.cron === "0 12,18 * * *" || event.cron === "0 18 * * *" || event.cron === "0 12 * * *") {
+            const label = (utcHours >= 16 || utcHours <= 2) ? "01:00 Sáng" : "19:00 Tối";
             await handleProductionCron(env, config, label);
           } 
-          // 2. Publishing Schedule (Đăng Buffer): 00:00 UTC (07:00 AM VN) or 06:00 UTC (13:00 PM VN)
-          else if (event.cron === "0 0,6 * * *" || event.cron === "0 0 * * *" || event.cron === "0 6 * * *") {
+          // 2. Publishing Schedule (Đăng Buffer 3 ca): 00:00 UTC (07:00 Sáng), 06:00 UTC (13:00 Chiều), 14:00 UTC (21:00 Tối)
+          else if (event.cron === "0 0,6,14 * * *" || event.cron === "0 0 * * *" || event.cron === "0 6 * * *" || event.cron === "0 14 * * *") {
             await handlePublishingCron(env, config);
           }
-          // 3. Báo cáo tự động Dashboard buổi sáng (08:00 AM VN / 01:00 UTC)
-          else if (event.cron === "0 1 * * *") {
-            await sendSystemDashboardReport(env, config, config.telegramBotToken, config.telegramChatId, "• BÁO CÁO SÁNG 08:00");
+          // 3. Báo cáo tự động Dashboard giữa ngày (12:01 Trưa VN / 05:01 UTC)
+          else if (event.cron === "1 5 * * *") {
+            await sendSystemDashboardReport(env, config, config.telegramBotToken, config.telegramChatId, "• BÁO CÁO GIỮA NGÀY 12:01");
           }
-          // 4. Báo cáo tự động Dashboard cuối ngày (18:01 PM VN / 11:01 UTC)
-          else if (event.cron === "1 11 * * *") {
-            await sendSystemDashboardReport(env, config, config.telegramBotToken, config.telegramChatId, "• BÁO CÁO CHIỀU 18:01");
+          // 4. Báo cáo tự động Dashboard cuối ngày (22:00 Đêm VN / 15:00 UTC)
+          else if (event.cron === "0 15 * * *") {
+            await sendSystemDashboardReport(env, config, config.telegramBotToken, config.telegramChatId, "• BÁO CÁO TỔNG KẾT ĐÊM 22:00");
           }
         } catch (err) {
           console.error("[CRON] Automation execution error:", err);
