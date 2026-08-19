@@ -440,44 +440,41 @@ export default {
           config.sheetTabName
         );
         const videoRows = await gsheet.getBatchesByStatus("Video");
-        const notified = [];
-
-        for (const vRow of videoRows) {
-          const rowId = vRow.id;
-          const topic = vRow.topic;
-          const level = vRow.level || "HSK 1-2";
-          const videoUrl = vRow.video_url || "";
-          
-          const caption = (
-            `🎬 <b>[Kiểm Duyệt Video] #${rowId}: ${topic} (${level})</b>\n\n` +
-            `📊 <b>Trạng thái:</b> <code>Video</code> (Đã lưu GDrive)\n` +
-            `🔗 <b>Link Video:</b> ${videoUrl || "Đã lưu trữ"}\n\n` +
-            `👇 <i>Vui lòng chọn thao tác kiểm duyệt:</i>\n` +
-            `• <b>Approve</b> ➔ Chuyển thành <code>Ready</code> (Đăng tự động lúc 07:00 / 13:00)\n` +
-            `• <b>Reset</b> ➔ Chuyển về <code>Pending</code> (Để render lại)\n` +
-            `• <b>Delete</b> ➔ Xóa dòng khỏi Sheet`
-          );
-
-          const replyMarkup = {
-            inline_keyboard: [
-              [
-                { text: "🟢 Approve (Ready)", callback_data: `approve:${rowId}` },
-                { text: "🔄 Reset (Pending)", callback_data: `reset:${rowId}` }
-              ],
-              [
-                { text: "🗑️ Delete", callback_data: `delete:${rowId}` },
-                { text: "⏸️ Cancel (Để sau)", callback_data: `cancel:${rowId}` }
-              ]
-            ]
-          };
-
-          const tgRes = await sendTelegramMessage(config.telegramBotToken, targetChat, caption, {
-            reply_markup: replyMarkup
+        
+        if (videoRows.length === 0) {
+          return new Response(JSON.stringify({ success: true, count: 0, message: "No video rows waiting for moderation." }), {
+            headers: { "Content-Type": "application/json" }
           });
-          notified.push({ rowId, topic, ok: Boolean(tgRes && tgRes.ok) });
         }
 
-        return new Response(JSON.stringify({ success: true, count: notified.length, notified }, null, 2), {
+        // Send a SINGLE consolidated batch summary message instead of flooding the chat
+        const videoListText = videoRows
+          .map(v => `• <b>#${v.id}:</b> ${v.topic} (<code>${v.level || "HSK 1"}</code>)`)
+          .join("\n");
+
+        const summaryCaption = (
+          `🎬 <b>[HOÀN THÀNH KẾT XUẤT MẺ VIDEO]</b>\n` +
+          `━o0o━\n\n` +
+          `🚀 Đã render thành công <b>${videoRows.length} video mới</b> kèm ảnh bìa 0.75s và lưu vào Google Drive!\n\n` +
+          `📋 <b>Danh sách video chờ duyệt:</b>\n` +
+          `${videoListText}\n\n` +
+          `💡 <i>Hệ thống Auto-QC sẽ tự động kiểm duyệt lúc 12:30 hoặc bạn có thể bấm nút duyệt ngay bên dưới:</i>`
+        );
+
+        const replyMarkup = {
+          inline_keyboard: [
+            [
+              { text: "🛡️ Chạy Auto-QC Duyệt", callback_data: "cmd_qc" },
+              { text: "📊 Xem Dashboard", callback_data: "cmd_refresh_status" }
+            ]
+          ]
+        };
+
+        const tgRes = await sendTelegramMessage(config.telegramBotToken, targetChat, summaryCaption, {
+          reply_markup: replyMarkup
+        });
+
+        return new Response(JSON.stringify({ success: true, count: videoRows.length, summarySent: Boolean(tgRes && tgRes.ok) }, null, 2), {
           headers: { "Content-Type": "application/json" }
         });
       } catch (err) {
