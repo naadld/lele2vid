@@ -1237,7 +1237,7 @@ async function handleTelegramUpdate(update, env, config) {
 
       const msg = (
         `📊 <b>BÁO CÁO TỔNG QUAN HỆ THỐNG LÊ LÊ HỌC TIẾNG TRUNG</b>\n` +
-        `━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+        `o0o\n\n` +
         `📦 <b>KHO NỘI DUNG & TIẾN ĐỘ XUẤT BẢN:</b>\n` +
         `🟢 <b>Video Đã Duyệt (Ready):</b> <b>${summary.readyCount} / ${targetReadyVideos} video</b>\n` +
         `   └ <code>${readyBar}</code> <b>${readyDays} ngày</b> an toàn\n` +
@@ -1250,7 +1250,7 @@ async function handleTelegramUpdate(update, env, config) {
         `   └ <code>[${bufferBar}]</code> <b>${bufferStats.monthlyRemaining?.toLocaleString()} / ${bufferStats.monthlyLimit?.toLocaleString()} req</b> (còn ${bufferPct}%)\n` +
         `   └ <i>Đã dùng: ${bufferStats.monthlyUsed} req • Dư sức chạy ${Math.floor((bufferStats.monthlyRemaining || 2960) / 8)} ngày</i>\n\n` +
         `⏰ <b>LỊCH ĐĂNG BÀI:</b> <b>07:00 Sáng & 13:00 Chiều Hàng Ngày</b>\n` +
-        `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `o0o\n` +
         `👇 <i>Bấm các nút dưới đây để điều khiển nhanh hệ thống:</i>`
       );
 
