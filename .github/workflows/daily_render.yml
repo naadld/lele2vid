@@ -31,11 +31,12 @@ jobs:
         with:
           python-version: '3.12'
 
-      # 1. Install System Dependencies & CJK Fonts
+      # 1. Install System Dependencies & CJK Fonts (Anti-Hang Mirror Fix)
       - name: Install System Dependencies & CJK Fonts
         run: |
-          sudo apt-get update -o Acquire::Retries=2 -o Acquire::http::Timeout="15"
-          sudo apt-get install -y --no-install-recommends \
+          sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu/|http://archive.ubuntu.com/ubuntu/|g' /etc/apt/sources.list /etc/apt/sources.list.d/* || true
+          timeout 45s sudo apt-get update -y || true
+          timeout 60s sudo apt-get install -y --no-install-recommends \
             ffmpeg \
             pkg-config \
             libpango1.0-dev \
@@ -43,8 +44,8 @@ jobs:
             sox \
             libsox-fmt-all \
             fonts-noto-cjk \
-            fonts-wqy-zenhei
-          fc-cache -f -v
+            fonts-wqy-zenhei || true
+          fc-cache -f -v || true
 
       # 2. Caching Python Virtual Environment (Khôi phục trong 2-3 giây)
       - name: Cache Python Virtualenv
