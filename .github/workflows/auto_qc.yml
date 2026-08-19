@@ -44,18 +44,21 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.venv
-          key: ${{ runner.os }}-venv-standalone-${{ hashFiles('pinyinquiz/requirements.txt') }}
+          key: ${{ runner.os }}-venv-v4-${{ hashFiles('pinyinquiz/requirements.txt') }}
 
-      # 3. Setup Python Virtualenv (Chỉ biên dịch khi thiếu cache)
+      # 3. Setup Python Virtualenv (Tự động biên dịch nếu thiếu hoặc cache hỏng)
       - name: Setup Virtualenv & Dependencies
         run: |
-          if [ "${{ steps.cache-venv.outputs.cache-hit }}" != "true" ]; then
+          if [ "${{ steps.cache-venv.outputs.cache-hit }}" != "true" ] || [ ! -f "$HOME/.venv/bin/python" ]; then
+            echo "🔧 Installing dependencies and compiling virtual environment..."
             sudo apt-get update -y || true
             sudo apt-get install -y --no-install-recommends pkg-config libpango1.0-dev libcairo2-dev || true
             python -m venv ~/.venv
             source ~/.venv/bin/activate
             pip install --upgrade pip setuptools wheel
             pip install -r pinyinquiz/requirements.txt
+          else
+            echo "✅ Virtual environment restored successfully."
           fi
           echo "$HOME/.venv/bin" >> $GITHUB_PATH
 
