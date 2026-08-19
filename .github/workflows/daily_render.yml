@@ -31,23 +31,19 @@ jobs:
         with:
           python-version: '3.12'
 
-      # 1. Caching CJK Fonts (Khôi phục trong 1 giây)
-      - name: Cache CJK Fonts
-        id: cache-fonts
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.fonts
-            /usr/share/fonts/truetype/noto
-            /usr/share/fonts/truetype/wqy
-          key: ${{ runner.os }}-cjk-fonts-v2
-
-      - name: Install CJK Fonts (Only on cache miss)
-        if: steps.cache-fonts.outputs.cache-hit != 'true'
+      # 1. Install System Dependencies & CJK Fonts
+      - name: Install System Dependencies & CJK Fonts
         run: |
-          sudo apt-get update -o Acquire::Retries=2 -o Acquire::http::Timeout="10" || true
-          sudo apt-get install -y --no-install-recommends fonts-noto-cjk fonts-wqy-zenhei sox libsox-fmt-all || true
-          fc-cache -f -v || true
+          sudo apt-get update -o Acquire::Retries=2 -o Acquire::http::Timeout="15"
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config \
+            libpango1.0-dev \
+            libcairo2-dev \
+            sox \
+            libsox-fmt-all \
+            fonts-noto-cjk \
+            fonts-wqy-zenhei
+          fc-cache -f -v
 
       # 2. Caching Python Virtual Environment (Khôi phục trong 2-3 giây)
       - name: Cache Python Virtualenv
@@ -62,7 +58,7 @@ jobs:
           if [ "${{ steps.cache-venv.outputs.cache-hit }}" != "true" ]; then
             python -m venv ~/.venv
             source ~/.venv/bin/activate
-            pip install --upgrade pip
+            pip install --upgrade pip setuptools wheel
             pip install -r pinyinquiz/requirements.txt
           fi
           echo "$HOME/.venv/bin" >> $GITHUB_PATH
