@@ -28,28 +28,23 @@ jobs:
           python-version: '3.12'
           cache: 'pip'
 
-      # Cache Pip Wheels for ultrafast install
-      - name: Cache Pip Wheels
+      # Cache Python Virtual Environment
+      - name: Cache Python Virtualenv
+        id: cache-venv
         uses: actions/cache@v4
         with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('pinyinquiz/requirements.txt', 'requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
+          path: ~/.venv
+          key: ${{ runner.os }}-venv-${{ hashFiles('pinyinquiz/requirements.txt') }}
 
-      - name: Install System Dependencies (FFmpeg & LibGL)
+      - name: Setup Virtualenv & Dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg libgl1 libglib2.0-0
-
-      - name: Install Python Requirements
-        run: |
-          python -m pip install --upgrade pip
-          if [ -f pinyinquiz/requirements.txt ]; then
+          if [ "${{ steps.cache-venv.outputs.cache-hit }}" != "true" ]; then
+            python -m venv ~/.venv
+            source ~/.venv/bin/activate
+            pip install --upgrade pip
             pip install -r pinyinquiz/requirements.txt
-          elif [ -f requirements.txt ]; then
-            pip install -r requirements.txt
           fi
+          echo "$HOME/.venv/bin" >> $GITHUB_PATH
 
       - name: Setup Service Account Credentials
         env:
