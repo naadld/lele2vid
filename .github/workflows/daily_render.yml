@@ -36,6 +36,7 @@ jobs:
         run: |
           sudo apt-get update -o Acquire::Retries=2 -o Acquire::http::Timeout="15"
           sudo apt-get install -y --no-install-recommends \
+            ffmpeg \
             pkg-config \
             libpango1.0-dev \
             libcairo2-dev \
