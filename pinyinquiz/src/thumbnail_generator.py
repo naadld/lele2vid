@@ -15,6 +15,8 @@ logger = logging.getLogger("ThumbnailGenerator")
 
 # Standard CJK and Latin Font Paths
 FONT_CANDIDATES = [
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "fonts", "NotoSansSC.ttf"),
+    os.path.expanduser("~/.fonts/NotoSansSC.ttf"),
     "/usr/share/fonts/truetype/litefonts/ARIALUNI.TTF",
     "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
     "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc",
