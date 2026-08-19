@@ -198,6 +198,13 @@ export class GoogleSheetsClient {
   }
 
   /**
+   * Update a single cell value
+   */
+  async updateCell(cellRange, value) {
+    return await this.updateRange(cellRange, [[value]]);
+  }
+
+  /**
    * Clear a specific range
    */
   async clearRange(range) {
