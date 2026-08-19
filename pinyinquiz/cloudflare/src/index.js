@@ -833,6 +833,10 @@ async function handleTelegramUpdate(update, env, config) {
         chatId,
         `❌ <b>Lỗi kích hoạt Auto-QC:</b>\n<code>${err.message}</code>`
       );
+    }
+    return;
+  }
+
   // 3c. /reset <row_id>: Reset trạng thái dòng về Pending để render lại
   if (command === "/reset" || command === "/pending") {
     const rawTarget = rawText.split(" ")[1] || "";
