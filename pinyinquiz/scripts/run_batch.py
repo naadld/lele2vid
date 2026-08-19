@@ -1,6 +1,7 @@
 import os
 import sys
 import re
+import json
 import argparse
 import logging
 from datetime import datetime
@@ -32,44 +33,72 @@ def sanitize_filename(name: str) -> str:
     s = re.sub(r'[/\\:*?"<>|]', '_', name)
     return s.strip()
 
-def send_telegram_alert_message(text: str):
-    """Send text alert to Telegram bot."""
-    bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip() or "8974080727:AAFiyOQzfadrZ8EF_IhYrNnwsy-9BTnsYis"
+def send_telegram_alert_message(text: str, reply_markup: dict = None):
+    """Send text alert to Telegram bot with optional inline keyboard."""
+    bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
     chat_id = os.getenv("TELEGRAM_CHAT_ID", "").strip() or "6800539169"
 
     if not (bot_token and chat_id):
+        logger.warning("Telegram alert skipped: TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is missing.")
         return
     try:
         import requests
         url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-        requests.post(url, json={"chat_id": chat_id, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True}, timeout=20)
+        payload = {
+            "chat_id": chat_id,
+            "text": text,
+            "parse_mode": "HTML",
+            "disable_web_page_preview": False
+        }
+        if reply_markup:
+            payload["reply_markup"] = reply_markup
+        res = requests.post(url, json=payload, timeout=20)
+        if res.status_code == 200:
+            logger.info("Sent Telegram alert message successfully.")
+        else:
+            logger.warning(f"Telegram alert warning ({res.status_code}): {res.text}")
     except Exception as e:
         logger.warning(f"Telegram alert error: {e}")
 
-def send_telegram_video(video_path: str, caption: str, row_id: str = ""):
+def send_telegram_video(video_path: str, caption: str, row_id: str = "", gdrive_link: str = ""):
     """Send rendered video file directly to Telegram bot chat with moderation inline keyboard."""
-    bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip() or "8974080727:AAFiyOQzfadrZ8EF_IhYrNnwsy-9BTnsYis"
+    bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
     chat_id = os.getenv("TELEGRAM_CHAT_ID", "").strip() or "6800539169"
     
-    if not (bot_token and chat_id and os.path.exists(video_path)):
-        logger.info("Telegram notification skipped (bot_token, chat_id or video_path missing).")
+    if not (bot_token and chat_id):
+        logger.warning("Telegram notification skipped: TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID missing.")
         return
         
+    reply_markup = {
+        "inline_keyboard": [
+            [
+                {"text": "🟢 Approve (Ready)", "callback_data": f"approve:{row_id}"},
+                {"text": "🔄 Reset (Pending)", "callback_data": f"reset:{row_id}"}
+            ],
+            [
+                {"text": "🗑️ Delete", "callback_data": f"delete:{row_id}"},
+                {"text": "⏸️ Cancel (Để sau)", "callback_data": f"cancel:{row_id}"}
+            ]
+        ]
+    }
+
+    # If video file doesn't exist locally, send text fallback
+    if not (video_path and os.path.exists(video_path)):
+        logger.info(f"Video file not found locally ({video_path}). Sending Telegram alert with GDrive link.")
+        send_telegram_alert_message(caption, reply_markup=reply_markup)
+        return
+
     url = f"https://api.telegram.org/bot{bot_token}/sendVideo"
     try:
-        logger.info(f"Sending video to Telegram ({chat_id}): {video_path}")
-        reply_markup = {
-            "inline_keyboard": [
-                [
-                    {"text": "🟢 Approve (Ready)", "callback_data": f"approve:{row_id}"},
-                    {"text": "🔄 Reset (Pending)", "callback_data": f"reset:{row_id}"}
-                ],
-                [
-                    {"text": "🗑️ Delete", "callback_data": f"delete:{row_id}"},
-                    {"text": "⏸️ Cancel (Để sau)", "callback_data": f"cancel:{row_id}"}
-                ]
-            ]
-        }
+        file_size_mb = os.path.getsize(video_path) / (1024 * 1024)
+        logger.info(f"Sending video to Telegram ({chat_id}): {video_path} ({file_size_mb:.2f} MB)")
+
+        # Telegram Bot API standard sendVideo limit is 50MB
+        if file_size_mb > 49.0:
+            logger.warning(f"Video size ({file_size_mb:.2f} MB) exceeds Telegram 50MB limit. Sending text with GDrive link.")
+            send_telegram_alert_message(caption, reply_markup=reply_markup)
+            return
+
         with open(video_path, "rb") as video_file:
             files = {"video": video_file}
             data = {
@@ -80,13 +109,15 @@ def send_telegram_video(video_path: str, caption: str, row_id: str = ""):
                 "reply_markup": json.dumps(reply_markup)
             }
             import requests
-            res = requests.post(url, data=data, files=files, timeout=90)
+            res = requests.post(url, data=data, files=files, timeout=120)
             if res.status_code == 200:
                 logger.info("Successfully sent video to Telegram bot with moderation buttons!")
             else:
-                logger.warning(f"Failed to send video to Telegram: {res.status_code} - {res.text}")
+                logger.warning(f"Failed to send video to Telegram: {res.status_code} - {res.text}. Falling back to text message.")
+                send_telegram_alert_message(caption, reply_markup=reply_markup)
     except Exception as e:
-        logger.warning(f"Error sending video to Telegram: {e}")
+        logger.warning(f"Error sending video to Telegram: {e}. Falling back to text message.")
+        send_telegram_alert_message(caption, reply_markup=reply_markup)
 
 def run_batch_job(from_sheet: bool = True, target_id: str = None, sample: bool = False, quality: str = "qh", upload_gdrive: bool = False):
     """
@@ -241,7 +272,7 @@ def run_batch_job(from_sheet: bool = True, target_id: str = None, sample: bool =
                 f"• <b>Delete</b> ➔ Xóa dòng khỏi Sheet\n"
                 f"• <b>Cancel</b> ➔ Giữ nguyên <code>Video</code> (Để sau)"
             )
-            send_telegram_video(video_path, tg_caption, row_id=str(row_id))
+            send_telegram_video(video_path, tg_caption, row_id=str(row_id), gdrive_link=gdrive_link)
             logger.info(f" Batch [{row_id}] finished successfully -> {video_path}")
         else:
             logger.error(f"❌ Failed to render batch [{row_id}]")
@@ -252,12 +283,14 @@ def run_batch_job(from_sheet: bool = True, target_id: str = None, sample: bool =
                     gsheet_mgr.worksheet.update_cell(row_index, 16, f"[Render Thất Bại lúc {now_str}]")
                 except Exception:
                     pass
-            send_telegram_alert_message(
+            # Send Telegram alert on render failure
+            fail_msg = (
                 f"❌ <b>[Render Thất Bại] #{row_id}: {topic} ({level})</b>\n\n"
-                f"📊 <b>Trạng thái:</b> <code>In Progress ➔ Failed</code>\n"
+                f"📊 <b>Trạng thái:</b> <code>Pending ➔ Failed</code>\n"
                 f"⚠️ <b>Nguyên nhân:</b> Lỗi trong quá trình kết xuất Manim / FFmpeg.\n"
-                f"🔄 Hệ thống sẽ tự động thử khôi phục trong lượt tới."
+                f"🔄 Hệ thống sẽ tự động thử khôi phục trong lượt tới hoặc bạn có thể gõ <code>/render {row_id}</code> để thử lại."
             )
+            send_telegram_alert_message(fail_msg)
 
 def main():
     parser = argparse.ArgumentParser(description="lelehoctiengtrung_pinyin Batch Runner")

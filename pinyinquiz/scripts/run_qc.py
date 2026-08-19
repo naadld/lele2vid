@@ -22,11 +22,11 @@ logger = logging.getLogger("AutoQCRunner")
 
 def send_telegram_qc_alert(text: str):
     """Send Auto-QC notification to Telegram bot."""
-    bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip() or "8974080727:AAFiyOQzfadrZ8EF_IhYrNnwsy-9BTnsYis"
+    bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
     chat_id = os.getenv("TELEGRAM_CHAT_ID", "").strip() or "6800539169"
 
     if not (bot_token and chat_id):
-        logger.info("Telegram notification skipped (bot token or chat ID missing).")
+        logger.warning("Telegram notification skipped: TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID missing.")
         return
 
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
@@ -40,9 +40,16 @@ def send_telegram_qc_alert(text: str):
         }
         res = requests.post(url, json=data, timeout=20)
         if res.status_code == 200:
-            logger.info("Sent Auto-QC notification to Telegram.")
+            logger.info("Sent Auto-QC notification to Telegram successfully.")
         else:
             logger.warning(f"Failed to send Telegram alert: {res.status_code} - {res.text}")
+            # Retry with plain text if HTML parse failed
+            if "parse" in res.text.lower():
+                import re
+                plain_text = re.sub(r'<[^>]*>', '', text)
+                data["text"] = plain_text
+                data.pop("parse_mode", None)
+                requests.post(url, json=data, timeout=20)
     except Exception as e:
         logger.warning(f"Telegram notification error: {e}")
 

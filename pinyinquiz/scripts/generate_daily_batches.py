@@ -180,14 +180,23 @@ def generate_daily_rows(count: int = 5) -> List[List[str]]:
 
 def send_telegram_alert(text: str):
     """Send Telegram notification."""
-    bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip() or "8974080727:AAFiyOQzfadrZ8EF_IhYrNnwsy-9BTnsYis"
+    bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
     chat_id = os.getenv("TELEGRAM_CHAT_ID", "").strip() or "6800539169"
     if not (bot_token and chat_id):
+        logger.warning("Telegram alert skipped: TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID missing.")
         return
     try:
         import requests
         url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-        requests.post(url, json={"chat_id": chat_id, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True}, timeout=20)
+        payload = {"chat_id": chat_id, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True}
+        res = requests.post(url, json=payload, timeout=20)
+        if res.status_code != 200:
+            logger.warning(f"Telegram alert warning ({res.status_code}): {res.text}")
+            if "parse" in res.text.lower():
+                import re
+                payload["text"] = re.sub(r'<[^>]*>', '', text)
+                payload.pop("parse_mode", None)
+                requests.post(url, json=payload, timeout=20)
     except Exception as e:
         logger.warning(f"Telegram alert error: {e}")
 

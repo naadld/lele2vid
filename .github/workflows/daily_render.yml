@@ -132,7 +132,22 @@ jobs:
           echo "Credentials cleaned up. Render workflow completed."
 
       - name: Trigger Cloudflare Moderation Notification
-        if: always()
+        if: success()
         run: |
           echo "Triggering Cloudflare Worker to send moderation videos to Telegram..."
           curl -s -X POST https://lele-pinyinquiz.hothihuong113.workers.dev/api/notify-videos || true
+
+      - name: Notify Workflow Failure to Telegram
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          CHAT_ID="${TELEGRAM_CHAT_ID:-6800539169}"
+          if [ -n "$TELEGRAM_BOT_TOKEN" ]; then
+            MSG="🚨 <b>[GitHub Actions Lỗi] Pipeline Render Thất Bại!</b>%0A%0A• <b>Workflow:</b> <code>daily_render.yml</code>%0A• <b>Run ID:</b> <a href=\"https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\">${{ github.run_id }}</a>%0A• Vui lòng kiểm tra log chi tiết trên GitHub Actions."
+            curl -s "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+              -d "chat_id=${CHAT_ID}" \
+              -d "text=${MSG}" \
+              -d "parse_mode=HTML" || true
+          fi

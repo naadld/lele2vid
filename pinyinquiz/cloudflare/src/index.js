@@ -320,6 +320,83 @@ export default {
       }
     }
 
+    // 4c. Notify Videos Endpoint (triggered by GitHub Actions post-render or manually)
+    if ((url.pathname === "/api/notify-videos" || url.pathname === "/api/notify-render-done") && (request.method === "POST" || request.method === "GET")) {
+      try {
+        const targetChat = url.searchParams.get("chat_id") || config.telegramChatId;
+        const gsheet = new GoogleSheetsClient(
+          config.gcpClientEmail,
+          config.gcpPrivateKey,
+          config.spreadsheetId,
+          config.sheetTabName
+        );
+        const videoRows = await gsheet.getBatchesByStatus("Video");
+        const notified = [];
+
+        for (const vRow of videoRows) {
+          const rowId = vRow.id;
+          const topic = vRow.topic;
+          const level = vRow.level || "HSK 1-2";
+          const videoUrl = vRow.video_url || "";
+          
+          const caption = (
+            `🎬 <b>[Kiểm Duyệt Video] #${rowId}: ${topic} (${level})</b>\n\n` +
+            `📊 <b>Trạng thái:</b> <code>Video</code> (Đã lưu GDrive)\n` +
+            `🔗 <b>Link Video:</b> ${videoUrl || "Đã lưu trữ"}\n\n` +
+            `👇 <i>Vui lòng chọn thao tác kiểm duyệt:</i>\n` +
+            `• <b>Approve</b> ➔ Chuyển thành <code>Ready</code> (Đăng tự động lúc 07:00 / 13:00)\n` +
+            `• <b>Reset</b> ➔ Chuyển về <code>Pending</code> (Để render lại)\n` +
+            `• <b>Delete</b> ➔ Xóa dòng khỏi Sheet\n` +
+            `• <b>Cancel</b> ➔ Giữ nguyên <code>Video</code> (Để sau)`
+          );
+
+          const replyMarkup = {
+            inline_keyboard: [
+              [
+                { text: "🟢 Approve (Ready)", callback_data: `approve:${rowId}` },
+                { text: "🔄 Reset (Pending)", callback_data: `reset:${rowId}` }
+              ],
+              [
+                { text: "🗑️ Delete", callback_data: `delete:${rowId}` },
+                { text: "⏸️ Cancel (Để sau)", callback_data: `cancel:${rowId}` }
+              ]
+            ]
+          };
+
+          const tgRes = await sendTelegramMessage(config.telegramBotToken, targetChat, caption, {
+            reply_markup: replyMarkup
+          });
+          notified.push({ rowId, topic, ok: Boolean(tgRes && tgRes.ok) });
+        }
+
+        return new Response(JSON.stringify({ success: true, count: notified.length, notified }, null, 2), {
+          headers: { "Content-Type": "application/json" }
+        });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message, stack: err.stack }), { status: 500, headers: { "Content-Type": "application/json" } });
+      }
+    }
+
+    // 4d. Generic Notification Relay Endpoint (for GitHub Actions or external alerts)
+    if (url.pathname === "/api/notify" && request.method === "POST") {
+      try {
+        const body = await request.json();
+        const targetChat = body.chat_id || config.telegramChatId;
+        const text = body.text || body.message || "🔔 Thông báo từ hệ thống";
+        const replyMarkup = body.reply_markup || null;
+
+        const tgRes = await sendTelegramMessage(config.telegramBotToken, targetChat, text, {
+          reply_markup: replyMarkup
+        });
+
+        return new Response(JSON.stringify({ success: Boolean(tgRes && tgRes.ok), result: tgRes }, null, 2), {
+          headers: { "Content-Type": "application/json" }
+        });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: { "Content-Type": "application/json" } });
+      }
+    }
+
     // 5. Telegram Webhook Endpoint
     if (url.pathname === "/webhook" && request.method === "POST") {
       if (config.telegramWebhookSecret) {
@@ -783,6 +860,24 @@ async function handleTelegramUpdate(update, env, config) {
     return;
   }
 
+  // 5b. /myid (Xem Telegram Chat ID và xác nhận kết nối)
+  if (command === "/myid" || command === "/id") {
+    const fromUser = message.from || {};
+    const userName = fromUser.username ? `@${fromUser.username}` : (fromUser.first_name || "Bạn");
+    const chatType = message.chat.type || "private";
+
+    const idMsg = (
+      `🆔 <b>THÔNG TIN TELEGRAM CHAT ID</b>\n\n` +
+      `👤 <b>Người dùng:</b> ${userName} (${fromUser.first_name || ""})\n` +
+      `📌 <b>Chat ID của bạn:</b> <code>${chatId}</code>\n` +
+      `🏢 <b>Loại Chat:</b> <code>${chatType}</code>\n\n` +
+      `✅ <b>Trạng thái kết nối Bot:</b> <code>HOẠT ĐỘNG 100%</code>\n` +
+      `<i>(Bot đã ghi nhận Chat ID này để gửi các thông báo kiểm duyệt, render và đăng video tự động).</i>`
+    );
+    await sendTelegramMessage(botToken, chatId, idMsg);
+    return;
+  }
+
   // 6. Unknown / Unrecognized Command Fallback
   if (command.startsWith("/")) {
     await sendTelegramMessage(
@@ -795,6 +890,7 @@ async function handleTelegramUpdate(update, env, config) {
       `• <code>/qc</code>: Kích hoạt Auto-QC Gatekeeper kiểm tra video\n` +
       `• <code>/publish</code>: Đăng 1 video lên Buffer (YouTube, TikTok, Facebook)\n` +
       `• <code>/status</code>: Xem thống kê hàng đợi trên Google Sheets\n` +
+      `• <code>/myid</code>: Xem Chat ID Telegram của bạn\n` +
       `• <code>/help</code>: Xem hướng dẫn sử dụng chi tiết`
     );
     return;

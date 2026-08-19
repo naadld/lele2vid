@@ -170,6 +170,46 @@ export async function editTelegramMessageText(botToken, chatId, messageId, text,
 }
 
 /**
+ * Send Video by URL or File to Telegram Chat
+ */
+export async function sendTelegramVideo(botToken, chatId, videoUrl, caption = "", replyMarkup = null) {
+  if (!botToken || !chatId || !videoUrl) return null;
+
+  const url = `https://api.telegram.org/bot${botToken}/sendVideo`;
+  const body = {
+    chat_id: chatId,
+    video: videoUrl,
+    caption: caption,
+    parse_mode: "HTML",
+    supports_streaming: true
+  };
+
+  if (replyMarkup !== null) {
+    body.reply_markup = replyMarkup;
+  }
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      console.warn("Telegram sendVideo error:", data);
+      // Fallback: send as message with link
+      return await sendTelegramMessage(botToken, chatId, `${caption}\n\n🔗 <b>Xem Video:</b> ${videoUrl}`, {
+        reply_markup: replyMarkup
+      });
+    }
+    return data;
+  } catch (err) {
+    console.error("Failed to send Telegram video:", err);
+    return null;
+  }
+}
+
+/**
  * Build help / start menu message
  */
 export function getHelpMessage() {
@@ -192,6 +232,9 @@ export function getHelpMessage() {
 
 🔹 <code>/status</code>:
    👉 Thống kê: Pending (chờ render), Video (chờ duyệt), Ready (sẵn sàng đăng), Error (lỗi đăng).
+
+🔹 <code>/myid</code>:
+   👉 Xem Chat ID Telegram hiện tại của bạn và kiểm tra trạng thái kết nối bot.
 
 🔹 <code>/help</code>:
    👉 Xem lại hướng dẫn này.
