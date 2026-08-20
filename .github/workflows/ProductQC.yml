@@ -32,6 +32,8 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: pinyinquiz/requirements.txt
 
       # 1. Install FFmpeg & System Dependencies
       - name: Install FFmpeg & System Dependencies
@@ -45,21 +47,10 @@ jobs:
           cp pinyinquiz/assets/fonts/*.ttf ~/.fonts/ 2>/dev/null || true
           fc-cache -f || true
 
-      # 3. Cache Python Virtualenv
-      - name: Cache Python Virtualenv
-        id: cache-venv
-        uses: actions/cache@v4
-        with:
-          path: ~/.venv
-          key: ${{ runner.os }}-venv-v5-${{ hashFiles('pinyinquiz/requirements.txt') }}
-
-      # 4. Setup Virtualenv & Dependencies (OpenCV headless, etc.)
+      # 3. Setup Virtualenv & Dependencies (OpenCV headless, etc.)
       - name: Setup Virtualenv & Dependencies
         run: |
-          if [ ! -f "$HOME/.venv/bin/python" ]; then
-            echo "🔧 Creating virtual environment..."
-            python -m venv ~/.venv
-          fi
+          python -m venv ~/.venv
           source ~/.venv/bin/activate
           pip install --upgrade pip setuptools wheel
           pip install -r pinyinquiz/requirements.txt
