@@ -747,13 +747,20 @@ export async function processGatekeeperIdea(env, config, payload) {
       if (existing) targetRowNum = existing.rowNumber;
     }
 
+    let finalBatchId = rowId;
+
     if (targetRowNum) {
-      // Repair / Update existing row
+      // Repair / Update existing row - Row Number matches Batch ID
+      finalBatchId = String(targetRowNum);
       await gsheet.repairBatchRow(targetRowNum, topic, level, words, metadataText, notes);
     } else {
-      // Append as new row
+      // Append as new row - Enforce STRICT Rule: Sheet Row Number === Batch # ID
+      const allRows = await gsheet.getAllRows();
+      const nextSheetRowIndex = (allRows && allRows.length > 0) ? allRows.length + 1 : 2;
+      finalBatchId = String(nextSheetRowIndex);
+
       const newRow = [
-        rowId || "",       // Col A: ID
+        finalBatchId,      // Col A: ID (Guaranteed == Sheet Row Index)
         topic,             // Col B: Topic
         level,             // Col C: Level
         "Pending",         // Col D: Status -> Pending

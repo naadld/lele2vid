@@ -176,16 +176,24 @@ def run_auto_qc(target_row_id: str = None):
 
     # Send strictly 1 single summary message
     if len(video_batches) > 0:
+        # If all batches were skipped (e.g. video URL not ready or currently rendering), don't send misleading 0/0 report
+        if passed_count == 0 and failed_count == 0 and skipped_count > 0:
+            logger.info(f"All {skipped_count} video(s) were skipped (video link not ready / rendering in progress). Suppressing 0/0 alert.")
+            return
+
         failed_section = ""
         if len(failed_details) > 0:
             failed_section = "\n\n⚠️ <b>Chi tiết video cần sửa:</b>\n" + "\n".join(failed_details)
+
+        skipped_line = f"\n• 🟡 <b>{skipped_count} video</b> đang chờ video/chưa sẵn sàng" if skipped_count > 0 else ""
 
         summary_msg = (
             f"🛡️ <b>[Auto-QC Gatekeeper Hoàn Tất]</b>\n"
             f"━o0o━\n\n"
             f"📊 <b>Kết quả kiểm định {len(video_batches)} video:</b>\n"
-            f"• 🟢 <b>{passed_count} video</b> đạt chuẩn ➔ <code>Ready</code> (Đăng tự động lúc 07:00 & 13:00)\n"
+            f"• 🟢 <b>{passed_count} video</b> đạt chuẩn ➔ <code>Ready</code> (Đăng tự động theo lịch)\n"
             f"• 🔴 <b>{failed_count} video</b> không đạt chuẩn ➔ <code>Failed</code>"
+            f"{skipped_line}"
             f"{failed_section}\n\n"
             f"🕒 <i>Thời gian: {get_vietnam_now_str()} (GMT+7)</i>"
         )
