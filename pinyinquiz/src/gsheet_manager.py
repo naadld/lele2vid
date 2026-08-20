@@ -228,10 +228,44 @@ class GSheetManager:
             return None
 
         headers = rows[0]
+        # 1. First priority: match exact '#' column ID
         for row_idx, row in enumerate(rows[1:], start=2):
             row_dict = {headers[i]: row[i] if i < len(row) else "" for i in range(len(headers))}
             row_id = str(row_dict.get("#", "")).replace("#", "").strip()
-            if row_id == clean_target or str(row_idx) == clean_target:
+            if row_id == clean_target:
+                words = []
+                for w_idx in range(1, 6):
+                    w_key = f"Word {w_idx}"
+                    w_val = row_dict.get(w_key, "").strip()
+                    if w_val:
+                        parts = [p.strip() for p in w_val.split("|")]
+                        hanzi = parts[0]
+                        pinyin = parts[1] if len(parts) > 1 else ""
+                        hidden = parts[2] if len(parts) > 2 else ""
+                        meaning = parts[3] if len(parts) > 3 else ""
+                        words.append({
+                            "hanzi": hanzi,
+                            "pinyin": pinyin,
+                            "hidden_pinyin": hidden,
+                            "meaning": meaning or hanzi
+                        })
+
+                return {
+                    "row_index": row_idx,
+                    "id": row_dict.get("#", str(row_idx)),
+                    "topic": row_dict.get("Topic", "HSK 1-2 • TỪ VỰNG CƠ BẢN"),
+                    "level": row_dict.get("Level", "HSK 1-2"),
+                    "words": words,
+                    "video_url": row_dict.get("Video", ""),
+                    "metadata": row_dict.get("metadata", ""),
+                    "notes": row_dict.get("Notes", ""),
+                    "raw_data": row_dict
+                }
+
+        # 2. Second priority fallback: match physical row index
+        for row_idx, row in enumerate(rows[1:], start=2):
+            if str(row_idx) == clean_target:
+                row_dict = {headers[i]: row[i] if i < len(row) else "" for i in range(len(headers))}
                 words = []
                 for w_idx in range(1, 6):
                     w_key = f"Word {w_idx}"

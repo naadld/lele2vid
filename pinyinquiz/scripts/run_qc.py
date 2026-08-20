@@ -1,5 +1,6 @@
 import os
 import sys
+import glob
 import json
 import logging
 import argparse
@@ -114,13 +115,26 @@ def run_auto_qc(target_row_id: str = None):
                 pass
             continue
 
-        # 1. Download video file
-        local_video_name = f"qc_batch_{row_id}.mp4"
-        local_video_path = os.path.join(tmp_qc_dir, local_video_name)
+        # 1. Check if video already exists locally or download it
+        local_candidates = glob.glob(os.path.join(config.output_videos_dir, f"#{row_id}.*.mp4")) + \
+                           glob.glob(os.path.join(config.output_videos_dir, f"*{row_id}*.mp4"))
+        
+        target_video_path = None
+        for candidate in local_candidates:
+            if os.path.exists(candidate) and os.path.getsize(candidate) > 1000:
+                target_video_path = candidate
+                logger.info(f"Using existing local video file for QC: {target_video_path}")
+                break
 
-        download_ok = download_video_file(video_url, local_video_path)
-        if not download_ok or not os.path.exists(local_video_path):
-            logger.error(f"Could not download video for Batch #{row_id}. Leaving status as 'Video' for retry.")
+        if not target_video_path:
+            local_video_name = f"qc_batch_{row_id}.mp4"
+            local_video_path = os.path.join(tmp_qc_dir, local_video_name)
+            download_ok = download_video_file(video_url, local_video_path)
+            if download_ok and os.path.exists(local_video_path):
+                target_video_path = local_video_path
+
+        if not target_video_path or not os.path.exists(target_video_path):
+            logger.error(f"Could not locate or download video for Batch #{row_id}. Leaving status as 'Video' for retry.")
             skipped_count += 1
             try:
                 gsheet_mgr.worksheet.update_cell(row_idx, 16, f"[Auto-QC: Tải video thất bại lúc {now_str}]")
@@ -129,7 +143,7 @@ def run_auto_qc(target_row_id: str = None):
             continue
 
         # 2. Run QC Inspection
-        result = inspector.inspect_batch(batch, local_video_path)
+        result = inspector.inspect_batch(batch, target_video_path)
 
         if result["passed"]:
             logger.info(f"✨ Batch #{row_id} PASSED all QC checks! Changing Status to 'Ready'.")
@@ -149,10 +163,10 @@ def run_auto_qc(target_row_id: str = None):
             errors_str = " | ".join(result["errors"])
             failed_details.append(f"• <b>#{row_id}</b> ({topic}): {errors_str}")
 
-        # Cleanup local downloaded video
-        if os.path.exists(local_video_path):
+        # Cleanup temporary downloaded video if downloaded to tmp_qc_dir
+        if target_video_path and target_video_path.startswith(tmp_qc_dir) and os.path.exists(target_video_path):
             try:
-                os.remove(local_video_path)
+                os.remove(target_video_path)
             except Exception:
                 pass
 

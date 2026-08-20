@@ -19,6 +19,7 @@ class AppConfig:
         os.path.join(os.path.dirname(BASE_DIR), "configs", "service_account.json"),
         os.path.join(os.path.dirname(BASE_DIR), "service_account.json"),
         "/media/vpsg16gb/HaRiDisk/CHANNELS/lelehoctiengtrung/pinyinquiz/configs/service_account.json",
+        "/media/vpsg16gb/HaRiDisk/Telegram_Command_Center/service_account.json",
         os.path.expanduser("~/.config/gspread/service_account.json")
     ])
     
