@@ -34,7 +34,7 @@ export async function triggerGitHubIdeationWorkflow(env, options = {}) {
   }
 
   const ephemeralGeminiKeys = getEphemeralGeminiKeys(env);
-  const webhookUrl = options.cf_webhook_url || env.CF_WEBHOOK_URL || "https://lele-pinyinquiz.aleron-dt.workers.dev/api/receive-ideas";
+  const webhookUrl = options.cf_webhook_url || env.CF_WEBHOOK_URL || "https://lele-pinyinquiz.hothihuong113.workers.dev/api/receive-ideas";
 
   const url = `https://api.github.com/repos/${owner}/${repo}/actions/workflows/${workflow}/dispatches`;
 
