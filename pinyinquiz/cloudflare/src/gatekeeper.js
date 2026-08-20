@@ -483,7 +483,8 @@ async function auditWithAgnesAI(config, idea) {
           ],
           temperature: 0.1,
           response_format: { type: "json_object" }
-        })
+        }),
+        signal: AbortSignal.timeout(8000)
       });
 
       if (!res.ok) {
