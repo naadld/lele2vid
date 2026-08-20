@@ -64,9 +64,9 @@ Trước khi bất kỳ ý tưởng nào được lưu vào Sheet, Gatekeeper tr
 4. **Khớp Dấu Pinyin (Pinyin Tone Matching):** Số lượng âm tiết và thanh điệu Pinyin phải khớp tuyệt đối 1:1 với số lượng chữ Hán tương ứng.
 5. **Chống Trùng Lặp Cặp Từ Tuyệt Đối (Zero Word Duplication):** 5 từ trong 1 batch không được trùng nhau và không được trùng với các từ trong 100 hàng gần nhất trên Sheet (Negative Context).
 
-### Cơ Chế Xử Lý Lỗi (Strike 3 Rule):
-- **Lần 1 & 2:** Nếu phát hiện lỗi, Gatekeeper không lưu vào Sheet mà tự động kích hoạt **Step 2 (Single-Row Re-generation)** để AI sinh lại duy nhất dòng đó.
-- **Lần 3 (Strike 3):** Nếu sau 2 lần sửa vẫn không đạt chuẩn, hệ thống tự động xóa dòng lỗi để tránh làm nghẽn pipeline.
+### Cơ Chế Xử Lý Lỗi Tự Động (Smart Retry & Fresh Topic Switch):
+- **Lần 1 & 2:** Nếu phát hiện lỗi (Pinyin, Tiếng Anh, Chữ phồn thể...), Gatekeeper không lưu vào Sheet mà tự động kích hoạt **Step 2 (Single-Row Re-generation)** trên GitHub Actions để AI viết lại, kèm báo cáo chi tiết lý do lỗi về Telegram.
+- **Nếu thất bại sau 2 lần sửa:** Hệ thống **TỰ ĐỘNG KÍCH HOẠT VIẾT CHỦ ĐỀ MỚI HOÀN TOÀN (Fresh Topic)** trên GitHub Actions để lấp đầy dòng đó và gửi thông báo Telegram rõ ràng. Tuyệt đối không im lặng, không bỏ trống và không dùng văn bản thô.
 
 ---
 

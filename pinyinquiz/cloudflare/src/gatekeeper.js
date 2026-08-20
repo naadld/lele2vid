@@ -829,44 +829,44 @@ export async function processGatekeeperIdea(env, config, payload) {
   }
 
   // -------------------------------------------------------------------------
-  // STRIKE 3 (3RD FAILURE): COMPLETELY DELETE / CLEAR ROW FROM GOOGLE SHEET
+  // MAX RETRIES REACHED (>= 2): AUTO-TRIGGER FRESH NEW TOPIC ON GITHUB ACTIONS
   // -------------------------------------------------------------------------
-  console.error(`[GATEKEEPER] 🛑 STRIKE 3: Row '${rowId}' failed 3 consecutive times. Completely deleting row from Google Sheet...`);
+  console.warn(`[GATEKEEPER] 🔄 Max retries (${retryCount}) reached for topic '${topic}' (Row #${rowId}). Automatically triggering GitHub Actions to generate a FRESH NEW TOPIC...`);
 
-  let deletedRowNumber = null;
-  if (rowId) {
-    try {
-      const existing = await gsheet.findRowByBatchId(rowId);
-      if (existing && existing.rowNumber) {
-        deletedRowNumber = existing.rowNumber;
-        // Completely clear the entire row content from Sheet
-        await gsheet.clearBatchRowContent(existing.rowNumber);
-      }
-    } catch (delErr) {
-      console.error(`[GATEKEEPER] Error clearing row from Sheet: ${delErr.message}`);
-    }
+  let ghFreshDispatched = false;
+  let ghFreshMessage = "";
+  try {
+    const ghRes = await triggerGitHubStep2ReGen(env, config, {
+      rowId: rowId,
+      rejectedTopic: topic,
+      errorReasons: `Chủ đề cũ '${topic}' không đạt chuẩn sau 2 lần sửa: [${errorReasons.join("; ")}]. Yêu cầu sinh một CHỦ ĐỀ MỚI HOÀN TOÀN (Fresh Topic) cho dòng này.`
+    });
+    ghFreshDispatched = ghRes.success;
+    ghFreshMessage = ghRes.message;
+  } catch (ghErr) {
+    ghFreshDispatched = false;
+    ghFreshMessage = ghErr.message;
   }
 
-  // High-Priority Audit Violation Alert on Telegram
+  // Telegram Alert for Fresh Topic Switch
   await sendTelegramMessage(
     config.telegramBotToken,
     config.telegramChatId,
-    `🚨 <b>[Gatekeeper 1 - VI PHẠM LẦN 3 (STRIKE 3) - ĐÃ XÓA DÒNG]</b>\n\n` +
-    `🛑 <b>Kịch bản đã thất bại 3 lần liên tiếp:</b>\n` +
-    `📌 <b>Chủ đề:</b> <code>${topic}</code>\n` +
-    `🆔 <b>Row ID:</b> <code>${rowId}</code> (Dòng Sheet: ${deletedRowNumber || "N/A"})\n\n` +
-    `❌ <b>Lý do lỗi lần cuối:</b>\n` +
+    `🔄 <b>[Gatekeeper 1 - TỰ ĐỘNG ĐỔI CHỦ ĐỀ MỚI]</b>\n\n` +
+    `⚠️ <b>Chủ đề cũ không đạt sau 2 lần sửa:</b> <code>${topic}</code>\n` +
+    `🆔 <b>Dòng:</b> <code>#${rowId}</code>\n\n` +
+    `❌ <b>Lý do hủy chủ đề cũ:</b>\n` +
     errorReasons.map(r => `  • ${r}`).join("\n") +
-    `\n\n🗑️ <b>Hành động tự bảo vệ:</b> Đã <b>XÓA TOÀN BỘ DÒNG CŨ</b> khỏi Google Sheet để bảo toàn chất lượng database. Dừng retry!`
+    `\n\n🚀 <b>Hành động tự động:</b> ${ghFreshDispatched ? `Đã kích hoạt GitHub Actions viết một <b>CHỦ ĐỀ MỚI HOÀN TOÀN</b> để lấp đầy dòng #${rowId}.` : `Lỗi kích hoạt GitHub: ${ghFreshMessage}`}`
   );
 
   return {
     success: false,
-    status: "Deleted",
-    action: "delete_row",
+    status: "FreshTopicTriggered",
+    action: "trigger_fresh_topic",
     row_id: rowId,
-    retry_count: 3,
+    retry_count: 0,
     error_reasons: errorReasons,
-    message: "Gatekeeper 1 rejected idea on 3rd attempt (Strike 3). Completely deleted row from Google Sheet. Retries stopped."
+    message: `Chủ đề '${topic}' không đạt sau 2 lần sửa. Đã tự động kích hoạt GitHub Actions sinh chủ đề mới hoàn toàn cho dòng #${rowId}.`
   };
 }
