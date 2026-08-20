@@ -320,7 +320,7 @@ export class GoogleSheetsClient {
       const rowId = String(row[0] || "").replace(/^#/, "").trim();
       const rowNum = i + 1;
 
-      if (rowId === cleanId || String(rowNum) === cleanId) {
+      if (rowId === cleanId) {
         return {
           rowNumber: rowNum,
           id: row[0] || String(rowNum),

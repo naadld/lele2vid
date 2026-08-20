@@ -195,7 +195,12 @@ def load_negative_context_from_sheet(max_rows: int = 100) -> Tuple[List[str], Li
     try:
         mgr = GSheetManager()
         all_rows = mgr.get_all_rows()
-        current_max_id = len(all_rows)
+        ids = []
+        for r in all_rows:
+            val = str(r.get("#", "")).replace("#", "").strip()
+            if val.isdigit():
+                ids.append(int(val))
+        current_max_id = max(ids) if ids else len(all_rows)
 
         # Slice latest max_rows
         recent_rows = all_rows[-max_rows:] if len(all_rows) > max_rows else all_rows
