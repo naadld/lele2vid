@@ -40,10 +40,8 @@ class TestAdversarialGitHubWorkflows:
         on_block = wf.get("on") or wf.get(True)
         assert on_block is not None
 
-        # 1. Schedule Cron: Daily 00:01 GMT+7 / 17:01 UTC (or Saturday 17:01 UTC)
-        assert "schedule" in on_block
-        crons = [item["cron"] for item in on_block["schedule"]]
-        assert ("1 17 * * *" in crons) or ("1 17 * * 5" in crons)
+        # 1. Zero-Secret Architecture: Workflow Dispatch only (Orchestrated by Cloudflare)
+        assert "workflow_dispatch" in on_block
 
         # 2. Workflow Dispatch Inputs
         assert "workflow_dispatch" in on_block

@@ -1,9 +1,8 @@
 name: Script New Ideation Pipeline
 
+# Master Orchestrator: Cloudflare Worker Cron Trigger (17:01 UTC / 00:01 GMT+7)
+# Dispatches this workflow via GitHub API with dynamic ephemeral Gemini API keys (Zero-Secret).
 on:
-  schedule:
-    # Daily 00:01 GMT+7 / 17:01 UTC (Daily Batch 5 Ideas with HSK 1-2-3 Diversity)
-    - cron: '1 17 * * *'
   workflow_dispatch:
     inputs:
       mode:
