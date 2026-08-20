@@ -36,7 +36,7 @@ on:
       cf_webhook_url:
         description: 'Cloudflare Worker Webhook URL to receive ideas'
         required: false
-        default: 'https://lele-pinyinquiz.aleron-dt.workers.dev/api/receive-ideas'
+        default: 'https://lele-pinyinquiz.hothihuong113.workers.dev/api/receive-ideas'
 
 # 🛑 Do not cancel in-progress ideation jobs; keep sequential queue intact
 concurrency:
