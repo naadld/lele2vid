@@ -2,8 +2,8 @@ name: Script New Ideation Pipeline
 
 on:
   schedule:
-    # Saturday 00:01 GMT+7 / Friday 17:01 UTC (Weekly Batch 30 Production)
-    - cron: '1 17 * * 5'
+    # Daily 00:01 GMT+7 / 17:01 UTC (Daily Batch 5 Ideas with HSK 1-2-3 Diversity)
+    - cron: '1 17 * * *'
   workflow_dispatch:
     inputs:
       mode:
@@ -17,7 +17,7 @@ on:
       count:
         description: 'Number of ideas to generate in batch mode'
         required: false
-        default: '30'
+        default: '5'
       row_id:
         description: 'Specific Row ID for single-row re-generation'
         required: false

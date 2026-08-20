@@ -560,7 +560,7 @@ def run_single_row_mode(
 def main():
     parser = argparse.ArgumentParser(description="Pipeline 2.0 Daily Batch Generator (Google AI Studio Gemini 3.7 Flash)")
     parser.add_argument("--mode", type=str, default="batch", choices=["batch", "single_row"], help="Execution mode: 'batch' (Step 1) or 'single_row' (Step 2)")
-    parser.add_argument("--count", type=int, default=30, help="Number of ideas to generate in batch mode (default: 30)")
+    parser.add_argument("--count", type=int, default=5, help="Number of ideas to generate in batch mode (default: 5 ideas/day)")
     parser.add_argument("--row-id", type=str, default="", help="Target Row ID for single-row re-gen")
     parser.add_argument("--rejected-topic", type=str, default="", help="Previous rejected topic for single-row re-gen")
     parser.add_argument("--error-reasons", type=str, default="", help="Error reasons from Gatekeeper 1 for single-row re-gen")

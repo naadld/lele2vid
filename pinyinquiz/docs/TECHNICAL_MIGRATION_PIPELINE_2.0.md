@@ -64,10 +64,11 @@ flowchart TD
 ### 📁 Workflow 1: `ScriptNewIdeation.yml` (Sáng Tạo Kịch Bản)
 Workflow này được chia làm **2 Steps chuyên biệt**:
 
-#### 🔹 Step 1: Sinh 30 Ideas Mới Hàng Tuần (Batch Ideation)
-* **Thời điểm kích hoạt:** `00:01 Sáng Thứ 7 (GMT+7)` (tương ứng `17:01 Thứ 6 UTC`) qua Cloudflare Cron hoặc lệnh `/ideate 30`.
+#### 🔹 Step 1: Sinh 5 Ideas Mới Hằng Ngày (Daily Batch Ideation với Đa Dạng HSK 1-2-3)
+* **Thời điểm kích hoạt:** `00:01 Sáng Hằng Ngày (GMT+7)` (tương ứng `17:01 UTC Hằng Ngày`) qua Cloudflare Cron (`1 17 * * *`) hoặc lệnh `/ideate`.
 * **Quy trình tuần tự (Sequential Pipeline):**
   1. Đọc toàn bộ lịch sử 100 dòng gần nhất từ Google Sheet để nạp danh sách từ vựng và chủ đề đã dùng vào ngữ cảnh loại trừ (Negative Context).
+  2. Luân phiên xen kẽ trình độ HSK 1, HSK 2 và HSK 3 qua từng dòng để đảm bảo phân bổ cân bằng.
   2. Chạy lần lượt từng dòng một: **Hoàn thành dòng $N$ ➔ Đợi 60 giây ➔ Chạy dòng $N+1$**.
   3. **Cơ chế Xoay Vòng 6 Keys (60s Delay Key-Rotation):**
      $$\text{Key Index} = (N \pmod 6) + 1$$

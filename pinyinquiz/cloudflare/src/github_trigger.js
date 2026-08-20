@@ -42,7 +42,7 @@ export async function triggerGitHubIdeationWorkflow(env, options = {}) {
     ref: options.ref || "main",
     inputs: {
       mode: options.mode || "batch",
-      count: String(options.count || "30"),
+      count: String(options.count || "5"),
       row_id: String(options.row_id || ""),
       rejected_topic: String(options.rejected_topic || ""),
       error_reasons: String(options.error_reasons || ""),

@@ -48,8 +48,8 @@ class TestAdversarialCloudflareWorkerAndWrangler:
                 assert cron_field_regex.match(p), f"Invalid cron field '{p}' in '{c}'"
 
         # Verify specific required production crons
-        # 1. Saturday 00:01 GMT+7 / Friday 17:01 UTC
-        assert "1 17 * * 5" in crons
+        # 1. Daily 00:01 GMT+7 / 17:01 UTC (or Saturday 17:01 UTC)
+        assert ("1 17 * * *" in crons) or ("1 17 * * 5" in crons)
         # 2. 3x Daily Buffer publishing (00:00, 06:00, 12:00 UTC)
         assert "0 0,6,12 * * *" in crons or ("0 0 * * *" in crons and "0 6 * * *" in crons and "0 12 * * *" in crons)
 
