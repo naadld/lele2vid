@@ -15,3 +15,4 @@ Chi tiết toàn bộ quy trình sản xuất, kiểm duyệt và xuất bản t
 5. **Lớp kiểm duyệt độc lập AI Gatekeeper:** 5 tiêu chí ngôn ngữ khắt khe & quy tắc tự sửa lỗi / Strike 3.
 6. **Chi tiết 3 GitHub Actions Workflows:** `ScriptNewIdeation.yml` (Sáng tạo), `Render.yml` (Manim 60fps), `ProductQC.yml` (Auto-QC OpenCV).
 7. **Kiểm duyệt trực quan qua Telegram Bot:** Nút bấm tương tác Approve / Reset / Delete tức thì.
+8. **Vận hành 100% Serverless Cloud & Cơ chế phục hồi Quota 6 Gemini Keys:** Cảnh báo Telegram khi dính 429 và tự động hồi phục đảm bảo đủ 5 dòng/ngày.

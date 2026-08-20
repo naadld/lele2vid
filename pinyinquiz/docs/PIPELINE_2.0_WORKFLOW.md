@@ -135,3 +135,12 @@ Mỗi khi một video render xong, Telegram Bot gửi thông báo kiểm duyệt
 ## 🔒 7. NGUYÊN TẮC BẢO MẬT ZERO-SECRET
 - **Không lưu cứng API Keys/Secrets trên GitHub Actions:** Toàn bộ API keys (Gemini, Agnes, Buffer, Service Account, Telegram) được lưu trữ an toàn trong Secret Bindings của Cloudflare Worker.
 - Khi kích hoạt GitHub Action, Cloudflare Worker truyền parameters động dưới dạng Payload mã hóa dùng một lần (Ephemeral Payload) và được che mặt nạ log (`***`) trong suốt quá trình chạy.
+
+---
+
+## ⚡ 8. VẬN HÀNH 100% CLOUD SERVERLESS & CƠ CHẾ PHỤC HỒI QUOTA GEMINI
+- **100% Serverless Cloud (Zero-VPS / Zero-Local):** Toàn bộ pipeline chạy khép kín giữa **Cloudflare Workers** (Orchestrator 24/7) và **GitHub Actions Runners** (Compute Engine), hoàn toàn không phụ thuộc vào bất kỳ máy chủ VPS hay máy tính cá nhân nào.
+- **Cơ Chế Quota Recovery Cho 6 Gemini API Keys:**
+  - Khi một key chạm giới hạn `429 (Rate Limit)`, hệ thống tự động xoay tua sang key tiếp theo trong bộ 6 keys.
+  - **Nếu toàn bộ 6 keys đều chạm ngưỡng 429:** Hệ thống gửi ngay cảnh báo khẩn cấp về **Telegram**, tự động kích hoạt chu kỳ **Cooldown Recovery 60s** để hạn ngạch Google AI Studio phục hồi, sau đó tự động thử lại vòng xoay (tối đa 3 chu kỳ).
+  - **Mục tiêu tối thượng:** Bắt buộc **MỖI NGÀY PHẢI SẢN XUẤT ĐỦ 5 DÒNG KỊCH BẢN MỚI** đạt chuẩn để luôn có kho gối đầu phát hành đều đặn 3 ca/ngày.

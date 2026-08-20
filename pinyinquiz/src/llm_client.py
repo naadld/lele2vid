@@ -134,11 +134,12 @@ def call_gemini_api(
     api_keys: Optional[List[str]] = None,
     model: str = DEFAULT_GEMINI_MODEL,
     temperature: float = 0.7,
-    timeout: int = 60
+    timeout: int = 60,
+    max_recovery_cycles: int = 2
 ) -> Optional[str]:
     """
-    Direct Google AI Studio Gemini API call with key rotation and model failover.
-    Endpoint: https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}
+    Direct Google AI Studio Gemini API call with key rotation, model failover,
+    and automatic Quota Recovery Loop (waiting for Rate Limit cooldown if all keys exhausted).
     """
     keys = parse_gemini_keys(api_keys)
     if not keys:
@@ -150,104 +151,82 @@ def call_gemini_api(
         if fb not in candidate_models:
             candidate_models.append(fb)
 
-    for key_idx, key in enumerate(keys):
-        masked = mask_key(key)
-        for cur_model in candidate_models:
-            url = f"{GEMINI_ENDPOINT_BASE}/{cur_model}:generateContent?key={key}"
-            logger.info(f"Calling Google AI Studio (Model: {cur_model}, Key [{key_idx + 1}/{len(keys)}]: {masked})...")
+    for cycle in range(max_recovery_cycles + 1):
+        rate_limit_hits = 0
+        for key_idx, key in enumerate(keys):
+            masked = mask_key(key)
+            for cur_model in candidate_models:
+                url = f"{GEMINI_ENDPOINT_BASE}/{cur_model}:generateContent?key={key}"
+                logger.info(f"Calling Google AI Studio (Model: {cur_model}, Key [{key_idx + 1}/{len(keys)}]: {masked})...")
 
-            payload = {
-                "contents": [
-                    {
-                        "role": "user",
-                        "parts": [{"text": prompt}]
+                payload = {
+                    "contents": [
+                        {
+                            "role": "user",
+                            "parts": [{"text": prompt}]
+                        }
+                    ],
+                    "generationConfig": {
+                        "temperature": temperature,
+                        "responseMimeType": "application/json"
                     }
-                ],
-                "generationConfig": {
-                    "temperature": temperature,
-                    "responseMimeType": "application/json"
-                }
-            }
-
-            if system_prompt:
-                payload["systemInstruction"] = {
-                    "parts": [{"text": system_prompt}]
                 }
 
-            headers = {
-                "Content-Type": "application/json"
-            }
+                if system_prompt:
+                    payload["systemInstruction"] = {
+                        "parts": [{"text": system_prompt}]
+                    }
 
+                headers = {
+                    "Content-Type": "application/json"
+                }
+
+                try:
+                    resp = requests.post(url, headers=headers, json=payload, timeout=(5.0, float(timeout)))
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        candidates = data.get("candidates", [])
+                        if candidates:
+                            parts = candidates[0].get("content", {}).get("parts", [])
+                            text_parts = [p.get("text", "") for p in parts if not p.get("thought") and p.get("text")]
+                            if not text_parts and parts:
+                                text_parts = [parts[0].get("text", "")]
+                            full_text = "".join(text_parts).strip()
+                            if full_text:
+                                logger.info(f" Google AI Studio ({cur_model}) returned valid response ({len(full_text)} chars).")
+                                return full_text
+                    elif resp.status_code == 429:
+                        rate_limit_hits += 1
+                        logger.warning(f"Google AI Studio Rate Limit (429) for key {masked}. Rotating to next key...")
+                        break  # Break model loop and switch to next key
+                    elif resp.status_code in (400, 403, 404):
+                        logger.warning(f"Google AI Studio error ({resp.status_code}) with model {cur_model} on key {masked}: {resp.text[:200]}")
+                        continue
+                    else:
+                        logger.warning(f"Google AI Studio error HTTP {resp.status_code}: {resp.text[:200]}")
+                except Exception as e:
+                    logger.warning(f"Google AI Studio request exception on key {masked} ({cur_model}): {e}")
+                    continue
+
+        # If all keys hit rate limits and we still have recovery cycles
+        if rate_limit_hits >= len(keys) and cycle < max_recovery_cycles:
+            cooldown_sec = 60
+            logger.warning(f"🚨 [QUOTA EXHAUSTED] All {len(keys)} Gemini keys hit Rate Limit (429)! Entering cooldown recovery ({cooldown_sec}s) before cycle {cycle + 2}/{max_recovery_cycles + 1}...")
             try:
-                resp = requests.post(url, headers=headers, json=payload, timeout=(5.0, float(timeout)))
-                if resp.status_code == 200:
-                    data = resp.json()
-                    candidates = data.get("candidates", [])
-                    if candidates:
-                        parts = candidates[0].get("content", {}).get("parts", [])
-                        # Filter out thought parts if thinking model
-                        text_parts = [p.get("text", "") for p in parts if not p.get("thought") and p.get("text")]
-                        if not text_parts and parts:
-                            text_parts = [parts[0].get("text", "")]
-                        full_text = "".join(text_parts).strip()
-                        if full_text:
-                            logger.info(f" Google AI Studio ({cur_model}) returned valid response ({len(full_text)} chars).")
-                            return full_text
-                    logger.warning(f"Google AI Studio returned 200 but no valid parts in candidates: {data}")
-                elif resp.status_code == 429:
-                    logger.warning(f"Google AI Studio Rate Limit (429) for key {masked}. Rotating to next key...")
-                    break  # Break model loop and switch to next key
-                elif resp.status_code in (400, 403, 404):
-                    logger.warning(f"Google AI Studio error ({resp.status_code}) with model {cur_model} on key {masked}: {resp.text[:200]}")
-                    continue  # Try next model on this key or next key
-                else:
-                    logger.warning(f"Google AI Studio error HTTP {resp.status_code}: {resp.text[:200]}")
-            except Exception as e:
-                logger.warning(f"Google AI Studio request exception on key {masked} ({cur_model}): {e}")
-                continue
+                from src.config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+                if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:
+                    alert_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+                    requests.post(alert_url, json={
+                        "chat_id": TELEGRAM_CHAT_ID,
+                        "text": f"⚠️ <b>[Cảnh Báo Quota Gemini 429]</b>\nToàn bộ {len(keys)} Gemini API keys tạm thời chạm hạn ngạch (Rate Limit).\n⏳ Hệ thống đang tự động tạm dừng {cooldown_sec}s để phục hồi Quota và thử lại tiếp...",
+                        "parse_mode": "HTML"
+                    }, timeout=10)
+            except Exception:
+                pass
+            time.sleep(cooldown_sec)
 
-    logger.warning("All Google AI Studio Gemini keys/models failed.")
+    logger.warning("All Google AI Studio Gemini keys/models exhausted after recovery attempts.")
     return None
-
-
-def call_openai_compatible_api(
-    prompt: str,
-    system_prompt: Optional[str] = None,
-    base_url: str = DEFAULT_LLM_URL,
-    model: str = "gemini-2.5-flash",
-    temperature: float = 0.7,
-    timeout: int = 5
-) -> Optional[str]:
-    """
-    Fallback call to local or OpenAI-compatible endpoint (e.g. vpsg24gb:20130).
-    """
-    api_url = f"{base_url.rstrip('/')}/chat/completions"
-    logger.info(f"Connecting to OpenAI-compatible LLM service at {api_url} (Model: {model})...")
-
-    messages = []
-    if system_prompt:
-        messages.append({"role": "system", "content": system_prompt})
-    messages.append({"role": "user", "content": prompt})
-
-    payload = {
-        "model": model,
-        "messages": messages,
-        "temperature": temperature,
-        "stream": False
-    }
-
-    try:
-        resp = requests.post(api_url, json=payload, timeout=(3.0, float(timeout)))
-        resp.raise_for_status()
-        data = resp.json()
-        choices = data.get("choices", [])
-        if choices:
-            content = choices[0].get("message", {}).get("content", "").strip()
-            if content:
-                logger.info(f" OpenAI-compatible LLM ({model}) returned valid response ({len(content)} chars).")
-                return content
-    except Exception as e:
-        logger.warning(f"Could not connect to OpenAI-compatible LLM ({api_url}): {e}")
 
     return None
 
