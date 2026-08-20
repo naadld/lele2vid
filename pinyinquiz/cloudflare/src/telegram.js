@@ -20,6 +20,10 @@ export async function sendTelegramMessage(botToken, chatId, text, options = {}) 
     ...options
   };
 
+  if (body.reply_markup === null || body.reply_markup === undefined) {
+    delete body.reply_markup;
+  }
+
   try {
     const res = await fetch(url, {
       method: "POST",
