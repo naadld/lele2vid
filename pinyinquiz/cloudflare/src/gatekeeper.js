@@ -57,7 +57,7 @@ export const ENGLISH_FORBIDDEN_WORDS = new Set([
   "tickets", "hospital", "hospitals", "doctor", "doctors", "medicine",
   "hotel", "hotels", "room", "rooms", "key", "keys", "phone", "phones",
   "smartphone", "smartphones", "laptop", "laptops", "computer", "computers",
-  "camera", "cameras", "guitar", "guitars", "piano", "pianos", "tv", "radio",
+  "camera", "cameras", "guitar", "guitars", "piano", "pianos", "radio",
   "music", "movie", "movies", "sing", "dance", "play", "game", "games",
   "work", "job", "jobs", "money", "dollar", "dollars", "time", "hour",
   "hours", "minute", "minutes", "second", "seconds", "day", "days", "week",
@@ -112,6 +112,11 @@ export const ENGLISH_FORBIDDEN_WORDS = new Set([
   "necklace", "sunglasses"
 ]);
 
+// Whitelist of valid Vietnamese words and accepted loanwords (tv, tivi, ly, etc.)
+export const VIETNAMESE_VALID_WORDS_WHITELIST = new Set([
+  "ly", "tv", "tivi", "ti-vi"
+]);
+
 /**
  * Check if a token is an English or non-Vietnamese foreign word
  */
@@ -119,8 +124,8 @@ export function isEnglishOrForeignWord(token) {
   const clean = token.toLowerCase().trim();
   if (!clean || clean.length < 2) return false;
 
-  // Whitelist valid Vietnamese 2-letter / common words
-  if (clean === "ly") return false;
+  // Whitelist valid Vietnamese words and accepted loanwords
+  if (VIETNAMESE_VALID_WORDS_WHITELIST.has(clean)) return false;
 
   // 1. Direct dictionary match
   if (ENGLISH_FORBIDDEN_WORDS.has(clean)) return true;

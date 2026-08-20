@@ -32,7 +32,7 @@ ENGLISH_FORBIDDEN_WORDS = [
     # Household & Objects
     "chair", "table", "window", "door", "bed", "lamp", "bookshelf", "desk", "cup", "glass",
     "bottle", "bowl", "plate", "chopsticks", "spoon", "fork", "knife", "mirror", "clock",
-    "watch", "key", "bag", "wallet", "box", "fan", "fridge", "refrigerator", "tv",
+    "watch", "key", "bag", "wallet", "box", "fan", "fridge", "refrigerator",
     "television", "radio", "washing machine", "air conditioner",
     # Tech & Devices
     "laptop", "computer", "phone", "smartphone", "telephone", "camera", "screen",
