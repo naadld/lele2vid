@@ -228,6 +228,49 @@ def call_gemini_api(
     logger.warning("All Google AI Studio Gemini keys/models exhausted after recovery attempts.")
     return None
 
+
+def call_openai_compatible_api(
+    prompt: str,
+    system_prompt: str = "",
+    base_url: str = DEFAULT_LLM_URL,
+    model: str = "gemini-2.5-flash",
+    api_key: Optional[str] = None,
+    timeout: int = 45
+) -> Optional[str]:
+    """Call OpenAI-compatible chat completions endpoint as fallback."""
+    url = f"{base_url.rstrip('/')}/chat/completions"
+    headers = {
+        "Content-Type": "application/json"
+    }
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    
+    messages = []
+    if system_prompt:
+        messages.append({"role": "system", "content": system_prompt})
+    messages.append({"role": "user", "content": prompt})
+
+    payload = {
+        "model": model,
+        "messages": messages,
+        "temperature": 0.7
+    }
+
+    try:
+        resp = requests.post(url, headers=headers, json=payload, timeout=float(timeout))
+        if resp.status_code == 200:
+            data = resp.json()
+            choices = data.get("choices", [])
+            if choices:
+                content = choices[0].get("message", {}).get("content", "").strip()
+                if content:
+                    logger.info(f"OpenAI-compatible API ({model}) returned valid response ({len(content)} chars).")
+                    return content
+        else:
+            logger.warning(f"OpenAI-compatible API HTTP {resp.status_code}: {resp.text[:150]}")
+    except Exception as e:
+        logger.warning(f"OpenAI-compatible API request exception ({url}): {e}")
+
     return None
 
 
