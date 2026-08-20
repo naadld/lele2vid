@@ -22,7 +22,7 @@
 import { GoogleSheetsClient, getVietnamTimestamp } from "./google_sheets.js";
 import { pinyinToHiddenPinyin, prepareWordItem } from "./pinyin_helper.js";
 import { generateSocialMetadata } from "./metadata_helper.js";
-import { triggerGitHubIdeationWorkflow } from "./github_trigger.js";
+import { triggerGitHubIdeationWorkflow, triggerGitHubRenderWorkflow } from "./github_trigger.js";
 import { sendTelegramMessage } from "./telegram.js";
 
 // ============================================================================
@@ -750,6 +750,19 @@ export async function processGatekeeperIdea(env, config, payload) {
       await gsheet.appendRows([newRow]);
     }
 
+    // Auto-trigger GitHub Actions Render Workflow (Render.yml)
+    let renderDispatched = false;
+    let renderMsg = "";
+    try {
+      const rRes = await triggerGitHubRenderWorkflow(env, { row_id: rowId, quality: "qh" });
+      renderDispatched = rRes.success;
+      renderMsg = rRes.message;
+      console.log(`[GATEKEEPER] ⚡ Auto-triggered Render.yml for row #${rowId}: ${renderMsg}`);
+    } catch (rErr) {
+      console.warn(`[GATEKEEPER] Warning auto-triggering Render.yml: ${rErr.message}`);
+      renderMsg = rErr.message;
+    }
+
     // Telegram Audit Log
     await sendTelegramMessage(
       config.telegramBotToken,
@@ -759,7 +772,8 @@ export async function processGatekeeperIdea(env, config, payload) {
       `🆔 <b>Row ID:</b> <code>${rowId || "Mới"}</code> | <b>Trạng thái:</b> <code>Pending</code>\n` +
       `🧐 <b>Giám khảo:</b> ${auditResult.ai_judge.provider || "Agnes AI"}\n\n` +
       `📝 <b>5 Từ vựng:</b>\n` +
-      words.map((w, i) => `  ${i + 1}. <b>${w.hanzi}</b> (<i>${w.pinyin}</i>): ${w.meaning}`).join("\n")
+      words.map((w, i) => `  ${i + 1}. <b>${w.hanzi}</b> (<i>${w.pinyin}</i>): ${w.meaning}`).join("\n") +
+      `\n\n🎬 <b>Tự động sản xuất:</b> ${renderDispatched ? "⚡ Đã tự động kích hoạt GitHub Actions <code>Render.yml</code> (Manim 60fps)!" : `⚠️ Chưa kích hoạt Render: ${renderMsg}`}`
     );
 
     return {
@@ -767,8 +781,9 @@ export async function processGatekeeperIdea(env, config, payload) {
       status: "Pending",
       row_id: rowId,
       topic: topic,
-      action: "saved_to_sheet",
-      message: "Gatekeeper 1 passed. Idea batch saved to Google Sheet as Pending."
+      action: "saved_to_sheet_and_rendered",
+      render_dispatched: renderDispatched,
+      message: "Gatekeeper 1 passed. Idea batch saved to Google Sheet as Pending and auto-triggered Render.yml."
     };
   }
 
