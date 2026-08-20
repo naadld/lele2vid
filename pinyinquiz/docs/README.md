@@ -4,10 +4,14 @@ Chi tiết toàn bộ quy trình sản xuất, kiểm duyệt và xuất bản t
 
 👉 **[PIPELINE_2.0_WORKFLOW.md](file:///media/vpsg16gb/HaRiDisk/CHANNELS/lelehoctiengtrung/pinyinquiz/docs/PIPELINE_2.0_WORKFLOW.md)**
 
-### Tóm tắt các thành phần chính:
-1. **Kiến trúc 3 tầng Serverless Zero-Secret** (Cloudflare Worker + GitHub Actions + Google Workspace).
-2. **Schema 14 Cột Google Sheets Database**.
-3. **Lớp kiểm duyệt AI Gatekeeper** với 5 tiêu chí ngôn ngữ khắt khe & quy tắc Strike 3.
-4. **Chi tiết 3 GitHub Workflows** (`ScriptNewIdeation.yml`, `Render.yml`, `ProductQC.yml`).
-5. **Lịch phát hành tự động Buffer** (3 ca: 07:00, 13:00, 19:00 GMT+7).
-6. **Kiểm duyệt trực quan qua Telegram Bot**.
+### 📋 Tóm tắt các thành phần cốt lõi:
+1. **Kiến trúc 3 tầng Serverless Zero-Secret:** Cloudflare Worker (Orchestrator 24/7) ➔ GitHub Actions (3 Workflows) ➔ Google Workspace & Buffer.
+2. **Chiến thuật Đồ thị cảm xúc 5 từ (Reels Retention):** Từ 1 (Hook cực dễ) ➔ Từ 2,3 (Core HSK) ➔ Từ 4 (Bẫy âm điệu `4/5 ⚡`) ➔ Từ 5 (Thử thách Boss `5/5 🔥`).
+3. **Phát hành tự động Buffer phân tầng 3 khung giờ:** 
+   - `07:00 GMT+7`: Combo HSK 1 (Khởi động ngày mới)
+   - `13:00 GMT+7`: Combo HSK 2 (Bẫy âm điệu tỉnh táo)
+   - `19:00 GMT+7`: Combo HSK 3 (Thử thách giờ vàng / Phim ảnh / Viral)
+4. **Schema 14 Cột Google Sheets Database:** Quản lý vòng đời trạng thái `Pending` ➔ `Video` ➔ `Ready` ➔ `Published`.
+5. **Lớp kiểm duyệt độc lập AI Gatekeeper:** 5 tiêu chí ngôn ngữ khắt khe & quy tắc tự sửa lỗi / Strike 3.
+6. **Chi tiết 3 GitHub Actions Workflows:** `ScriptNewIdeation.yml` (Sáng tạo), `Render.yml` (Manim 60fps), `ProductQC.yml` (Auto-QC OpenCV).
+7. **Kiểm duyệt trực quan qua Telegram Bot:** Nút bấm tương tác Approve / Reset / Delete tức thì.
