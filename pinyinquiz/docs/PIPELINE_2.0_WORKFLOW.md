@@ -100,13 +100,25 @@ Trước khi bất kỳ ý tưởng nào được lưu vào Sheet, Gatekeeper tr
 
 ---
 
-## 📱 5. QUY TRÌNH PHÁT HÀNH TỰ ĐỘNG (BUFFER 3 CA / NGÀY)
+## 🎭 3. CHIẾN THUẬT NỘI DUNG & ĐỒ THỊ CẢM XÚC 5 TỪ (REELS RETENTION)
 
-Cloudflare Worker tự động quét các video có trạng thái `Ready` trên Google Sheet:
+Mỗi video được biên soạn theo "Đồ thị cảm xúc" tăng tiến để tối ưu hóa thời gian xem (Watch Time), tỷ lệ lặp lại (Loop Rate) và lượt lưu video (Save Rate):
 
-- ⏰ **07:00 GMT+7 (00:00 UTC):** Lấy video `Ready` đầu tiên ➔ Đẩy vào hàng đợi Buffer API.
-- ⏰ **13:00 GMT+7 (06:00 UTC):** Lấy video `Ready` tiếp theo ➔ Đẩy vào Buffer API.
-- ⏰ **19:00 GMT+7 (12:00 UTC):** Lấy video `Ready` tiếp theo ➔ Đẩy vào Buffer API.
+1. **Từ 1 (Cực Dễ - Instant Hook):** Từ/cụm từ cực kỳ quen thuộc (ví dụ: *谢谢, 苹果, 咖啡, 喝水*) giúp người xem làm đúng ngay trong 1-2 giây đầu, tạo cảm giác tự tin xem tiếp.
+2. **Từ 2 & 3 (Chuẩn Trình Độ - Core HSK):** Các từ vựng chủ đề phổ thông theo đúng cấp độ bài học.
+3. **Từ 4 (Bẫy Âm Điệu / Biến Điệu ⚡):** Chứa bẫy thanh điệu (thanh 1 vs 4, thanh 2 vs 3, phân biệt *买 mǎi / 卖 mài*), biến điệu của *不 (bù/bú)*, *一 (yī/yí/yì)*, hoặc biến âm 2 thanh 3 đi liền nhau. Kích thích người xem khựng lại suy nghĩ kỹ. Trên video hiển thị biểu tượng `4/5 ⚡`.
+4. **Từ 5 (Thử Thách Boss / Thành Ngữ Viral 🔥):** Cấp độ khó nhất trong bộ (âm c/z, x/sh, q/ch, *练习 vs 联系*) hoặc với HSK 3 là cụm từ 3-4 chữ viral phim ảnh / thành ngữ thông dụng. Kích thích người xem xem lại (Loop) hoặc nhấn "Lưu bài viết" (Save). Trên video hiển thị biểu tượng `5/5 🔥`.
+
+---
+
+## 📱 5. QUY TRÌNH PHÁT HÀNH TỰ ĐỘNG PHÂN TẦNG (BUFFER 3 KHUNG GIỜ)
+
+Cloudflare Worker tự động quét và phân loại video `Ready` trên Google Sheet theo từng khung giờ chuyên biệt:
+
+- ⏰ **07:00 GMT+7 (Combo HSK 1 - Khởi Động Ngày Mới):** Lọc video `Ready` cấp độ **HSK 1** (từ vựng quen thuộc, nhẹ nhàng).
+- ⏰ **13:00 GMT+7 (Combo HSK 2 - Giờ Nghỉ Trưa Tỉnh Táo):** Lọc video `Ready` cấp độ **HSK 2** (tập trung bẫy âm điệu, phân biệt thanh điệu khó).
+- ⏰ **19:00 GMT+7 (Combo HSK 3 - Thử Thách Giờ Vàng / Phim Ảnh):** Lọc video `Ready` cấp độ **HSK 3** (cụm từ hot trend, lời thoại phim, thành ngữ 4 chữ).
+- **Cơ chế Fallback:** Nếu kho thiếu video đúng cấp độ của khung giờ đó, hệ thống tự động gắp video `Ready` kế tiếp để đảm bảo lịch phát hành không bao giờ bị gián đoạn.
 - **Sau khi Buffer tiếp nhận thành công:** Trạng thái trên Sheet tự động chuyển thành **`Published`**.
 
 ---

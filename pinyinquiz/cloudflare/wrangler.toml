@@ -29,7 +29,7 @@ AI_MODEL = "@cf/meta/llama-3.3-70b-instruct"
 GEMINI_MODEL = "gemini-3.7-flash"
 AGNES_MODEL = "agnes-2.0-flash"
 AGNES_BASE_URL = "https://apihub.agnes-ai.com/v1"
-CF_WEBHOOK_URL = "https://lele-pinyinquiz.aleron-dt.workers.dev/api/receive-ideas"
+CF_WEBHOOK_URL = "https://lele-pinyinquiz.hothihuong113.workers.dev/api/receive-ideas"
 
 # Secrets to be configured via `wrangler secret put <KEY>`:
 # - TELEGRAM_BOT_TOKEN

@@ -254,16 +254,21 @@ def call_openai_compatible_api(
 
 def build_system_prompt() -> str:
     """
-    Strict linguistic and structural system prompt conforming to Gatekeeper 1 standards.
-    Supports diverse levels across HSK 1, HSK 2, and HSK 3.
+    Strict linguistic and structural system prompt conforming to Gatekeeper 1 standards
+    and 5-Word Emotional Curve (Retention & Watch Time Optimization).
     """
     return (
         "Bạn là chuyên gia ngôn ngữ tiếng Trung và biên tập viên trưởng của kênh 'Lê Lê Học Tiếng Trung' (@lelehoctiengtrung).\n"
-        "Nhiệm vụ của bạn là tạo các bộ từ vựng luyện tập Pinyin HSK 1, HSK 2 hoặc HSK 3 hấp dẫn, chuẩn xác, gần gũi với đời sống thực tế.\n\n"
+        "Nhiệm vụ của bạn là tạo các bộ từ vựng luyện tập Pinyin HSK 1, HSK 2 hoặc HSK 3 hấp dẫn, chuẩn xác, gần gũi với đời sống thực tế và tối ưu thuật toán giữ chân (Retention).\n\n"
+        "QUY TẮC SẮP XẾP 5 TỪ THEO ĐỒ THỊ CẢM XÚC (RETENTION CURVE):\n"
+        "- Từ 1 (CỰC DỄ - HOOK): Từ/cụm từ cực kỳ quen thuộc hàng ngày hoặc phát âm gần gũi (ví dụ: 谢谢, 苹果, 咖啡, 你好, 早上, 喝水) để người xem đoán đúng ngay trong 1 giây đầu.\n"
+        "- Từ 2 & 3 (CORE HSK): Các từ vựng cốt lõi theo chủ đề đúng cấp độ HSK.\n"
+        "- Từ 4 (BẪY THANH ĐIỆU / BIẾN ÂM ⚡): Chứa bẫy thanh điệu (thanh 1 vs 4, thanh 2 vs 3, phân biệt 买 mǎi / 卖 mài), hoặc biến âm của '不' (bù/bú), '一' (yī/yí/yì), 2 thanh 3 đi liền nhau (ví dụ: 你好, 可以). Kích thích người xem suy nghĩ kỹ, tăng watch-time.\n"
+        "- Từ 5 (THỬ THÁCH BOSS 🔥): Khó nhất bộ, chứa âm dễ nhầm lẫn (c/z, x/sh, q/ch, zh/ch, 练习 liànxí vs 联系 liánxì) hoặc với HSK 3 là cụm từ 3-4 chữ viral phim ảnh / thành ngữ thông dụng (ví dụ: 真的吗, 没关系, 不好意思, 一清二白). Kích thích lưu bài hoặc xem lại.\n\n"
         "QUY TẮC BẮT BUỘC (TUÂN THỦ 100% TIÊU CHUẨN GATEKEEPER 1):\n"
         "1. 100% Chữ Giản Thể (Simplified Chinese): Tuyệt đối không dùng chữ Phồn thể.\n"
         "2. Chủ đề đơn (Single Topic Only): Tên chủ đề ngắn gọn (3-7 từ), KHÔNG dùng từ nối (&, VÀ, +, /, VÀ CẢ).\n"
-        "3. 100% Nghĩa Tiếng Việt thuần túy: Tuyệt đối không chứa từ tiếng Anh (chair, table, dog, cat, car, water,...).\n"
+        "3. 100% Nghĩa Tiếng Việt thuần túy: Tuyệt đối không chứa từ tiếng Anh (chair, table, dog, cat, car, water, taxi, bus,...).\n"
         "4. Pinyin chuẩn xác: Đầy đủ dấu thanh điệu (ā, á, ǎ, à, ē, é, ě, è, ī, í, ǐ, ì, ō, ó, ǒ, ò, ū, ú, ǔ, ù, ǖ, ǘ, ǚ, ǜ), số âm tiết Pinyin phải khớp 1-1 với số chữ Hán.\n"
         "5. Phân bổ trình độ HSK đa dạng: Trải đều phong phú giữa HSK 1, HSK 2 và HSK 3, không cố định duy nhất một cấp độ HSK 1.\n"
         "6. Mỗi bộ chủ đề gồm đúng 5 từ vựng, mỗi từ dài từ 1 đến 4 chữ Hán.\n"

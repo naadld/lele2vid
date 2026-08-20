@@ -145,12 +145,19 @@ function buildSystemPrompt(history = {}, count = 1) {
   const pastBatches = history.pastBatches || [];
   const recentBatchesStr = pastBatches.slice(-15).map(b => `[${b.topic}: ${b.words.join(",")}]`).join(" | ");
 
-  return `Bạn là chuyên gia biên soạn giáo trình HSK cho kênh TikTok/YouTube Shorts "Lê Lê Học Tiếng Trung".
-Nhiệm vụ: Tạo ${count} bộ chủ đề từ vựng HSK 1, HSK 2 hoặc HSK 3 hấp dẫn, sinh động, chuẩn sư phạm.
+    return `Bạn là chuyên gia biên soạn giáo trình HSK cho kênh TikTok/YouTube Shorts "Lê Lê Học Tiếng Trung".
+Nhiệm vụ: Tạo ${count} bộ chủ đề từ vựng HSK 1, HSK 2 hoặc HSK 3 hấp dẫn, sinh động, chuẩn sư phạm và tối ưu thuật toán giữ chân người xem (Retention).
+
+QUY TẮC SẮP XẾP 5 TỪ THEO "ĐỒ THỊ CẢM XÚC" (RETENTION EMOTIONAL CURVE):
+Mỗi bộ kịch bản gồm đúng 5 câu hỏi/từ được sắp xếp tăng dần độ kịch tính:
+- TỪ 1 (CỰC DỄ - INSTANT HOOK): Từ/cụm từ cực kỳ quen thuộc hàng ngày hoặc âm gần gũi (ví dụ: 谢谢, 苹果, 咖啡, 你好, 早上, 喝水) để người xem đoán đúng ngay trong 1 giây đầu, tạo cảm giác tự tin xem hết video.
+- TỪ 2 & 3 (CHUẨN TRÌNH ĐỘ - CORE HSK): Các từ vựng cốt lõi chuẩn theo chủ đề và trình độ HSK.
+- TỪ 4 (BẪY THANH ĐIỆU / BIẾN ÂM ⚡): Từ dễ gây bẫy phát âm (thanh 1 vs 4, thanh 2 vs 3, phân biệt 买 mǎi / 卖 mài), hoặc chứa biến điệu của "不" (bù/bú), "一" (yī/yí/yì), biến âm 2 thanh 3 đi liền nhau (ví dụ: 你好, 可以). Khiến người xem khựng lại suy nghĩ, tối ưu thời gian giữ chân (Watch Time).
+- TỪ 5 (THỬ THÁCH BOSS / THÀNH NGỮ VIRAL 🔥): Từ thử thách nhất, chứa các âm dễ nhầm lẫn (c/z, x/sh, q/ch, zh/ch, 练习 liànxí vs 联系 liánxì) hoặc với HSK 3 là cụm từ 3-4 chữ viral phim ảnh / thành ngữ thông dụng (ví dụ: 真的吗, 没关系, 不好意思, 一清二白). Khiến người xem phải xem lại video (Loop) hoặc nhấn Lưu video (Save).
 
 QUY TẮC BẮT BUỘC VỀ CHỦ ĐỀ & TỪ VỰNG:
 1. 🏷️ CHỈ SỬ DỤNG 1 CHỦ ĐỀ ĐƠN DUY NHẤT (SINGLE TOPIC ONLY):
-   - Tên chủ đề PHẢI là 1 chủ đề đơn lẻ, ngắn gọn (Ví dụ: 'HSK 1 • Đồ Ăn', 'HSK 1 • Thức Uống', 'HSK 1 • Gia Đình', 'HSK 2 • Giao Thông', 'HSK 2 • Thời Tiết', 'HSK 2 • Cảm Xúc', 'HSK 2 • Mua Sắm', 'HSK 3 • Sinh Hoạt', 'HSK 3 • Công Sở', 'HSK 3 • Môi Trường', 'HSK 3 • Du Lịch'...).
+   - Tên chủ đề PHẢI là 1 chủ đề đơn lẻ, ngắn gọn (Ví dụ: 'HSK 1 • Đồ Ăn', 'HSK 1 • Thức Uống', 'HSK 1 • Gia Đình', 'HSK 2 • Giao Thông', 'HSK 2 • Thời Tiết', 'HSK 2 • Cảm Xúc', 'HSK 2 • Mua Sắm', 'HSK 3 • Sinh Hoạt', 'HSK 3 • Câu Thoại Phim', 'HSK 3 • Thành Ngữ Phổ Biến'...).
    - TUYỆT ĐỐI CẤM dùng cặp chủ đề ghép có từ nối như '&', 'VÀ', '+', '/' (CẤM: 'Đồ Ăn & Thức Uống', 'Cảm Xúc và Nhu Cầu'...).
 2. 🌟 ĐA DẠNG HÓA TRÌNH ĐỘ HSK (HSK 1 - HSK 2 - HSK 3):
    - Phân bổ luân phiên, cân bằng giữa các cấp độ HSK 1, HSK 2 và HSK 3. TUYỆT ĐỐI KHÔNG cố định duy nhất một trình độ HSK 1.
@@ -164,9 +171,9 @@ QUY TẮC BẮT BUỘC VỀ CHỦ ĐỀ & TỪ VỰNG:
 5. 🎯 100% TỪ VỰNG PHẢI LIÊN QUAN TRỰC TIẾP ĐẾN CHỦ ĐỀ:
    - Cả 5 từ vựng BẮT BUỘC thuộc đúng chủ đề đơn đó (Ví dụ: Chủ đề 'Nhà Hàng' thì 5 từ phải về ăn uống/phục vụ, cấm lớp học, bài tập).
 6. 🇻🇳 NGHĨA TIẾNG VIỆT 100% (VIETNAMESE MEANING ONLY):
-   - Cột nghĩa BẮT BUỘC LÀ TIẾNG VIỆT CHUẨN. TUYỆT ĐỐI CẤM DÙNG TIẾNG ANH (CẤM 'Chair', 'Window', 'Lamp'...).
+   - Cột nghĩa BẮT BUỘC LÀ TIẾNG VIỆT CHUẨN THUẦN TÚY. TUYỆT ĐỐI CẤM DÙNG TIẾNG ANH (CẤM từ mượn tiếng Anh như 'taxi', 'bus', 'shopping', 'apple', 'chair', 'window'...).
 7. 🔤 Pinyin CHUẨN XÁC, CÓ THANH ĐIỆU ĐẦY ĐỦ VÀ KHỚP 1-1 VỚI TỪNG CHỮ HÁN.
-8. 🇨🇳 100% CHỮ HÁN LÀ GIẢN THỂ (Simplified Chinese).
+8. 🇨🇳 100% CHỮ HÁN LÀ GIẢN THỂ (Simplified Chinese), mỗi từ/cụm gồm 1 đến tối đa 4 chữ Hán.
 9. 📦 Phản hồi DUY NHẤT một chuỗi JSON hợp lệ.
 
 CẤU TRÚC JSON MẪU:
@@ -175,11 +182,11 @@ CẤU TRÚC JSON MẪU:
     "topic": "HSK 2 • Nhà Hàng",
     "level": "HSK 2",
     "words": [
-      {"hanzi": "服务员", "pinyin": "fú wù yuán", "meaning": "Nhân viên phục vụ"},
+      {"hanzi": "喝水", "pinyin": "hē shuǐ", "meaning": "Uống nước"},
       {"hanzi": "菜单", "pinyin": "cài dān", "meaning": "Thực đơn"},
-      {"hanzi": "点菜", "pinyin": "diǎn cài", "meaning": "Gọi món / Đặt món"},
-      {"hanzi": "买单", "pinyin": "mǎi dān", "meaning": "Tính tiền / Thanh toán"},
-      {"hanzi": "好吃", "pinyin": "hǎo chī", "meaning": "Ngon miệng"}
+      {"hanzi": "点菜", "pinyin": "diǎn cài", "meaning": "Gọi món"},
+      {"hanzi": "不辣", "pinyin": "bù là", "meaning": "Không cay"},
+      {"hanzi": "买单", "pinyin": "mǎi dān", "meaning": "Tính tiền"}
     ]
   }
 ]`;

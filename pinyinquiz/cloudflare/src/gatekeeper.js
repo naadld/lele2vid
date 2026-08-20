@@ -429,12 +429,12 @@ function parseAiResponseJson(text) {
  */
 function buildAiJudgePrompt(idea) {
   const systemPrompt = `You are Gatekeeper 1, an expert linguistic and quality assurance judge for the Vietnamese Chinese learning channel 'Lê Lê Học Tiếng Trung'.
-Audit the following candidate idea strictly against these 5 CRITERIA:
+Audit the following candidate idea strictly against these CRITERIA:
 1. 100% Simplified Chinese: Every Hanzi character MUST be Simplified Chinese. Absolutely NO Traditional Chinese characters allowed.
 2. Single Topic Only: Topic MUST be a single cohesive topic. Strictly NO compound topics with '&', '+', '/', 'và', 'hoặc', 'với', 'and', 'or'.
-3. 100% Vietnamese Meaning: Meaning column MUST be natural 100% Vietnamese. Strictly NO English words (e.g., 'table', 'chair', 'apple', 'window', 'car', etc.).
+3. 100% Pure Vietnamese Meaning: Meaning column MUST be natural 100% Vietnamese. Strictly NO English words or English loanwords (e.g., 'taxi', 'bus', 'shopping', 'table', 'chair', 'apple', 'window', 'car', etc.).
 4. Pinyin Accuracy: Pinyin tone marks must match Hanzi syllables 1:1 accurately.
-5. Vocabulary Quality: Must have exactly 5 distinct, high-quality words matching the HSK level.
+5. 5-Word Emotional Curve (Retention): Must have exactly 5 words progressing from easy hook (Word 1) to standard core (Words 2-3) to tone/phonetic trap (Word 4) to challenge/boss word (Word 5).
 
 Return ONLY a JSON object with:
 {

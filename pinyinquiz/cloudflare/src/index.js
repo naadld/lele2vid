@@ -599,8 +599,13 @@ export default {
             event.cron === "0 12 * * *" ||
             event.cron === "0 0,6,14 * * *" // fallback compatibility
           ) {
-            console.log("[CRON] Publishing Cron: Executing 3x daily Buffer publishing...");
-            await handlePublishingCron(env, config);
+            let targetSlotLevel = null;
+            if (utcHours >= 23 || utcHours <= 2) targetSlotLevel = "HSK 1";      // 07:00 VN (00:00 UTC) -> HSK 1
+            else if (utcHours >= 5 && utcHours <= 8) targetSlotLevel = "HSK 2";  // 13:00 VN (06:00 UTC) -> HSK 2
+            else if (utcHours >= 11 && utcHours <= 14) targetSlotLevel = "HSK 3"; // 19:00 VN (12:00 UTC) -> HSK 3
+
+            console.log(`[CRON] Publishing Cron: Executing Buffer publishing (Target Level: ${targetSlotLevel || "Any"})...`);
+            await handlePublishingCron(env, config, targetSlotLevel);
           }
           // 3. Mid-day Report: 12:01 GMT+7 (05:01 UTC)
           else if (event.cron === "1 5 * * *") {
@@ -1681,10 +1686,10 @@ export async function handleProductionCron(env, config, timeLabel = "01:00 Sáng
 }
 
 /**
- * Publishing Cron: Runs at 07:00 AM VN (UTC 00:00) and 13:00 PM VN (UTC 06:00)
- * Handles Error retries (2 attempts max) + Publishes 1 Ready video
+ * Publishing Cron: Runs at 07:00 AM (HSK 1), 13:00 PM (HSK 2), and 19:00 PM (HSK 3) GMT+7
+ * Handles Error retries (2 attempts max) + Publishes 1 Ready video matching slot level
  */
-export async function handlePublishingCron(env, config) {
+export async function handlePublishingCron(env, config, targetLevel = null) {
   const gsheet = new GoogleSheetsClient(
     config.gcpClientEmail,
     config.gcpPrivateKey,
@@ -1693,10 +1698,10 @@ export async function handlePublishingCron(env, config) {
   );
 
   const errorBatches = await gsheet.getBatchesByStatus("Error");
-  const readyBatches = await gsheet.getBatchesByStatus("Ready");
+  const allReadyBatches = await gsheet.getBatchesByStatus("Ready");
   const nowStr = getVietnamTimestamp();
 
-  console.log(`[PUBLISHING-CRON] Fired at ${nowStr} (GMT+7). Found ${errorBatches.length} Error and ${readyBatches.length} Ready batches.`);
+  console.log(`[PUBLISHING-CRON] Fired at ${nowStr} (GMT+7). Target Level: ${targetLevel || "Any"}. Found ${errorBatches.length} Error and ${allReadyBatches.length} Ready batches.`);
 
   // 1. Quét và thử lại (retry tối đa 2 lần) cho TẤT CẢ các dòng Error
   if (errorBatches.length > 0) {
@@ -1727,10 +1732,23 @@ export async function handlePublishingCron(env, config) {
     );
   }
 
-  // 2. Đăng ĐÚNG 1 video duy nhất có trạng thái "Ready" (từ trên xuống)
+  // 2. Lọc video Ready theo targetLevel (Khung giờ)
+  let readyBatches = allReadyBatches;
+  let slotNotice = "";
+  if (targetLevel && allReadyBatches.length > 0) {
+    const levelFiltered = allReadyBatches.filter(b => b.level && b.level.toLowerCase().includes(targetLevel.toLowerCase()));
+    if (levelFiltered.length > 0) {
+      readyBatches = levelFiltered;
+      slotNotice = ` (Khung giờ: <code>${targetLevel}</code>)`;
+    } else {
+      slotNotice = ` (Mục tiêu <code>${targetLevel}</code> trống ➔ Lấy video Ready kế tiếp)`;
+    }
+  }
+
+  // 3. Đăng ĐÚNG 1 video duy nhất có trạng thái "Ready"
   if (readyBatches.length > 0) {
     const targetVideo = readyBatches[0];
-    console.log(`[PUBLISHING-CRON] Publishing 1 Ready video: #${targetVideo.id} - ${targetVideo.topic}...`);
+    console.log(`[PUBLISHING-CRON] Publishing 1 Ready video: #${targetVideo.id} - ${targetVideo.topic} (${targetVideo.level})...`);
     const res = await publishBatchToBuffer(env, targetVideo);
 
     await gsheet.updateSocialPublishStatus(targetVideo.rowNumber, res.finalStatus, {
@@ -1743,8 +1761,8 @@ export async function handlePublishingCron(env, config) {
     await sendTelegramMessage(
       config.telegramBotToken,
       config.telegramChatId,
-      `📢 <b>[Lịch Đăng Tự Động ${nowStr}]</b>\n\n` +
-      `${icon} <b>Video:</b> #${targetVideo.id} - ${targetVideo.topic}\n` +
+      `📢 <b>[Lịch Đăng Tự Động ${nowStr}]</b>${slotNotice}\n\n` +
+      `${icon} <b>Video:</b> #${targetVideo.id} - ${targetVideo.topic} (<code>${targetVideo.level}</code>)\n` +
       `📊 <b>Trạng thái:</b> <b>${res.finalStatus}</b>\n` +
       `• YouTube: ${res.isYtOk ? "✅" : "❌"}\n` +
       `• TikTok: ${res.isTtOk ? "✅" : "❌"}\n` +
@@ -1755,9 +1773,9 @@ export async function handlePublishingCron(env, config) {
     await sendTelegramMessage(
       config.telegramBotToken,
       config.telegramChatId,
-      `📢 <b>[Lịch Đăng Tự Động ${nowStr}]</b>\n\n` +
+      `📢 <b>[Lịch Đăng Tự Động ${nowStr}]</b>${slotNotice}\n\n` +
       `⚠️ Không tìm thấy video nào ở trạng thái <b>Ready</b> để đăng bài.\n` +
-      `<i>(Vui lòng kiểm tra các video đang ở trạng thái <b>Video</b> và bấm Approve trên Telegram để chuyển sang Ready).</i>`
+      `<i>(Vui lòng kiểm tra các video đang ở trạng thái <b>Video</b> hoặc chạy Render để sẵn sàng kho video).</i>`
     );
   }
 }

@@ -169,9 +169,17 @@ class {scene_name}(Scene):
             meaning = w["meaning"]
             voice_file = w.get("voice", "")
 
-            # Word counter
-            counter_text = Text(f"Từ {{idx}}/{{total_words}}", font=VIETNAMESE_FONT, font_size=26, color="#94a3b8", weight=SEMIBOLD)
-            counter_text.move_to(footer_card.get_right() + LEFT * 0.9)
+            # Word counter with subtle emotional icons for Q4 (⚡ Trap) & Q5 (🔥 Boss)
+            icon_suffix = " ⚡" if idx == 4 else (" 🔥" if idx == 5 else "")
+            counter_color = "#fbbf24" if idx == 4 else ("#f87171" if idx == 5 else "#94a3b8")
+            counter_text = Text(
+                f"Từ {{idx}}/{{total_words}}{{icon_suffix}}",
+                font=VIETNAMESE_FONT,
+                font_size=26,
+                color=counter_color,
+                weight=BOLD if idx >= 4 else SEMIBOLD
+            )
+            counter_text.move_to(footer_card.get_right() + LEFT * 1.0)
             self.play(FadeIn(counter_text, run_time=0.2))
 
             # Main Question Card
