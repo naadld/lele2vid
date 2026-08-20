@@ -17,6 +17,10 @@ on:
         description: 'Number of ideas to generate in batch mode'
         required: false
         default: '5'
+      level:
+        description: 'Target HSK Level (e.g. HSK 1, HSK 2, HSK 3, or empty for automatic rotation)'
+        required: false
+        default: ''
       row_id:
         description: 'Specific Row ID for single-row re-generation'
         required: false
@@ -92,6 +96,7 @@ jobs:
           CF_WEBHOOK_URL: ${{ github.event.inputs.cf_webhook_url || 'https://lele-pinyinquiz.hothihuong113.workers.dev/api/receive-ideas' }}
           INPUT_MODE: ${{ github.event.inputs.mode || 'batch' }}
           INPUT_COUNT: ${{ github.event.inputs.count || '30' }}
+          INPUT_LEVEL: ${{ github.event.inputs.level }}
           INPUT_ROW_ID: ${{ github.event.inputs.row_id }}
           INPUT_REJECTED_TOPIC: ${{ github.event.inputs.rejected_topic }}
           INPUT_ERROR_REASONS: ${{ github.event.inputs.error_reasons }}
@@ -121,6 +126,9 @@ jobs:
 
           if [ "$MODE" = "batch" ]; then
             CMD="$CMD --count $COUNT"
+            if [ -n "$INPUT_LEVEL" ]; then
+              CMD="$CMD --level \"$INPUT_LEVEL\""
+            fi
           else
             if [ -n "$INPUT_ROW_ID" ]; then
               CMD="$CMD --row-id \"$INPUT_ROW_ID\""

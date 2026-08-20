@@ -320,7 +320,8 @@ def run_batch_mode(
     webhook_url: str = DEFAULT_WEBHOOK_URL,
     delay_seconds: int = 60,
     update_sheet: bool = False,
-    dry_run: bool = False
+    dry_run: bool = False,
+    target_level_override: str = ""
 ):
     """
     Step 1: Batch Ideation Mode.
@@ -342,7 +343,10 @@ def run_batch_mode(
     generated_success_count = 0
     generated_rows_summary = []
 
-    hsk_levels = ["HSK 1", "HSK 2", "HSK 3"]
+    if target_level_override and target_level_override.strip():
+        hsk_levels = [target_level_override.strip()]
+    else:
+        hsk_levels = ["HSK 1", "HSK 2", "HSK 3"]
 
     for i in range(1, count + 1):
         target_row_id = current_max_id + i
@@ -571,6 +575,7 @@ def main():
     parser.add_argument("--error-reasons", type=str, default="", help="Error reasons from Gatekeeper 1 for single-row re-gen")
     parser.add_argument("--gemini-keys", type=str, default="", help="Comma-separated ephemeral Gemini API keys")
     parser.add_argument("--webhook-url", type=str, default=DEFAULT_WEBHOOK_URL, help="Cloudflare Worker webhook URL (/api/receive-ideas)")
+    parser.add_argument("--level", type=str, default="", help="Target HSK level (e.g. 'HSK 1', 'HSK 2', 'HSK 3')")
     parser.add_argument("--delay", type=int, default=60, help="Delay in seconds between consecutive ideas in batch mode (default: 60)")
     parser.add_argument("--update-sheet", action="store_true", help="Also write/update rows to Google Sheet directly")
     parser.add_argument("--dry-run", action="store_true", help="Generate and validate without sending to webhook or Sheet")
@@ -600,7 +605,8 @@ def main():
             webhook_url=args.webhook_url,
             delay_seconds=args.delay,
             update_sheet=args.update_sheet,
-            dry_run=args.dry_run
+            dry_run=args.dry_run,
+            target_level_override=args.level
         )
 
 

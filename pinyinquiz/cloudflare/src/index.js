@@ -302,18 +302,20 @@ export default {
     if ((url.pathname === "/api/trigger-ideation" || url.pathname === "/api/dispatch-ideation") && (request.method === "POST" || request.method === "GET")) {
       try {
         const mode = url.searchParams.get("mode") || "batch";
-        const count = url.searchParams.get("count") || "30";
+        const count = url.searchParams.get("count") || "5";
+        const level = url.searchParams.get("level") || "";
         const rowId = url.searchParams.get("row_id") || "";
         const rejectedTopic = url.searchParams.get("rejected_topic") || "";
         const errorReasons = url.searchParams.get("error_reasons") || "";
         const ghRes = await triggerGitHubIdeationWorkflow(env, {
           mode,
           count,
+          level,
           row_id: rowId,
           rejected_topic: rejectedTopic,
           error_reasons: errorReasons
         });
-        return new Response(JSON.stringify({ success: true, mode, count, row_id: rowId, result: ghRes }, null, 2), {
+        return new Response(JSON.stringify({ success: true, mode, count, level, row_id: rowId, result: ghRes }, null, 2), {
           headers: { "Content-Type": "application/json" }
         });
       } catch (err) {
