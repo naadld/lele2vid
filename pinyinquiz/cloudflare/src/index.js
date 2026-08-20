@@ -765,7 +765,7 @@ async function handleTelegramUpdate(update, env, config) {
     if (action === "approve") {
       newStatus = "Ready";
       statusLabel = "🟢 ĐÃ DUYỆT (Ready - Sẵn sàng đăng tự động)";
-      alertText = `Đã duyệt Video #${rowId} (Ready)! Sẵn sàng đăng lúc 07:00 / 13:00.`;
+      alertText = `Đã duyệt Video #${rowId} (Ready)! Sẵn sàng đăng 3 ca (07:00 / 13:00 / 19:00).`;
       await gsheet.updateBatchStatus(rowInfo.rowNumber, "Ready");
     }
     // 🔄 Reset -> Pending
@@ -1210,7 +1210,7 @@ async function handleTelegramUpdate(update, env, config) {
       }
 
       await gsheet.updateCell(`${config.sheetTabName}!D${foundIndex}`, "Ready");
-      await sendTelegramMessage(botToken, chatId, `✅ <b>ĐÃ DUYỆT DÒNG #${targetRowId}!</b> Trạng thái: <code>Ready</code> (Sẵn sàng đăng tự động lúc 07:00 / 13:00)`);
+      await sendTelegramMessage(botToken, chatId, `✅ <b>ĐÃ DUYỆT DÒNG #${targetRowId}!</b> Trạng thái: <code>Ready</code> (Sẵn sàng đăng tự động 3 ca: 07:00 / 13:00 / 19:00)`);
     } catch (err) {
       await sendTelegramMessage(botToken, chatId, `❌ <b>Lỗi duyệt dòng #${targetRowId}:</b>\n<code>${err.message}</code>`);
     }
@@ -1338,11 +1338,30 @@ export async function sendSystemDashboardReport(env, config, botToken, chatId, t
     const bufferBar = makeTextBar(bufferStats.monthlyRemaining, bufferStats.monthlyLimit, 12);
     const bufferPct = bufferStats.monthlyPercent ?? 98;
 
-    // Target: 14 ready videos = 7 days of safe auto-posting (2 videos/day)
+    // Target: 21 ready videos = 7 days of safe auto-posting (3 videos/day)
     const targetDays = 7;
-    const targetReadyVideos = targetDays * 2;
-    const readyDays = (summary.readyCount / 2).toFixed(1);
+    const videosPerDay = 3;
+    const targetReadyVideos = targetDays * videosPerDay;
+    const readyDays = (summary.readyCount / videosPerDay).toFixed(1);
     const readyBar = makeEmojiBar(summary.readyCount, targetReadyVideos, 10, "🟩", "⬜");
+
+    const hsk1Ready = summary.readyByLevel?.hsk1 || 0;
+    const hsk2Ready = summary.readyByLevel?.hsk2 || 0;
+    const hsk3Ready = summary.readyByLevel?.hsk3 || 0;
+
+    const hsk1Badge = hsk1Ready > 0 ? `🟢 <b>${hsk1Ready} video</b> <i>(Đủ ${hsk1Ready} ngày)</i>` : `⚠️ <b>0 video</b> <code>(THIẾU KHO)</code>`;
+    const hsk2Badge = hsk2Ready > 0 ? `🟢 <b>${hsk2Ready} video</b> <i>(Đủ ${hsk2Ready} ngày)</i>` : `⚠️ <b>0 video</b> <code>(THIẾU KHO)</code>`;
+    const hsk3Badge = hsk3Ready > 0 ? `🟢 <b>${hsk3Ready} video</b> <i>(Đủ ${hsk3Ready} ngày)</i>` : `⚠️ <b>0 video</b> <code>(THIẾU KHO)</code>`;
+
+    let missingAlert = "";
+    const missingSlots = [];
+    if (hsk1Ready === 0) missingSlots.push("Ca 07:00 (HSK 1)");
+    if (hsk2Ready === 0) missingSlots.push("Ca 13:00 (HSK 2)");
+    if (hsk3Ready === 0) missingSlots.push("Ca 19:00 (HSK 3)");
+
+    if (missingSlots.length > 0) {
+      missingAlert = `\n🚨 <b>CẢNH BÁO THIẾU KHO:</b> Đang thiếu video cho <b>${missingSlots.join(" & ")}</b>!`;
+    }
 
     let errorDetailText = "";
     if (summary.errorCount > 0) {
@@ -1368,8 +1387,13 @@ export async function sendSystemDashboardReport(env, config, botToken, chatId, t
       `${headerTitle}\n` +
       `━o0o━\n\n` +
       `📦 <b>KHO NỘI DUNG & TIẾN ĐỘ XUẤT BẢN:</b>\n` +
-      `🟢 <b>Video Đã Duyệt (Ready):</b> <b>${summary.readyCount} / ${targetReadyVideos} video</b>\n` +
-      `   └ <code>${readyBar}</code> <b>${readyDays} ngày</b> an toàn\n` +
+      `🟢 <b>Tổng Video Ready:</b> <b>${summary.readyCount} / ${targetReadyVideos} video</b>\n` +
+      `   └ <code>${readyBar}</code> <b>${readyDays} ngày</b> (Trung bình kho)\n\n` +
+      `🎯 <b>CHI TIẾT SẴN SÀNG THEO 3 CA:</b>\n` +
+      `• 🌅 <b>Ca 07:00 (HSK 1):</b> ${hsk1Badge}\n` +
+      `• ☀️ <b>Ca 13:00 (HSK 2):</b> ${hsk2Badge}\n` +
+      `• 🌙 <b>Ca 19:00 (HSK 3):</b> ${hsk3Badge}` +
+      missingAlert + `\n\n` +
       `⏳ <b>Chờ Kiểm Duyệt (Video):</b> <code>${summary.videoCount}</code> video (Đã lưu GDrive)\n` +
       `💡 <b>Chờ Kết Xuất (Pending):</b> <code>${summary.pendingCount}</code> ý tưởng\n` +
       failedDetailText + errorDetailText + `\n\n` +
@@ -1377,8 +1401,8 @@ export async function sendSystemDashboardReport(env, config, botToken, chatId, t
       `${channelsList}\n\n` +
       `🔋 <b>HẠN MỨC QUOTA BUFFER THÁNG:</b>\n` +
       `   └ <code>[${bufferBar}]</code> <b>${bufferStats.monthlyRemaining?.toLocaleString()} / ${bufferStats.monthlyLimit?.toLocaleString()} req</b> (còn ${bufferPct}%)\n` +
-      `   └ <i>Đã dùng: ${bufferStats.monthlyUsed} req • Dư sức chạy ${Math.floor((bufferStats.monthlyRemaining || 2960) / 8)} ngày</i>\n\n` +
-      `⏰ <b>LỊCH ĐĂNG BÀI:</b> <b>07:00 Sáng & 13:00 Chiều Hàng Ngày</b>\n` +
+      `   └ <i>Đã dùng: ${bufferStats.monthlyUsed} req • Dư sức chạy ${Math.floor((bufferStats.monthlyRemaining || 2960) / 9)} ngày</i>\n\n` +
+      `⏰ <b>LỊCH ĐĂNG BÀI (3 CA):</b> <b>07:00 (HSK 1) • 13:00 (HSK 2) • 19:00 (HSK 3) Hàng Ngày</b>\n` +
       `━o0o━\n` +
       `👇 <i>Bấm các nút dưới đây để điều khiển nhanh hệ thống:</i>`
     );

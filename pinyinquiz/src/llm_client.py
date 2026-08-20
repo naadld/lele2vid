@@ -246,9 +246,9 @@ def build_system_prompt() -> str:
         "- Từ 5 (THỬ THÁCH BOSS 🔥): Khó nhất bộ, chứa âm dễ nhầm lẫn (c/z, x/sh, q/ch, zh/ch, 练习 liànxí vs 联系 liánxì) hoặc với HSK 3 là cụm từ 3-4 chữ viral phim ảnh / thành ngữ thông dụng (ví dụ: 真的吗, 没关系, 不好意思, 一清二白). Kích thích lưu bài hoặc xem lại.\n\n"
         "QUY TẮC BẮT BUỘC (TUÂN THỦ 100% TIÊU CHUẨN GATEKEEPER 1):\n"
         "1. 100% Chữ Giản Thể (Simplified Chinese): Tuyệt đối không dùng chữ Phồn thể.\n"
-        "2. Chủ đề đơn (Single Topic Only): Tên chủ đề ngắn gọn (3-7 từ), KHÔNG dùng từ nối (&, VÀ, +, /, VÀ CẢ).\n"
+        "2. Chủ đề tự nhiên, thu hút: Tên chủ đề ngắn gọn (3-7 từ), các từ nối tự nhiên như 'và', '&' hoàn toàn được chấp nhận (ví dụ: 'Cảm xúc và Tâm trạng', 'Thời tiết và Khí hậu', 'Đồ ăn & Thức uống').\n"
         "3. 100% Nghĩa Tiếng Việt thuần túy: Tuyệt đối không chứa từ tiếng Anh (chair, table, dog, cat, car, water, taxi, bus,...).\n"
-        "4. Pinyin chuẩn xác: Đầy đủ dấu thanh điệu (ā, á, ǎ, à, ē, é, ě, è, ī, í, ǐ, ì, ō, ó, ǒ, ò, ū, ú, ǔ, ù, ǖ, ǘ, ǚ, ǜ), số âm tiết Pinyin phải khớp 1-1 với số chữ Hán.\n"
+        "4. Pinyin chuẩn xác & cách nhau bằng dấu cách (Space-separated): Mỗi âm tiết Pinyin phải cách nhau bằng dấu cách (ví dụ: 'shāng diàn', 'dōng xi', 'dǎ zhé', 'zěn me yàng'). Lưu ý các âm mang thanh nhẹ (như 'me' trong 怎么样, 'zi' trong 桌子, 'men' trong 我们, 'ba' trong 爸爸, 'ma' trong 妈妈, 'xi' trong 东西, 'nai' trong 奶奶, 'mei' trong 妹妹) không có dấu thanh điệu.\n"
         "5. Phân bổ trình độ HSK đa dạng: Trải đều phong phú giữa HSK 1, HSK 2 và HSK 3, không cố định duy nhất một cấp độ HSK 1.\n"
         "6. Mỗi bộ chủ đề gồm đúng 5 từ vựng, mỗi từ dài từ 1 đến 4 chữ Hán.\n"
         "7. Bắt buộc trả về định dạng JSON thuần túy (Array hoặc Object theo yêu cầu), không thêm bất kỳ lời dẫn hay giải thích nào."
@@ -375,8 +375,8 @@ def generate_single_replacement_topic(
 YÊU CẦU TÁI SINH DÒNG #{row_id}:
 Hãy tạo DUY NHẤT 1 bộ chủ đề từ vựng tiếng Trung (HSK 1, HSK 2 hoặc HSK 3) hoàn toàn MỚI để thay thế dòng #{row_id}.
 Tuyệt đối KHẮC PHỤC TRIỆT ĐỂ tất cả các lỗi vi phạm nêu trên:
-- Tên chủ đề đơn lẻ, hấp dẫn, không dùng từ ghép hay liên từ nối (&, VÀ, +).
-- Đúng 5 từ vựng, 100% Giản thể, 100% Nghĩa tiếng Việt, Pinyin chuẩn âm tiết và dấu thanh điệu.
+- Tên chủ đề rõ ràng, hấp dẫn (có thể dùng 'và', '&' như 'Cảm xúc và Tâm trạng').
+- Đúng 5 từ vựng, 100% Giản thể, 100% Nghĩa tiếng Việt, Pinyin cách nhau từng âm tiết (ví dụ: 'shāng diàn') và chuẩn thanh điệu.
 - Không trùng lặp với các từ vựng đã có: [{used_sample}].
 
 Định dạng JSON yêu cầu (Trả về duy nhất 1 JSON Object):

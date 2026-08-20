@@ -252,7 +252,7 @@ export async function publishBatchToBuffer(env, batch) {
 
   if (channels.length === 0) {
     channels = [
-      { id: "6a83de24ccaf649a67c8d55c", name: "Lê Lê học tiếng Trung", service: "facebook", type: "page" },
+      { id: "6a871331ccaf649a67e1b724", name: "Lê Lê học tiếng Trung", service: "facebook", type: "page" },
       { id: "6a83dc5bccaf649a67c8b30f", name: "lelehoctiengtrung", service: "tiktok", type: "account" },
       { id: "6a83dda0ccaf649a67c8cb92", name: "Lê Lê và Hán Ngữ", service: "youtube", type: "channel" }
     ];

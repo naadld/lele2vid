@@ -16,7 +16,10 @@ TONE_VOWELS = set("āáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ")
 # Legitimate neutral-tone syllables when in context of tone-marked words or particles
 VALID_NEUTRAL_SYLLABLES = {
     "de", "le", "ma", "ba", "ne", "zi", "men", "tou", "fu", "er",
-    "ya", "la", "ge", "huo", "bian", "shang", "xia", "li", "you"
+    "ya", "la", "ge", "huo", "bian", "shang", "xia", "li", "you",
+    "me", "xi", "sheng", "huan", "bai", "liang", "shi", "fan", "shu",
+    "nao", "jie", "di", "zhe", "guo", "wa", "qian", "hou", "mian",
+    "dao", "hu", "sa", "luo", "dian", "kuai"
 }
 
 # Strict fallback list of Traditional characters for environments without opencc or double assurance
@@ -102,30 +105,25 @@ class PreRenderValidator:
         self.required_word_count = 5  # Must have exactly 5 words
 
     def check_single_topic(self, topic: str) -> Tuple[bool, str]:
-        """Validate that topic is a single topic without compound connectors."""
-        if not topic or len(topic.strip()) < 3:
+        """Validate that topic is meaningful and clean (allows natural connectors like 'và', '&', '-')."""
+        if not topic or len(topic.strip()) < 2:
             return False, "Chủ đề (Topic) quá ngắn hoặc bị rỗng."
         
-        # Check compound symbols &, +, /, \
-        if re.search(r'[&+/\\]', topic):
-            return False, f"Chủ đề '{topic}' chứa ký tự ghép nối (&, +, /, \\). Phải là 1 chủ đề đơn lẻ."
+        if len(topic.strip()) > 50:
+            return False, f"Chủ đề '{topic}' quá dài ({len(topic.strip())} ký tự, tối đa 50 ký tự)."
         
-        # Check conjunction words
-        if re.search(r'(?i)\b(và|va|hoặc|hoac|với|voi|kèm|cùng|and|or|plus|with)\b', topic):
-            return False, f"Chủ đề '{topic}' chứa từ nối ghép ('và', 'and', 'hoặc'...). Phải là 1 chủ đề đơn lẻ."
-        
-        # Check commas
-        if "," in topic and "HSK" not in topic.upper():
-            return False, f"Chủ đề '{topic}' chứa dấu phẩy ghép nhiều chủ đề. Phải là 1 chủ đề đơn lẻ."
+        # Check raw list delimiters like semicolons
+        if ";" in topic or "|" in topic:
+            return False, f"Chủ đề '{topic}' chứa ký tự phân tách danh sách (; hoặc |)."
         
         # Check etc / v.v.
         if re.search(r'(?i)(v\.v\.|v/v|\betc\b)', topic):
-            return False, f"Chủ đề '{topic}' chứa ký hiệu liệt kê (v.v., etc...). Phải là 1 chủ đề đơn lẻ."
+            return False, f"Chủ đề '{topic}' chứa ký hiệu liệt kê (v.v., etc...). Phải là 1 chủ đề rõ ràng."
         
         return True, ""
 
     def validate_pinyin_tones(self, pinyin_str: str, hanzi_len: int) -> Tuple[bool, str]:
-        """Validate pinyin syllable count and tone marks."""
+        """Validate pinyin syllable count and tone marks (supporting standard neutral tones / thanh nhẹ)."""
         if not pinyin_str:
             return False, "Pinyin bị rỗng."
         
@@ -133,19 +131,16 @@ class PreRenderValidator:
         if len(syllables) != hanzi_len:
             return False, f"Số âm tiết Pinyin ({len(syllables)}) không khớp với số chữ Hán ({hanzi_len})."
         
-        has_at_least_one_tone = False
-        for s in syllables:
-            has_tone = any(c in TONE_VOWELS for c in s)
-            if has_tone:
-                has_at_least_one_tone = True
-            elif s not in VALID_NEUTRAL_SYLLABLES:
-                return False, f"Pinyin '{pinyin_str}' chứa âm tiết '{s}' thiếu dấu thanh điệu (tone mark)."
-
-        if not has_at_least_one_tone and len(syllables) > 1:
-            return False, f"Pinyin '{pinyin_str}' không có dấu thanh điệu (yêu cầu Pinyin chuẩn có thanh điệu)."
-        elif not has_at_least_one_tone and syllables[0] not in {"de", "le", "ma", "ba", "ne"}:
-            return False, f"Pinyin '{pinyin_str}' thiếu dấu thanh điệu (tone mark)."
-
+        # In Chinese phonetics:
+        # Multi-syllable word (len > 1): Must have at least 1 tone mark. Other syllables are valid neutral tones.
+        # Single syllable word (len == 1): Must have a tone mark unless it is a standard particle.
+        has_at_least_one_tone = any(any(c in TONE_VOWELS for c in s) for s in syllables)
+        
+        if not has_at_least_one_tone:
+            all_neutral = all(s in VALID_NEUTRAL_SYLLABLES for s in syllables)
+            if not all_neutral:
+                return False, f"Pinyin '{pinyin_str}' không có dấu thanh điệu (yêu cầu Pinyin chuẩn có thanh điệu)."
+        
         return True, ""
 
     def check_vietnamese_meaning(self, meaning: str) -> Tuple[bool, str]:

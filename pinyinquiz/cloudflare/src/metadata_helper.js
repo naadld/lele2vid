@@ -112,7 +112,8 @@ ${fbCaption}
     facebook: {
       caption: fbCaption
     },
-    formatted_text: formattedText
+    formatted_text: formattedText,
+    formattedText: formattedText
   };
 }
 

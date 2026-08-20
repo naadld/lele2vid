@@ -156,9 +156,8 @@ Mỗi bộ kịch bản gồm đúng 5 câu hỏi/từ được sắp xếp tăn
 - TỪ 5 (THỬ THÁCH BOSS / THÀNH NGỮ VIRAL 🔥): Từ thử thách nhất, chứa các âm dễ nhầm lẫn (c/z, x/sh, q/ch, zh/ch, 练习 liànxí vs 联系 liánxì) hoặc với HSK 3 là cụm từ 3-4 chữ viral phim ảnh / thành ngữ thông dụng (ví dụ: 真的吗, 没关系, 不好意思, 一清二白). Khiến người xem phải xem lại video (Loop) hoặc nhấn Lưu video (Save).
 
 QUY TẮC BẮT BUỘC VỀ CHỦ ĐỀ & TỪ VỰNG:
-1. 🏷️ CHỈ SỬ DỤNG 1 CHỦ ĐỀ ĐƠN DUY NHẤT (SINGLE TOPIC ONLY):
-   - Tên chủ đề PHẢI là 1 chủ đề đơn lẻ, ngắn gọn (Ví dụ: 'HSK 1 • Đồ Ăn', 'HSK 1 • Thức Uống', 'HSK 1 • Gia Đình', 'HSK 2 • Giao Thông', 'HSK 2 • Thời Tiết', 'HSK 2 • Cảm Xúc', 'HSK 2 • Mua Sắm', 'HSK 3 • Sinh Hoạt', 'HSK 3 • Câu Thoại Phim', 'HSK 3 • Thành Ngữ Phổ Biến'...).
-   - TUYỆT ĐỐI CẤM dùng cặp chủ đề ghép có từ nối như '&', 'VÀ', '+', '/' (CẤM: 'Đồ Ăn & Thức Uống', 'Cảm Xúc và Nhu Cầu'...).
+1. 🏷️ CHỦ ĐỀ RÕ RÀNG, TỰ NHIÊN:
+   - Tên chủ đề ngắn gọn, tự nhiên (Ví dụ: 'HSK 1 • Đồ Ăn', 'HSK 1 • Thức Uống', 'HSK 1 • Gia Đình', 'HSK 2 • Giao Thông', 'HSK 2 • Thời Tiết', 'HSK 2 • Cảm Xúc và Tâm Trạng', 'HSK 2 • Mua Sắm', 'HSK 3 • Sinh Hoạt', 'HSK 3 • Câu Thoại Phim', 'HSK 3 • Thành Ngữ Phổ Biến'...). Các từ nối tự nhiên như 'và', '&' hoàn toàn được chấp nhận.
 2. 🌟 ĐA DẠNG HÓA TRÌNH ĐỘ HSK (HSK 1 - HSK 2 - HSK 3):
    - Phân bổ luân phiên, cân bằng giữa các cấp độ HSK 1, HSK 2 và HSK 3. TUYỆT ĐỐI KHÔNG cố định duy nhất một trình độ HSK 1.
 3. 🔄 TẦNG SUẤT LẶP LẠI CHỦ ĐỀ (RECURRENCE AFTER 5-6 VIDEOS):
@@ -172,7 +171,7 @@ QUY TẮC BẮT BUỘC VỀ CHỦ ĐỀ & TỪ VỰNG:
    - Cả 5 từ vựng BẮT BUỘC thuộc đúng chủ đề đơn đó (Ví dụ: Chủ đề 'Nhà Hàng' thì 5 từ phải về ăn uống/phục vụ, cấm lớp học, bài tập).
 6. 🇻🇳 NGHĨA TIẾNG VIỆT 100% (VIETNAMESE MEANING ONLY):
    - Cột nghĩa BẮT BUỘC LÀ TIẾNG VIỆT CHUẨN THUẦN TÚY. TUYỆT ĐỐI CẤM DÙNG TIẾNG ANH (CẤM từ mượn tiếng Anh như 'taxi', 'bus', 'shopping', 'apple', 'chair', 'window'...).
-7. 🔤 Pinyin CHUẨN XÁC, CÓ THANH ĐIỆU ĐẦY ĐỦ VÀ KHỚP 1-1 VỚI TỪNG CHỮ HÁN.
+7. 🔤 Pinyin CHUẨN XÁC, CÁCH NHAU TỪNG ÂM TIẾT BẰNG DẤU CÁCH (ví dụ: 'shāng diàn', 'dōng xi', 'dǎ zhé', 'zěn me yàng'). Lưu ý thanh nhẹ (như 'me' trong 怎么样, 'zi' trong 桌子, 'men' trong 我们, 'ba' trong 爸爸, 'ma' trong 妈妈, 'xi' trong 东西, 'nai' trong 奶奶, 'mei' trong 妹妹) không có dấu thanh điệu.
 8. 🇨🇳 100% CHỮ HÁN LÀ GIẢN THỂ (Simplified Chinese), mỗi từ/cụm gồm 1 đến tối đa 4 chữ Hán.
 9. 📦 Phản hồi DUY NHẤT một chuỗi JSON hợp lệ.
 
@@ -454,9 +453,12 @@ export function validateTopicUniquenessAndQuality(topicItem, history = {}) {
   if (cleanTopic.includes("•")) cleanTopic = cleanTopic.split("•")[1].trim();
   else if (cleanTopic.includes("-")) cleanTopic = cleanTopic.split("-")[1].trim();
 
-  // 1. Single Topic Policy Check (TUYỆT ĐỐI CẤM cặp chủ đề ghép & / VÀ / +)
-  if (/\b(&|và|\/|\+)\b/i.test(rawTopicTitle)) {
-    errors.push(`Chủ đề '${rawTopicTitle}' là cặp chủ đề ghép. Yêu cầu chỉ dùng 1 CHỦ ĐỀ ĐƠN DUY NHẤT (Ví dụ: 'HSK 1 • Đồ Ăn', 'HSK 2 • Nhà Hàng').`);
+  // 1. Topic Format & Length Check
+  if (rawTopicTitle.length < 2 || rawTopicTitle.length > 50) {
+    errors.push(`Chủ đề '${rawTopicTitle}' có độ dài không hợp lệ (từ 2-50 ký tự).`);
+  }
+  if (rawTopicTitle.includes(";") || rawTopicTitle.includes("|")) {
+    errors.push(`Chủ đề '${rawTopicTitle}' chứa ký tự phân tách danh sách (; hoặc |).`);
   }
 
   // 2. Topic Recurrence Check (Cấm lặp lại trong 5-6 video gần nhất)

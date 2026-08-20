@@ -485,19 +485,37 @@ export class GoogleSheetsClient {
     let errorCount = 0;
     const errorDetails = [];
 
+    let readyHsk1 = 0, readyHsk2 = 0, readyHsk3 = 0;
+    let pendingHsk1 = 0, pendingHsk2 = 0, pendingHsk3 = 0;
+    let videoHsk1 = 0, videoHsk2 = 0, videoHsk3 = 0;
+
     for (let idx = 0; idx < rows.length; idx++) {
       const row = rows[idx];
       const rowNumber = idx + 2;
       const status = (row[3] || "").trim().toLowerCase();
       const rowId = row[0] || `#${rowNumber}`;
       const topic = row[1] || "";
+      const rawLevel = (row[2] || "").trim().toUpperCase();
+
+      let level = "HSK 1";
+      if (rawLevel.includes("3")) level = "HSK 3";
+      else if (rawLevel.includes("2")) level = "HSK 2";
 
       if (status === "pending") {
         pendingCount++;
+        if (level === "HSK 3") pendingHsk3++;
+        else if (level === "HSK 2") pendingHsk2++;
+        else pendingHsk1++;
       } else if (status === "video") {
         videoCount++;
+        if (level === "HSK 3") videoHsk3++;
+        else if (level === "HSK 2") videoHsk2++;
+        else videoHsk1++;
       } else if (status === "ready") {
         readyCount++;
+        if (level === "HSK 3") readyHsk3++;
+        else if (level === "HSK 2") readyHsk2++;
+        else readyHsk1++;
       } else if (status === "failed") {
         failedCount++;
       } else if (status === "error") {
@@ -521,7 +539,22 @@ export class GoogleSheetsClient {
       readyCount,
       failedCount,
       errorCount,
-      errorDetails
+      errorDetails,
+      readyByLevel: {
+        hsk1: readyHsk1,
+        hsk2: readyHsk2,
+        hsk3: readyHsk3
+      },
+      pendingByLevel: {
+        hsk1: pendingHsk1,
+        hsk2: pendingHsk2,
+        hsk3: pendingHsk3
+      },
+      videoByLevel: {
+        hsk1: videoHsk1,
+        hsk2: videoHsk2,
+        hsk3: videoHsk3
+      }
     };
   }
 }

@@ -179,7 +179,7 @@ export function checkSimplifiedChinese(words = []) {
 }
 
 /**
- * Criterion 2: Check Single Topic Only (No compound titles)
+ * Criterion 2: Check Single Topic (Allowing natural connectors like 'và', '&', '-')
  */
 export function checkSingleTopic(topic = "") {
   const cleanTopic = (topic || "").trim();
@@ -190,22 +190,24 @@ export function checkSingleTopic(topic = "") {
     return { passed: false, violations };
   }
 
-  // Check forbidden symbols: &, +, /, \, |
-  const symbolMatch = cleanTopic.match(/[&+/\\]/);
-  if (symbolMatch) {
-    violations.push(`Chủ đề '${cleanTopic}' chứa ký tự ghép nối '${symbolMatch[0]}'. Chỉ được dùng 1 chủ đề đơn duy nhất.`);
+  if (cleanTopic.length < 2) {
+    violations.push("Chủ đề quá ngắn.");
+    return { passed: false, violations };
   }
 
-  // Check compound conjunctions: và, va, hoặc, hoac, với, voi, kèm, cùng, and, or, plus, with
-  const conjunctionRegex = /(^|\s+)(và|va|hoặc|hoac|với|voi|kèm|cùng|and|or|plus|with)(\s+|$)/i;
-  const conjMatch = cleanTopic.match(conjunctionRegex);
-  if (conjMatch) {
-    violations.push(`Chủ đề '${cleanTopic}' chứa từ nối ghép '${conjMatch[2]}'. Phải là chủ đề đơn.`);
+  if (cleanTopic.length > 50) {
+    violations.push(`Chủ đề '${cleanTopic}' quá dài (${cleanTopic.length} ký tự, tối đa 50 ký tự).`);
+    return { passed: false, violations };
   }
 
-  // Check compound listings with commas: "A, B"
-  if (cleanTopic.includes(",") && !cleanTopic.toUpperCase().includes("HSK")) {
-    violations.push(`Chủ đề '${cleanTopic}' chứa dấu phẩy ghép nhiều chủ đề. Phải là 1 chủ đề đơn.`);
+  // Reject raw list delimiters like semicolons or pipes
+  if (cleanTopic.includes(";") || cleanTopic.includes("|")) {
+    violations.push(`Chủ đề '${cleanTopic}' chứa ký tự phân tách danh sách (; hoặc |). Phải là 1 chủ đề rõ ràng.`);
+  }
+
+  // Check etc / v.v.
+  if (/(v\.v\.|v\/v|\betc\b)/i.test(cleanTopic)) {
+    violations.push(`Chủ đề '${cleanTopic}' chứa ký hiệu liệt kê (v.v., etc...). Phải là 1 chủ đề rõ ràng.`);
   }
 
   return {
@@ -251,8 +253,34 @@ const PINYIN_TONE_VOWELS = /[āáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ]/i
 const VALID_NEUTRAL_TONE_SYLLABLES = new Set([
   "de", "le", "ma", "ba", "ne", "zi", "men", "tou", "r", "sheng",
   "fu", "hu", "shang", "xia", "li", "bian", "mian", "ge", "la",
-  "ya", "wa", "me", "qian", "hou", "zhe"
+  "ya", "wa", "me", "qian", "hou", "zhe", "xi", "huan", "bai",
+  "liang", "shi", "fan", "shu", "nao", "jie", "di", "guo", "dao",
+  "hu", "sa", "luo", "dian", "kuai", "nai", "mei", "ye", "you"
 ]);
+
+/**
+ * Auto-segment and normalize unspaced Pinyin (e.g. 'shāngdiàn' -> 'shāng diàn')
+ */
+export function normalizePinyinSyllables(hanzi, pinyin) {
+  let cleanPinyin = (pinyin || "").trim();
+  const cleanHanzi = (hanzi || "").trim().replace(/\s+/g, "");
+  const hanziChars = Array.from(cleanHanzi).filter(ch => /[\u4e00-\u9fa5]/.test(ch));
+  const hanziCount = hanziChars.length || cleanHanzi.length;
+
+  let syllables = cleanPinyin.split(/\s+/).filter(Boolean);
+
+  // If pinyin is connected without spaces (e.g. 'shāngdiàn', 'dōngxi', 'dǎzhé')
+  if (syllables.length !== hanziCount && syllables.length === 1 && hanziCount > 1) {
+    const PINYIN_SYL_REGEX = /(?:zh|ch|sh|[bpmfdtnlgkhjqxrzcsyw])?(?:[aāáǎàeēéěèiīíǐìoōóǒòuūúǔùüǖǘǚǜv]+(?:ng|n|r)?)/gi;
+    const matched = cleanPinyin.match(PINYIN_SYL_REGEX);
+    if (matched && matched.length === hanziCount) {
+      syllables = matched;
+      cleanPinyin = matched.join(" ");
+    }
+  }
+
+  return { cleanPinyin, syllables, hanziCount };
+}
 
 export function checkPinyinSyllables(words = []) {
   const violations = [];
@@ -260,7 +288,7 @@ export function checkPinyinSyllables(words = []) {
   for (let idx = 0; idx < words.length; idx++) {
     const w = words[idx];
     const hanzi = (w.hanzi || "").trim().replace(/\s+/g, "");
-    const pinyin = (w.pinyin || "").trim();
+    let pinyin = (w.pinyin || "").trim();
 
     if (!hanzi) {
       violations.push(`Từ #${idx + 1} bị thiếu chữ Hán.`);
@@ -271,38 +299,30 @@ export function checkPinyinSyllables(words = []) {
       continue;
     }
 
-    // Count Hanzi characters (Chinese characters)
-    const hanziChars = Array.from(hanzi).filter(ch => /[\u4e00-\u9fa5]/.test(ch));
-    const hanziCount = hanziChars.length || hanzi.length;
+    const { cleanPinyin, syllables, hanziCount } = normalizePinyinSyllables(hanzi, pinyin);
+    w.pinyin = cleanPinyin; // Auto-update to space-separated format
 
-    // Count Pinyin syllables (split by whitespace)
-    const pinyinSyllables = pinyin.split(/\s+/).filter(Boolean);
-    const pinyinCount = pinyinSyllables.length;
-
+    const pinyinCount = syllables.length;
     const wordIssues = [];
 
     if (hanziCount !== pinyinCount) {
       wordIssues.push(`Số âm tiết Pinyin (${pinyinCount} âm: '${pinyin}') không khớp 1:1 với số chữ Hán (${hanziCount} chữ: '${hanzi}')`);
     }
 
-    // Check tone mark validity (must contain tone mark or be valid neutral tone)
-    const toneViolations = [];
-    for (const syl of pinyinSyllables) {
-      const cleanSyl = syl.toLowerCase().replace(/[^a-zāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜü]/g, "");
-      if (!cleanSyl) {
-        toneViolations.push(`âm '${syl}' không hợp lệ`);
-        continue;
+    // Check tone mark validity:
+    // In standard Chinese phonology:
+    // Multi-syllable word (hanziCount > 1): Must have at least 1 tone mark. Un-toned syllables are legitimate neutral tones (thanh nhẹ).
+    // Single-syllable word (hanziCount === 1): Must have a tone mark unless it is a standard neutral particle.
+    const hasAtLeastOneTone = syllables.some(s => PINYIN_TONE_VOWELS.test(s));
+
+    if (!hasAtLeastOneTone) {
+      const allNeutral = syllables.every(s => {
+        const cleanSyl = s.toLowerCase().replace(/[^a-zāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜü]/g, "");
+        return VALID_NEUTRAL_TONE_SYLLABLES.has(cleanSyl);
+      });
+      if (!allNeutral) {
+        wordIssues.push(`Pinyin thiếu dấu thanh điệu (yêu cầu Pinyin chuẩn có thanh điệu)`);
       }
-
-      if (PINYIN_TONE_VOWELS.test(cleanSyl) || VALID_NEUTRAL_TONE_SYLLABLES.has(cleanSyl)) {
-        continue;
-      }
-
-      toneViolations.push(`âm '${syl}' thiếu dấu thanh`);
-    }
-
-    if (toneViolations.length > 0) {
-      wordIssues.push(`Pinyin thiếu dấu thanh điệu: [${toneViolations.join(", ")}]`);
     }
 
     if (wordIssues.length > 0) {
@@ -431,9 +451,9 @@ function buildAiJudgePrompt(idea) {
   const systemPrompt = `You are Gatekeeper 1, an expert linguistic and quality assurance judge for the Vietnamese Chinese learning channel 'Lê Lê Học Tiếng Trung'.
 Audit the following candidate idea strictly against these CRITERIA:
 1. 100% Simplified Chinese: Every Hanzi character MUST be Simplified Chinese. Absolutely NO Traditional Chinese characters allowed.
-2. Single Topic Only: Topic MUST be a single cohesive topic. Strictly NO compound topics with '&', '+', '/', 'và', 'hoặc', 'với', 'and', 'or'.
+2. Topic Cohesiveness: Topic must be a clear, natural topic in Vietnamese (natural connectors like 'và', '&', '-' are completely acceptable, e.g. 'Cảm xúc và Tâm trạng', 'Thời tiết', 'Gia đình & Bạn bè'). Only reject multi-topic dump lists separated by semicolons or containing 'etc'/'v.v.'.
 3. 100% Pure Vietnamese Meaning: Meaning column MUST be natural 100% Vietnamese. Strictly NO English words or English loanwords (e.g., 'taxi', 'bus', 'shopping', 'table', 'chair', 'apple', 'window', 'car', etc.).
-4. Pinyin Accuracy: Pinyin tone marks must match Hanzi syllables 1:1 accurately.
+4. Pinyin Accuracy: Pinyin must be accurate. Standard Chinese neutral tones (thanh nhẹ - e.g., 'me' in 怎么样/什么, 'zi' in 桌子/椅子, 'men' in 我们/你们, 'ba' in 爸爸, 'ma' in 妈妈, 'xi' in 东西, 'you' in 朋友, 'nai' in 奶奶, 'mei' in 妹妹, 'di' in 弟弟, 'jie' in 姐姐, 'ge' in 哥哥) do NOT have tone marks and are 100% CORRECT. Do NOT reject neutral tone syllables.
 5. 5-Word Emotional Curve (Retention): Must have exactly 5 words progressing from easy hook (Word 1) to standard core (Words 2-3) to tone/phonetic trap (Word 4) to challenge/boss word (Word 5).
 
 Return ONLY a JSON object with:
@@ -708,7 +728,7 @@ export async function processGatekeeperIdea(env, config, payload) {
 
     // Generate complete viral metadata
     const socialMeta = generateSocialMetadata(topic, level, words);
-    const metadataText = socialMeta.formattedText || JSON.stringify(socialMeta);
+    const metadataText = socialMeta.formatted_text || socialMeta.formattedText || "";
 
     // Format 5 word column strings: "hanzi | pinyin | hidden_pinyin | meaning"
     const wordCols = words.map(w => `${w.hanzi} | ${w.pinyin} | ${w.hidden_pinyin} | ${w.meaning}`);
