@@ -122,13 +122,17 @@ class PreRenderValidator:
         
         return True, ""
 
-    def validate_pinyin_tones(self, pinyin_str: str, hanzi_len: int) -> Tuple[bool, str]:
-        """Validate pinyin syllable count and tone marks (supporting standard neutral tones / thanh nhẹ)."""
+    def validate_pinyin_tones(self, pinyin_str: str, hanzi_len: int, hanzi_str: str = "") -> Tuple[bool, str]:
+        """Validate pinyin syllable count and tone marks (supporting standard neutral tones & Erhua 儿化)."""
         if not pinyin_str:
             return False, "Pinyin bị rỗng."
         
         syllables = [s.strip().lower() for s in pinyin_str.split() if s.strip()]
-        if len(syllables) != hanzi_len:
+        
+        # Erhua (儿化) check: Words ending with '儿' (哪儿: nǎr, 这儿: zhèr, 那儿: nàr, 玩儿: wánr, 一点儿: yì diǎnr)
+        is_erhua = bool(hanzi_str and hanzi_str.endswith("儿") and (len(syllables) == hanzi_len - 1 or any(s.endswith("r") for s in syllables)))
+        
+        if len(syllables) != hanzi_len and not is_erhua:
             return False, f"Số âm tiết Pinyin ({len(syllables)}) không khớp với số chữ Hán ({hanzi_len})."
         
         # In Chinese phonetics:
@@ -244,7 +248,7 @@ class PreRenderValidator:
                 if len(pinyin) > self.max_pinyin_len:
                     errors.append(f"Từ #{idx} '{hanzi}': Pinyin '{pinyin}' quá dài ({len(pinyin)} ký tự) làm lệch template.")
 
-                pinyin_ok, pinyin_err = self.validate_pinyin_tones(pinyin, len(hanzi))
+                pinyin_ok, pinyin_err = self.validate_pinyin_tones(pinyin, len(hanzi), hanzi)
                 if not pinyin_ok:
                     errors.append(f"Từ #{idx} '{hanzi}': {pinyin_err}")
 

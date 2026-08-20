@@ -261,16 +261,18 @@ const VALID_NEUTRAL_TONE_SYLLABLES = new Set([
 /**
  * Auto-segment and normalize unspaced Pinyin (e.g. 'shāngdiàn' -> 'shāng diàn')
  */
-export function normalizePinyinSyllables(hanzi, pinyin) {
-  let cleanPinyin = (pinyin || "").trim();
-  const cleanHanzi = (hanzi || "").trim().replace(/\s+/g, "");
-  const hanziChars = Array.from(cleanHanzi).filter(ch => /[\u4e00-\u9fa5]/.test(ch));
-  const hanziCount = hanziChars.length || cleanHanzi.length;
-
+export function normalizePinyinSyllables(hanzi = "", pinyin = "") {
+  const cleanHanzi = hanzi.replace(/[\s\u3000]/g, "");
+  const hanziCount = cleanHanzi.length;
+  let cleanPinyin = pinyin.replace(/[\u3000]/g, " ").trim();
   let syllables = cleanPinyin.split(/\s+/).filter(Boolean);
 
+  // Check Erhua (儿化 - uốn lưỡi) exception:
+  // Words ending with '儿' in Chinese (e.g. 哪儿: nǎr / nǎ er, 这儿: zhèr / zhè er, 那儿: nàr / nà er, 玩儿: wánr / wán er, 花儿: huār / huā er, 一点儿: yì diǎnr, 事儿: shìr, 门儿: ménr)
+  const isErhua = cleanHanzi.endsWith("儿") && (syllables.length === hanziCount - 1 || syllables.some(s => s.toLowerCase().endsWith("r") && !s.toLowerCase().startsWith("r")));
+
   // If pinyin is connected without spaces (e.g. 'shāngdiàn', 'dōngxi', 'dǎzhé')
-  if (syllables.length !== hanziCount && syllables.length === 1 && hanziCount > 1) {
+  if (!isErhua && syllables.length !== hanziCount && syllables.length === 1 && hanziCount > 1) {
     const PINYIN_SYL_REGEX = /(?:zh|ch|sh|[bpmfdtnlgkhjqxrzcsyw])?(?:[aāáǎàeēéěèiīíǐìoōóǒòuūúǔùüǖǘǚǜv]+(?:ng|n|r)?)/gi;
     const matched = cleanPinyin.match(PINYIN_SYL_REGEX);
     if (matched && matched.length === hanziCount) {
@@ -279,7 +281,7 @@ export function normalizePinyinSyllables(hanzi, pinyin) {
     }
   }
 
-  return { cleanPinyin, syllables, hanziCount };
+  return { cleanPinyin, syllables, hanziCount, isErhua };
 }
 
 export function checkPinyinSyllables(words = []) {
@@ -299,13 +301,14 @@ export function checkPinyinSyllables(words = []) {
       continue;
     }
 
-    const { cleanPinyin, syllables, hanziCount } = normalizePinyinSyllables(hanzi, pinyin);
+    const { cleanPinyin, syllables, hanziCount, isErhua } = normalizePinyinSyllables(hanzi, pinyin);
     w.pinyin = cleanPinyin; // Auto-update to space-separated format
 
     const pinyinCount = syllables.length;
     const wordIssues = [];
 
-    if (hanziCount !== pinyinCount) {
+    // Allow Erhua (hanziCount - 1 when ending with '儿' and pinyin ends with 'r') or 1:1 match
+    if (hanziCount !== pinyinCount && !isErhua) {
       wordIssues.push(`Số âm tiết Pinyin (${pinyinCount} âm: '${pinyin}') không khớp 1:1 với số chữ Hán (${hanziCount} chữ: '${hanzi}')`);
     }
 
@@ -453,7 +456,7 @@ Audit the following candidate idea strictly against these CRITERIA:
 1. 100% Simplified Chinese: Every Hanzi character MUST be Simplified Chinese. Absolutely NO Traditional Chinese characters allowed.
 2. Topic Cohesiveness: Topic must be a clear, natural topic in Vietnamese (natural connectors like 'và', '&', '-' are completely acceptable, e.g. 'Cảm xúc và Tâm trạng', 'Thời tiết', 'Gia đình & Bạn bè'). Only reject multi-topic dump lists separated by semicolons or containing 'etc'/'v.v.'.
 3. 100% Pure Vietnamese Meaning: Meaning column MUST be natural 100% Vietnamese. Strictly NO English words or English loanwords (e.g., 'taxi', 'bus', 'shopping', 'table', 'chair', 'apple', 'window', 'car', etc.).
-4. Pinyin Accuracy: Pinyin must be accurate. Standard Chinese neutral tones (thanh nhẹ - e.g., 'me' in 怎么样/什么, 'zi' in 桌子/椅子, 'men' in 我们/你们, 'ba' in 爸爸, 'ma' in 妈妈, 'xi' in 东西, 'you' in 朋友, 'nai' in 奶奶, 'mei' in 妹妹, 'di' in 弟弟, 'jie' in 姐姐, 'ge' in 哥哥) do NOT have tone marks and are 100% CORRECT. Do NOT reject neutral tone syllables.
+4. Pinyin Accuracy: Pinyin must be accurate. Standard Chinese neutral tones (thanh nhẹ - e.g., 'me' in 怎么样/什么, 'zi' in 桌子/椅子, 'men' in 我们/你们, 'ba' in 爸爸, 'ma' in 妈妈, 'xi' in 东西, 'you' in 朋友, 'nai' in 奶奶, 'mei' in 妹妹, 'di' in 弟弟, 'jie' in 姐姐, 'ge' in 哥哥) do NOT have tone marks and are 100% CORRECT. Also, Erhua (儿化 - e.g., 哪儿: nǎr, 这儿: zhèr, 那儿: nàr, 玩儿: wánr, 一点儿: yì diǎnr, 花儿: huār) contracted into 1 syllable ending with 'r' is 100% CORRECT and standard Mandarin. Do NOT reject neutral tones or Erhua syllables.
 5. 5-Word Emotional Curve (Retention): Must have exactly 5 words progressing from easy hook (Word 1) to standard core (Words 2-3) to tone/phonetic trap (Word 4) to challenge/boss word (Word 5).
 
 Return ONLY a JSON object with:

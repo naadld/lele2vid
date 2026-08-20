@@ -291,7 +291,7 @@ def build_system_prompt() -> str:
         "1. 100% Chữ Giản Thể (Simplified Chinese): Tuyệt đối không dùng chữ Phồn thể.\n"
         "2. Chủ đề tự nhiên, thu hút: Tên chủ đề ngắn gọn (3-7 từ), các từ nối tự nhiên như 'và', '&' hoàn toàn được chấp nhận (ví dụ: 'Cảm xúc và Tâm trạng', 'Thời tiết và Khí hậu', 'Đồ ăn & Thức uống').\n"
         "3. 100% Nghĩa Tiếng Việt thuần túy: Tuyệt đối không chứa từ tiếng Anh (chair, table, dog, cat, car, water, taxi, bus,...).\n"
-        "4. Pinyin chuẩn xác & cách nhau bằng dấu cách (Space-separated): Mỗi âm tiết Pinyin phải cách nhau bằng dấu cách (ví dụ: 'shāng diàn', 'dōng xi', 'dǎ zhé', 'zěn me yàng'). Lưu ý các âm mang thanh nhẹ (như 'me' trong 怎么样, 'zi' trong 桌子, 'men' trong 我们, 'ba' trong 爸爸, 'ma' trong 妈妈, 'xi' trong 东西, 'nai' trong 奶奶, 'mei' trong 妹妹) không có dấu thanh điệu.\n"
+        "4. Pinyin chuẩn xác & cách nhau bằng dấu cách (Space-separated): Mỗi âm tiết Pinyin phải cách nhau bằng dấu cách (ví dụ: 'shāng diàn', 'dōng xi', 'dǎ zhé', 'zěn me yàng'). Lưu ý các âm mang thanh nhẹ (như 'me' trong 怎么样, 'zi' trong 桌子, 'men' trong 我们, 'ba' trong 爸爸, 'ma' trong 妈妈, 'xi' trong 东西, 'nai' trong 奶奶, 'mei' trong 妹妹) không có dấu thanh điệu. Các từ uốn lưỡi Erhua (儿化 - như 哪儿: nǎr, 这儿: zhèr, 那儿: nàr, 玩儿: wánr, 一点儿: yì diǎnr) viết đuôi 'r' hoặc tách âm đều 100% hợp lệ.\n"
         "5. Phân bổ trình độ HSK đa dạng: Trải đều phong phú giữa HSK 1, HSK 2 và HSK 3, không cố định duy nhất một cấp độ HSK 1.\n"
         "6. Mỗi bộ chủ đề gồm đúng 5 từ vựng, mỗi từ dài từ 1 đến 4 chữ Hán.\n"
         "7. Bắt buộc trả về định dạng JSON thuần túy (Array hoặc Object theo yêu cầu), không thêm bất kỳ lời dẫn hay giải thích nào."

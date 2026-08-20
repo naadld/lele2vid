@@ -171,7 +171,7 @@ QUY TẮC BẮT BUỘC VỀ CHỦ ĐỀ & TỪ VỰNG:
    - Cả 5 từ vựng BẮT BUỘC thuộc đúng chủ đề đơn đó (Ví dụ: Chủ đề 'Nhà Hàng' thì 5 từ phải về ăn uống/phục vụ, cấm lớp học, bài tập).
 6. 🇻🇳 NGHĨA TIẾNG VIỆT 100% (VIETNAMESE MEANING ONLY):
    - Cột nghĩa BẮT BUỘC LÀ TIẾNG VIỆT CHUẨN THUẦN TÚY. TUYỆT ĐỐI CẤM DÙNG TIẾNG ANH (CẤM từ mượn tiếng Anh như 'taxi', 'bus', 'shopping', 'apple', 'chair', 'window'...).
-7. 🔤 Pinyin CHUẨN XÁC, CÁCH NHAU TỪNG ÂM TIẾT BẰNG DẤU CÁCH (ví dụ: 'shāng diàn', 'dōng xi', 'dǎ zhé', 'zěn me yàng'). Lưu ý thanh nhẹ (như 'me' trong 怎么样, 'zi' trong 桌子, 'men' trong 我们, 'ba' trong 爸爸, 'ma' trong 妈妈, 'xi' trong 东西, 'nai' trong 奶奶, 'mei' trong 妹妹) không có dấu thanh điệu.
+7. 🔤 Pinyin CHUẨN XÁC, CÁCH NHAU TỪNG ÂM TIẾT BẰNG DẤU CÁCH (ví dụ: 'shāng diàn', 'dōng xi', 'dǎ zhé', 'zěn me yàng'). Lưu ý thanh nhẹ (như 'me' trong 怎么样, 'zi' trong 桌子, 'men' trong 我们, 'ba' trong 爸爸, 'ma' trong 妈妈, 'xi' trong 东西, 'nai' trong 奶奶, 'mei' trong 妹妹) không có dấu thanh điệu. Các từ uốn lưỡi Erhua (儿化 - như 哪儿: nǎr, 这儿: zhèr, 那儿: nàr, 玩儿: wánr, 一点儿: yì diǎnr) viết đuôi 'r' hoặc tách âm đều hoàn toàn chuẩn xác.
 8. 🇨🇳 100% CHỮ HÁN LÀ GIẢN THỂ (Simplified Chinese), mỗi từ/cụm gồm 1 đến tối đa 4 chữ Hán.
 9. 📦 Phản hồi DUY NHẤT một chuỗi JSON hợp lệ.
 
