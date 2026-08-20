@@ -56,3 +56,11 @@ Thumbs.db
 .agents/
 
 facebook_daily/
+
+# Documentation & Backups (Internal Only - Not for public GitHub)
+docs/
+**/docs/
+backup/
+**/backup/
+*.zip
+*.tar.gz
