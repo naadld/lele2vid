@@ -127,23 +127,29 @@ export async function getBufferQuotaAndHealth(token) {
 
     let daysRemaining = null;
     let resetDateStr = "";
+    let resetTimeFormatted = "";
+
     if (resetHeader) {
       const resetTs = parseInt(resetHeader, 10);
       if (!isNaN(resetTs) && resetTs > 0) {
-        const diffMs = (resetTs * 1000) - Date.now();
-        daysRemaining = Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
-        const resetDate = new Date(resetTs * 1000 + (7 * 3600 * 1000));
-        resetDateStr = resetDate.toISOString().replace("T", " ").substring(0, 10);
+        const nowSec = Math.floor(Date.now() / 1000);
+        const diffSec = Math.max(0, resetTs - nowSec);
+        const rawDays = diffSec / 86400;
+        daysRemaining = Number(rawDays.toFixed(1));
+
+        // Format GMT+7: HH:mm DD/MM
+        const resetDateVN = new Date(resetTs * 1000 + (7 * 3600 * 1000));
+        const hours = String(resetDateVN.getUTCHours()).padStart(2, "0");
+        const mins = String(resetDateVN.getUTCMinutes()).padStart(2, "0");
+        const day = String(resetDateVN.getUTCDate()).padStart(2, "0");
+        const month = String(resetDateVN.getUTCMonth() + 1).padStart(2, "0");
+        resetTimeFormatted = `${hours}:${mins} ${day}/${month}`;
+        resetDateStr = resetDateVN.toISOString().replace("T", " ").substring(0, 19);
       }
     }
 
-    if (!daysRemaining) {
-      const nowGmt7 = new Date(Date.now() + 7 * 3600 * 1000);
-      const year = nowGmt7.getUTCFullYear();
-      const month = nowGmt7.getUTCMonth();
-      const date = nowGmt7.getUTCDate();
-      const totalDays = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
-      daysRemaining = Math.max(1, totalDays - date + 1);
+    if (daysRemaining === null) {
+      daysRemaining = 28;
     }
 
     let channels = [];
@@ -158,25 +164,20 @@ export async function getBufferQuotaAndHealth(token) {
       monthlyUsed: used,
       monthlyPercent: percent,
       daysRemaining,
+      resetTimeFormatted,
       resetDateStr,
       channelsCount: channels.length,
       channels
     };
   } catch (err) {
-    const nowGmt7 = new Date(Date.now() + 7 * 3600 * 1000);
-    const year = nowGmt7.getUTCFullYear();
-    const month = nowGmt7.getUTCMonth();
-    const date = nowGmt7.getUTCDate();
-    const totalDays = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
-    const fallbackDays = Math.max(1, totalDays - date + 1);
-
     return {
       error: err.message,
       monthlyLimit: 3000,
       monthlyRemaining: 2960,
       monthlyUsed: 40,
       monthlyPercent: 98,
-      daysRemaining: fallbackDays,
+      daysRemaining: 28,
+      resetTimeFormatted: "",
       resetDateStr: "",
       channelsCount: 3,
       channels: []
