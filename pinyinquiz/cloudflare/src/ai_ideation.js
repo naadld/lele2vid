@@ -101,6 +101,39 @@ const BUILTIN_VOCAB_BANK = [
       { hanzi: "聪明", pinyin: "cōng ming", meaning: "Thông minh" },
       { hanzi: "热情", pinyin: "rè qíng", meaning: "Nhiệt tình" }
     ]
+  },
+  {
+    topic: "HSK 3 • Sinh Hoạt",
+    level: "HSK 3",
+    words: [
+      { hanzi: "锻炼", pinyin: "duàn liàn", meaning: "Rèn luyện / Tập thể dục" },
+      { hanzi: "习惯", pinyin: "xí guàn", meaning: "Thói quen" },
+      { hanzi: "干净", pinyin: "gān jìng", meaning: "Sạch sẽ" },
+      { hanzi: "刷牙", pinyin: "shuā yá", meaning: "Đánh răng" },
+      { hanzi: "洗澡", pinyin: "xǐ zǎo", meaning: "Tắm rửa" }
+    ]
+  },
+  {
+    topic: "HSK 3 • Công Sở",
+    level: "HSK 3",
+    words: [
+      { hanzi: "会议", pinyin: "huì yì", meaning: "Cuộc họp" },
+      { hanzi: "同事", pinyin: "tóng shì", meaning: "Đồng nghiệp" },
+      { hanzi: "经理", pinyin: "jīng lǐ", meaning: "Giám đốc / Quản lý" },
+      { hanzi: "请假", pinyin: "qǐng jià", meaning: "Xin nghỉ phép" },
+      { hanzi: "完成", pinyin: "wán chéng", meaning: "Hoàn thành" }
+    ]
+  },
+  {
+    topic: "HSK 3 • Môi Trường",
+    level: "HSK 3",
+    words: [
+      { hanzi: "环境", pinyin: "huán jìng", meaning: "Môi trường" },
+      { hanzi: "保护", pinyin: "bǎo hù", meaning: "Bảo vệ" },
+      { hanzi: "森林", pinyin: "sēn lín", meaning: "Rừng rậm" },
+      { hanzi: "世界", pinyin: "shì jiè", meaning: "Thế giới" },
+      { hanzi: "新鲜", pinyin: "xīn xiān", meaning: "Tươi mới / Trong lành" }
+    ]
   }
 ];
 
@@ -117,22 +150,24 @@ Nhiệm vụ: Tạo ${count} bộ chủ đề từ vựng HSK 1, HSK 2 hoặc HS
 
 QUY TẮC BẮT BUỘC VỀ CHỦ ĐỀ & TỪ VỰNG:
 1. 🏷️ CHỈ SỬ DỤNG 1 CHỦ ĐỀ ĐƠN DUY NHẤT (SINGLE TOPIC ONLY):
-   - Tên chủ đề PHẢI là 1 chủ đề đơn lẻ, ngắn gọn (Ví dụ: 'HSK 1 • Đồ Ăn', 'HSK 1 • Thức Uống', 'HSK 1 • Gia Đình', 'HSK 2 • Giao Thông', 'HSK 2 • Thời Tiết', 'HSK 2 • Cảm Xúc', 'HSK 2 • Mua Sắm', 'HSK 2 • Khách Sạn', 'HSK 2 • Thể Thao', 'HSK 2 • Bệnh Viện', 'HSK 2 • Nhà Hàng'...).
+   - Tên chủ đề PHẢI là 1 chủ đề đơn lẻ, ngắn gọn (Ví dụ: 'HSK 1 • Đồ Ăn', 'HSK 1 • Thức Uống', 'HSK 1 • Gia Đình', 'HSK 2 • Giao Thông', 'HSK 2 • Thời Tiết', 'HSK 2 • Cảm Xúc', 'HSK 2 • Mua Sắm', 'HSK 3 • Sinh Hoạt', 'HSK 3 • Công Sở', 'HSK 3 • Môi Trường', 'HSK 3 • Du Lịch'...).
    - TUYỆT ĐỐI CẤM dùng cặp chủ đề ghép có từ nối như '&', 'VÀ', '+', '/' (CẤM: 'Đồ Ăn & Thức Uống', 'Cảm Xúc và Nhu Cầu'...).
-2. 🔄 TẦNG SUẤT LẶP LẠI CHỦ ĐỀ (RECURRENCE AFTER 5-6 VIDEOS):
+2. 🌟 ĐA DẠNG HÓA TRÌNH ĐỘ HSK (HSK 1 - HSK 2 - HSK 3):
+   - Phân bổ luân phiên, cân bằng giữa các cấp độ HSK 1, HSK 2 và HSK 3. TUYỆT ĐỐI KHÔNG cố định duy nhất một trình độ HSK 1.
+3. 🔄 TẦNG SUẤT LẶP LẠI CHỦ ĐỀ (RECURRENCE AFTER 5-6 VIDEOS):
    - CẤM lặp lại các chủ đề đã xuất hiện trong 5-6 video gần nhất: [${recentTopicsStr}].
    - (Sau 5-6 video, có thể sử dụng lại chủ đề đó nhưng với bộ từ mới).
-3. 🔒 QUY TẮC CẶP TỪ DUY NHẤT TRONG LỊCH SỬ (NO 2-WORD PAIR OVERLAP):
+4. 🔒 QUY TẮC CẶP TỪ DUY NHẤT TRONG LỊCH SỬ (NO 2-WORD PAIR OVERLAP):
    - Được phép tái sử dụng tối đa 1 từ của một video cũ bất kỳ trong lịch sử để ôn tập.
    - TUYỆT ĐỐI CẤM 2 từ từng cùng xuất hiện trong 1 video cũ lại cùng xuất hiện trong video mới!
    - Ngữ cảnh các video gần đây: ${recentBatchesStr}
-4. 🎯 100% TỪ VỰNG PHẢI LIÊN QUAN TRỰC TIẾP ĐẾN CHỦ ĐỀ:
+5. 🎯 100% TỪ VỰNG PHẢI LIÊN QUAN TRỰC TIẾP ĐẾN CHỦ ĐỀ:
    - Cả 5 từ vựng BẮT BUỘC thuộc đúng chủ đề đơn đó (Ví dụ: Chủ đề 'Nhà Hàng' thì 5 từ phải về ăn uống/phục vụ, cấm lớp học, bài tập).
-5. 🇻🇳 NGHĨA TIẾNG VIỆT 100% (VIETNAMESE MEANING ONLY):
+6. 🇻🇳 NGHĨA TIẾNG VIỆT 100% (VIETNAMESE MEANING ONLY):
    - Cột nghĩa BẮT BUỘC LÀ TIẾNG VIỆT CHUẨN. TUYỆT ĐỐI CẤM DÙNG TIẾNG ANH (CẤM 'Chair', 'Window', 'Lamp'...).
-6. 🔤 Pinyin CHUẨN XÁC, CÓ THANH ĐIỆU ĐẦY ĐỦ VÀ KHỚP 1-1 VỚI TỪNG CHỮ HÁN.
-7. 🇨🇳 100% CHỮ HÁN LÀ GIẢN THỂ (Simplified Chinese).
-8. 📦 Phản hồi DUY NHẤT một chuỗi JSON hợp lệ.
+7. 🔤 Pinyin CHUẨN XÁC, CÓ THANH ĐIỆU ĐẦY ĐỦ VÀ KHỚP 1-1 VỚI TỪNG CHỮ HÁN.
+8. 🇨🇳 100% CHỮ HÁN LÀ GIẢN THỂ (Simplified Chinese).
+9. 📦 Phản hồi DUY NHẤT một chuỗi JSON hợp lệ.
 
 CẤU TRÚC JSON MẪU:
 [

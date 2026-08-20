@@ -108,6 +108,49 @@ FALLBACK_VOCAB_BANK = [
         ("羊肉", "yáng ròu", "Thịt cừu"),
         ("牛奶", "niú nǎi", "Sữa bò"),
         ("咖啡", "kā fēi", "Cà phê")
+    ]),
+    # HSK 3
+    ("Thói Quen Sinh Hoạt", "HSK 3", [
+        ("锻炼", "duàn liàn", "Rèn luyện"),
+        ("习惯", "xí guàn", "Thói quen"),
+        ("干净", "gān jìng", "Sạch sẽ"),
+        ("刷牙", "shuā yá", "Đánh răng"),
+        ("洗澡", "xǐ zǎo", "Tắm rửa")
+    ]),
+    ("Công Việc Văn Phòng", "HSK 3", [
+        ("会议", "huì yì", "Cuộc họp"),
+        ("同事", "tóng shì", "Đồng nghiệp"),
+        ("经理", "jīng lǐ", "Giám đốc"),
+        ("请假", "qǐng jià", "Xin nghỉ phép"),
+        ("完成", "wán chéng", "Hoàn thành")
+    ]),
+    ("Giao Tiếp Xã Giao", "HSK 3", [
+        ("礼貌", "lǐ mào", "Lịch sự"),
+        ("客气", "kè qì", "Khách sáo"),
+        ("原谅", "yuán liàng", "Tha thứ"),
+        ("感谢", "gǎn xiè", "Cảm ơn"),
+        ("祝贺", "zhù hè", "Chúc mừng")
+    ]),
+    ("Môi Trường Tự Nhiên", "HSK 3", [
+        ("环境", "huán jìng", "Môi trường"),
+        ("保护", "bǎo hù", "Bảo vệ"),
+        ("森林", "sēn lín", "Rừng rậm"),
+        ("世界", "shì jiè", "Thế giới"),
+        ("新鲜", "xīn xiān", "Trong lành")
+    ]),
+    ("Du Lịch Khám Phá", "HSK 3", [
+        ("行李", "xíng lǐ", "Hành lý"),
+        ("照相机", "zhào xiàng jī", "Máy ảnh"),
+        ("地图", "dì tú", "Bản đồ"),
+        ("护照", "hù zhào", "Hộ chiếu"),
+        ("风景", "fēng jǐng", "Phong cảnh")
+    ]),
+    ("Sức Khỏe Đời Sống", "HSK 3", [
+        ("感冒", "gǎn mào", "Cảm cúm"),
+        ("发烧", "fā shāo", "Phát sốt"),
+        ("检查", "jiǎn chá", "Kiểm tra"),
+        ("健康", "jiàn kāng", "Sức khỏe"),
+        ("舒服", "shū fú", "Dễ chịu")
     ])
 ]
 
@@ -294,49 +337,56 @@ def run_batch_mode(
     generated_success_count = 0
     generated_rows_summary = []
 
+    hsk_levels = ["HSK 1", "HSK 2", "HSK 3"]
+
     for i in range(1, count + 1):
         target_row_id = current_max_id + i
+        target_hsk_level = hsk_levels[(i - 1) % len(hsk_levels)]
+
         # 6-key rotation formula: Key Index = ((i - 1) % len(keys))
         active_key = None
         if keys:
             key_idx = (i - 1) % len(keys)
             active_key = keys[key_idx]
-            logger.info(f"\n--- [Idea {i}/{count}] Target Row #{target_row_id} | Rotating Key [{key_idx + 1}/{len(keys)}]: {mask_key(active_key)} ---")
+            logger.info(f"\n--- [Idea {i}/{count}] Target Row #{target_row_id} | Level: {target_hsk_level} | Rotating Key [{key_idx + 1}/{len(keys)}]: {mask_key(active_key)} ---")
         else:
-            logger.info(f"\n--- [Idea {i}/{count}] Target Row #{target_row_id} | (No dynamic keys, using fallback/local) ---")
+            logger.info(f"\n--- [Idea {i}/{count}] Target Row #{target_row_id} | Level: {target_hsk_level} | (No dynamic keys, using fallback/local) ---")
 
-        # 1. Generate 1 topic with 5 words
+        # 1. Generate 1 topic with 5 words for target level
         topic_batch = None
         try:
             active_key_list = [active_key] if active_key else keys
-            # Attempt LLM generation
+            # Attempt LLM generation with target_level
             batches = generate_hsk_topics_with_llm(
                 existing_words=used_words,
                 count=1,
                 api_keys=active_key_list,
-                existing_topics=used_topics
+                existing_topics=used_topics,
+                target_level=target_hsk_level
             )
             if batches and len(batches) > 0:
                 topic_batch = batches[0]
         except Exception as ge:
             logger.warning(f"LLM generation attempt exception for row #{target_row_id}: {ge}")
 
-        # Fallback to VOCAB_BANK if LLM failed
+        # Fallback to VOCAB_BANK matching target level if LLM failed
         if not topic_batch or not topic_batch.get("words"):
-            logger.warning(f"⚠️ Falling back to VOCAB_BANK for idea #{target_row_id}...")
-            # Pick a sample from fallback bank that is not already in used_topics
-            candidates = [fb for fb in FALLBACK_VOCAB_BANK if fb[0] not in used_topics]
-            if not candidates:
-                candidates = FALLBACK_VOCAB_BANK
-            chosen = random.choice(candidates)
+            logger.warning(f"⚠️ Falling back to VOCAB_BANK for idea #{target_row_id} (Level {target_hsk_level})...")
+            # Pick a sample from fallback bank that matches target_level and is not already in used_topics
+            level_candidates = [fb for fb in FALLBACK_VOCAB_BANK if fb[1] == target_hsk_level and fb[0] not in used_topics]
+            if not level_candidates:
+                level_candidates = [fb for fb in FALLBACK_VOCAB_BANK if fb[0] not in used_topics]
+            if not level_candidates:
+                level_candidates = FALLBACK_VOCAB_BANK
+            chosen = random.choice(level_candidates)
             topic_batch = {
                 "topic": chosen[0],
                 "level": chosen[1],
                 "words": [{"hanzi": w[0], "pinyin": w[1], "meaning": w[2]} for w in chosen[2]]
             }
 
-        topic_name = topic_batch.get("topic", f"HSK 1 • Chủ Đề #{target_row_id}")
-        level_name = topic_batch.get("level", "HSK 1")
+        topic_name = topic_batch.get("topic", f"{target_hsk_level} • Chủ Đề #{target_row_id}")
+        level_name = topic_batch.get("level", target_hsk_level)
         words_list = topic_batch.get("words", [])
 
         # Format payload and sheet row
@@ -423,6 +473,18 @@ def run_single_row_mode(
 
     used_words, used_topics, _ = load_negative_context_from_sheet(max_rows=100)
 
+    # Infer target level
+    target_level = None
+    for lvl in ["HSK 3", "HSK 2", "HSK 1"]:
+        if lvl.lower() in rejected_topic.lower():
+            target_level = lvl
+            break
+    if not target_level:
+        try:
+            target_level = ["HSK 1", "HSK 2", "HSK 3"][(int(clean_row_id) - 1) % 3]
+        except Exception:
+            target_level = "HSK 2"
+
     # Generate replacement topic
     topic_batch = None
     try:
@@ -431,15 +493,18 @@ def run_single_row_mode(
             row_id=clean_row_id,
             rejected_topic=rejected_topic,
             error_reasons=error_reasons,
-            api_keys=keys
+            api_keys=keys,
+            target_level=target_level
         )
     except Exception as e:
         logger.warning(f"Single-row LLM generation exception: {e}")
 
     # Fallback if LLM failed
     if not topic_batch or not topic_batch.get("words"):
-        logger.warning(f"⚠️ Falling back to VOCAB_BANK for single row #{clean_row_id}...")
-        candidates = [fb for fb in FALLBACK_VOCAB_BANK if fb[0] != rejected_topic and fb[0] not in used_topics]
+        logger.warning(f"⚠️ Falling back to VOCAB_BANK for single row #{clean_row_id} (Level {target_level})...")
+        candidates = [fb for fb in FALLBACK_VOCAB_BANK if fb[1] == target_level and fb[0] != rejected_topic and fb[0] not in used_topics]
+        if not candidates:
+            candidates = [fb for fb in FALLBACK_VOCAB_BANK if fb[0] != rejected_topic and fb[0] not in used_topics]
         if not candidates:
             candidates = FALLBACK_VOCAB_BANK
         chosen = random.choice(candidates)
@@ -449,8 +514,8 @@ def run_single_row_mode(
             "words": [{"hanzi": w[0], "pinyin": w[1], "meaning": w[2]} for w in chosen[2]]
         }
 
-    topic_name = topic_batch.get("topic", f"HSK 1 • Thay Thế #{clean_row_id}")
-    level_name = topic_batch.get("level", "HSK 1")
+    topic_name = topic_batch.get("topic", f"{target_level} • Thay Thế #{clean_row_id}")
+    level_name = topic_batch.get("level", target_level)
     words_list = topic_batch.get("words", [])
 
     payload, sheet_row = format_single_batch_payload(

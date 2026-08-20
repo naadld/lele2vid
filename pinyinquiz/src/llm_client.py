@@ -255,17 +255,19 @@ def call_openai_compatible_api(
 def build_system_prompt() -> str:
     """
     Strict linguistic and structural system prompt conforming to Gatekeeper 1 standards.
+    Supports diverse levels across HSK 1, HSK 2, and HSK 3.
     """
     return (
         "Bạn là chuyên gia ngôn ngữ tiếng Trung và biên tập viên trưởng của kênh 'Lê Lê Học Tiếng Trung' (@lelehoctiengtrung).\n"
-        "Nhiệm vụ của bạn là tạo các bộ từ vựng luyện tập Pinyin HSK 1 - HSK 3 hấp dẫn, chuẩn xác, gần gũi với đời sống thực tế.\n\n"
+        "Nhiệm vụ của bạn là tạo các bộ từ vựng luyện tập Pinyin HSK 1, HSK 2 hoặc HSK 3 hấp dẫn, chuẩn xác, gần gũi với đời sống thực tế.\n\n"
         "QUY TẮC BẮT BUỘC (TUÂN THỦ 100% TIÊU CHUẨN GATEKEEPER 1):\n"
         "1. 100% Chữ Giản Thể (Simplified Chinese): Tuyệt đối không dùng chữ Phồn thể.\n"
         "2. Chủ đề đơn (Single Topic Only): Tên chủ đề ngắn gọn (3-7 từ), KHÔNG dùng từ nối (&, VÀ, +, /, VÀ CẢ).\n"
         "3. 100% Nghĩa Tiếng Việt thuần túy: Tuyệt đối không chứa từ tiếng Anh (chair, table, dog, cat, car, water,...).\n"
         "4. Pinyin chuẩn xác: Đầy đủ dấu thanh điệu (ā, á, ǎ, à, ē, é, ě, è, ī, í, ǐ, ì, ō, ó, ǒ, ò, ū, ú, ǔ, ù, ǖ, ǘ, ǚ, ǜ), số âm tiết Pinyin phải khớp 1-1 với số chữ Hán.\n"
-        "5. Mỗi bộ chủ đề gồm đúng 5 từ vựng, mỗi từ dài từ 1 đến 4 chữ Hán.\n"
-        "6. Bắt buộc trả về định dạng JSON thuần túy (Array hoặc Object theo yêu cầu), không thêm bất kỳ lời dẫn hay giải thích nào."
+        "5. Phân bổ trình độ HSK đa dạng: Trải đều phong phú giữa HSK 1, HSK 2 và HSK 3, không cố định duy nhất một cấp độ HSK 1.\n"
+        "6. Mỗi bộ chủ đề gồm đúng 5 từ vựng, mỗi từ dài từ 1 đến 4 chữ Hán.\n"
+        "7. Bắt buộc trả về định dạng JSON thuần túy (Array hoặc Object theo yêu cầu), không thêm bất kỳ lời dẫn hay giải thích nào."
     )
 
 
@@ -275,18 +277,28 @@ def generate_hsk_topics_with_llm(
     api_keys: Optional[Union[str, List[str]]] = None,
     model: str = DEFAULT_GEMINI_MODEL,
     existing_topics: Optional[List[str]] = None,
+    target_level: Optional[str] = None,
     base_url: Optional[str] = None
 ) -> Optional[List[Dict[str, Any]]]:
     """
     Generate non-repeating HSK vocabulary batches using Direct Google AI Studio Gemini API
     with fallback to OpenAI-compatible endpoint.
+    Supports specific target_level (HSK 1, HSK 2, HSK 3) or diverse multi-level distribution.
     """
     system_prompt = build_system_prompt()
 
     used_words_sample = ", ".join(list(existing_words)[-100:]) if existing_words else "chưa có"
     used_topics_sample = ", ".join(list(existing_topics)[-30:]) if existing_topics else "chưa có"
 
-    user_prompt = f"""Hãy tạo đúng {count} bộ chủ đề từ vựng tiếng Trung HSK 1, HSK 2 hoặc HSK 3 mới lạ, thiết thực và hấp dẫn.
+    if target_level:
+        level_instruction = f"CẤP ĐỘ MỤC TIÊU: {target_level}. Hãy tạo các bộ từ vựng đúng chuẩn trình độ {target_level}."
+        example_level = target_level
+    else:
+        level_instruction = "CẤP ĐỘ MỤC TIÊU: ĐA DẠNG HSK 1, HSK 2 VÀ HSK 3. Hãy phân bổ luân phiên, xen kẽ giữa HSK 1, HSK 2 và HSK 3 (Ví dụ: Batch 1: HSK 1, Batch 2: HSK 2, Batch 3: HSK 3... Tuyệt đối KHÔNG cố định một cấp độ)."
+        example_level = "HSK 2"
+
+    user_prompt = f"""Hãy tạo đúng {count} bộ chủ đề từ vựng tiếng Trung mới lạ, thiết thực và hấp dẫn.
+{level_instruction}
 Mỗi bộ chủ đề phải có đúng 5 từ vựng.
 
 NGỮ CẢNH LOẠI TRỪ (NEGATIVE CONTEXT - TUYỆT ĐỐI KHÔNG TRÙNG LẶP HOẶC TƯƠNG TỰ):
@@ -297,7 +309,7 @@ NGỮ CẢNH LOẠI TRỪ (NEGATIVE CONTEXT - TUYỆT ĐỐI KHÔNG TRÙNG LẶP
 [
   {{
     "topic": "Đồ Dùng Nhà Bếp",
-    "level": "HSK 1",
+    "level": "{example_level}",
     "words": [
       {{"hanzi": "筷子", "pinyin": "kuài zi", "meaning": "Đôi đũa"}},
       {{"hanzi": "碗", "pinyin": "wǎn", "meaning": "Cái bát / chén"}},
@@ -353,6 +365,7 @@ def generate_single_replacement_topic(
     rejected_topic: str = "",
     error_reasons: Optional[Union[str, List[str]]] = None,
     api_keys: Optional[Union[str, List[str]]] = None,
+    target_level: Optional[str] = None,
     model: str = DEFAULT_GEMINI_MODEL
 ) -> Optional[Dict[str, Any]]:
     """
@@ -368,12 +381,15 @@ def generate_single_replacement_topic(
     else:
         errors_text = str(error_reasons or "Không rõ")
 
+    level_req = f"Trình độ mục tiêu: {target_level}" if target_level else "Trình độ: Đa dạng linh hoạt giữa HSK 1, HSK 2 hoặc HSK 3"
+
     user_prompt = f"""Dòng #{row_id} trước đó đã bị Cloudflare Gatekeeper TỪ CHỐI do vi phạm các tiêu chuẩn sau:
 - Chủ đề bị từ chối: "{rejected_topic or 'Chưa có'}"
 - Nguyên nhân vi phạm cụ thể: "{errors_text}"
+- {level_req}
 
 YÊU CẦU TÁI SINH DÒNG #{row_id}:
-Hãy tạo DUY NHẤT 1 bộ chủ đề từ vựng tiếng Trung HSK 1 - HSK 3 hoàn toàn MỚI để thay thế dòng #{row_id}.
+Hãy tạo DUY NHẤT 1 bộ chủ đề từ vựng tiếng Trung (HSK 1, HSK 2 hoặc HSK 3) hoàn toàn MỚI để thay thế dòng #{row_id}.
 Tuyệt đối KHẮC PHỤC TRIỆT ĐỂ tất cả các lỗi vi phạm nêu trên:
 - Tên chủ đề đơn lẻ, hấp dẫn, không dùng từ ghép hay liên từ nối (&, VÀ, +).
 - Đúng 5 từ vựng, 100% Giản thể, 100% Nghĩa tiếng Việt, Pinyin chuẩn âm tiết và dấu thanh điệu.
@@ -382,7 +398,7 @@ Tuyệt đối KHẮC PHỤC TRIỆT ĐỂ tất cả các lỗi vi phạm nêu 
 Định dạng JSON yêu cầu (Trả về duy nhất 1 JSON Object):
 {{
   "topic": "Đồ Dùng Học Tập",
-  "level": "HSK 1",
+  "level": "{target_level or 'HSK 2'}",
   "words": [
     {{"hanzi": "书包", "pinyin": "shū bāo", "meaning": "Cặp sách"}},
     {{"hanzi": "铅笔", "pinyin": "qiān bǐ", "meaning": "Bút chì"}},
