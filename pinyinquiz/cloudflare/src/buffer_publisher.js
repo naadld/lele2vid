@@ -121,8 +121,30 @@ export async function getBufferQuotaAndHealth(token) {
     // Parse rate limit headers
     const limitHeader = parseInt(res.headers.get("x-ratelimit-limit") || "3000", 10);
     const remainingHeader = parseInt(res.headers.get("x-ratelimit-remaining") || "3000", 10);
+    const resetHeader = res.headers.get("x-ratelimit-reset");
     const used = Math.max(0, limitHeader - remainingHeader);
     const percent = Math.round((remainingHeader / limitHeader) * 100);
+
+    let daysRemaining = null;
+    let resetDateStr = "";
+    if (resetHeader) {
+      const resetTs = parseInt(resetHeader, 10);
+      if (!isNaN(resetTs) && resetTs > 0) {
+        const diffMs = (resetTs * 1000) - Date.now();
+        daysRemaining = Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+        const resetDate = new Date(resetTs * 1000 + (7 * 3600 * 1000));
+        resetDateStr = resetDate.toISOString().replace("T", " ").substring(0, 10);
+      }
+    }
+
+    if (!daysRemaining) {
+      const nowGmt7 = new Date(Date.now() + 7 * 3600 * 1000);
+      const year = nowGmt7.getUTCFullYear();
+      const month = nowGmt7.getUTCMonth();
+      const date = nowGmt7.getUTCDate();
+      const totalDays = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+      daysRemaining = Math.max(1, totalDays - date + 1);
+    }
 
     let channels = [];
     if (orgId) {
@@ -135,16 +157,27 @@ export async function getBufferQuotaAndHealth(token) {
       monthlyRemaining: remainingHeader,
       monthlyUsed: used,
       monthlyPercent: percent,
+      daysRemaining,
+      resetDateStr,
       channelsCount: channels.length,
       channels
     };
   } catch (err) {
+    const nowGmt7 = new Date(Date.now() + 7 * 3600 * 1000);
+    const year = nowGmt7.getUTCFullYear();
+    const month = nowGmt7.getUTCMonth();
+    const date = nowGmt7.getUTCDate();
+    const totalDays = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+    const fallbackDays = Math.max(1, totalDays - date + 1);
+
     return {
       error: err.message,
       monthlyLimit: 3000,
       monthlyRemaining: 2960,
       monthlyUsed: 40,
       monthlyPercent: 98,
+      daysRemaining: fallbackDays,
+      resetDateStr: "",
       channelsCount: 3,
       channels: []
     };

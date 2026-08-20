@@ -1340,6 +1340,20 @@ export async function sendSystemDashboardReport(env, config, botToken, chatId, t
     const bufferBar = makeTextBar(bufferStats.monthlyRemaining, bufferStats.monthlyLimit, 12);
     const bufferPct = bufferStats.monthlyPercent ?? 98;
 
+    // Buffer Quota & Days Remaining Calculation
+    const channelsCount = (bufferStats.channels && bufferStats.channels.length > 0) ? bufferStats.channels.length : 3;
+    const dailyQuotaNeeded = channelsCount * 3; // 3 channels * 3 videos/day = 9 req/day
+    let daysRemaining = bufferStats.daysRemaining;
+    if (!daysRemaining || isNaN(daysRemaining)) {
+      const nowGmt7 = new Date(Date.now() + 7 * 3600 * 1000);
+      const year = nowGmt7.getUTCFullYear();
+      const month = nowGmt7.getUTCMonth();
+      const date = nowGmt7.getUTCDate();
+      const totalDays = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+      daysRemaining = Math.max(1, totalDays - date + 1);
+    }
+    const neededQuotaForMonth = daysRemaining * dailyQuotaNeeded;
+
     // Target: 21 ready videos = 7 days of safe auto-posting (3 videos/day)
     const targetDays = 7;
     const videosPerDay = 3;
@@ -1403,7 +1417,7 @@ export async function sendSystemDashboardReport(env, config, botToken, chatId, t
       `${channelsList}\n\n` +
       `🔋 <b>HẠN MỨC QUOTA BUFFER THÁNG:</b>\n` +
       `   └ <code>[${bufferBar}]</code> <b>${bufferStats.monthlyRemaining?.toLocaleString()} / ${bufferStats.monthlyLimit?.toLocaleString()} req</b> (còn ${bufferPct}%)\n` +
-      `   └ <i>Đã dùng: ${bufferStats.monthlyUsed} req • Dư sức chạy ${Math.floor((bufferStats.monthlyRemaining || 2960) / 9)} ngày</i>\n\n` +
+      `   └ <i>Đã dùng: ${bufferStats.monthlyUsed} req • Còn ${daysRemaining} ngày trong tháng (cần ~${neededQuotaForMonth} req)</i>\n\n` +
       `⏰ <b>LỊCH ĐĂNG BÀI (3 CA):</b> <b>07:00 (HSK 1) • 13:00 (HSK 2) • 19:00 (HSK 3) Hàng Ngày</b>\n` +
       `━o0o━\n` +
       `👇 <i>Bấm các nút dưới đây để điều khiển nhanh hệ thống:</i>`
