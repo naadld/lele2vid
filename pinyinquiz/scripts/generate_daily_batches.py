@@ -218,7 +218,7 @@ def load_negative_context_from_sheet(max_rows: int = 100) -> Tuple[List[str], Li
     return used_words, used_topics, current_max_id
 
 
-def post_to_cloudflare_webhook(webhook_url: str, payload: Dict[str, Any], timeout: int = 30) -> Tuple[bool, Dict[str, Any]]:
+def post_to_cloudflare_webhook(webhook_url: str, payload: Dict[str, Any], timeout: int = 120) -> Tuple[bool, Dict[str, Any]]:
     """
     Post generated idea payload to Cloudflare Worker /api/receive-ideas.
     """

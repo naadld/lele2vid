@@ -97,8 +97,8 @@ jobs:
       - name: Execute Ideation Generator
         working-directory: pinyinquiz
         env:
-          GEMINI_API_KEYS: ${{ github.event.inputs.gemini_api_keys }}
-          CF_WEBHOOK_URL: ${{ github.event.inputs.cf_webhook_url || 'https://lele-pinyinquiz.aleron-dt.workers.dev/api/receive-ideas' }}
+          GEMINI_API_KEYS: ${{ github.event.inputs.gemini_api_keys || secrets.GEMINI_API_KEYS }}
+          CF_WEBHOOK_URL: ${{ github.event.inputs.cf_webhook_url || 'https://lele-pinyinquiz.hothihuong113.workers.dev/api/receive-ideas' }}
           INPUT_MODE: ${{ github.event.inputs.mode || 'batch' }}
           INPUT_COUNT: ${{ github.event.inputs.count || '30' }}
           INPUT_ROW_ID: ${{ github.event.inputs.row_id }}
@@ -124,7 +124,7 @@ jobs:
 
           MODE="${INPUT_MODE:-batch}"
           COUNT="${INPUT_COUNT:-30}"
-          WEBHOOK="${CF_WEBHOOK_URL:-https://lele-pinyinquiz.aleron-dt.workers.dev/api/receive-ideas}"
+          WEBHOOK="${CF_WEBHOOK_URL:-https://lele-pinyinquiz.hothihuong113.workers.dev/api/receive-ideas}"
 
           CMD="python scripts/generate_daily_batches.py --mode $MODE --webhook-url $WEBHOOK"
 
