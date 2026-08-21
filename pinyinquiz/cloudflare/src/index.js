@@ -740,6 +740,28 @@ async function handleTelegramUpdate(update, env, config) {
       }
     }
 
+    // Global Callbacks (renderall_batch, check_status)
+    if (cbData === "renderall_batch" || cbData.startsWith("renderall")) {
+      await answerTelegramCallback(botToken, cbId, "⏳ Đang kích hoạt Render TOÀN BỘ các dòng Pending...", false);
+      const ghRes = await triggerGitHubRenderWorkflow(env, { row_id: "" });
+      if (chatId) {
+        await sendTelegramMessage(
+          botToken,
+          chatId,
+          `🚀 <b>[Đã Kích Hoạt /renderall]</b>\n\n` +
+          `✅ <b>Tiến trình GitHub:</b> ${ghRes.message}\n` +
+          `<i>Hệ thống sẽ duyệt tuần tự các dòng Pending, kết xuất video Manim và tự động Auto-QC sang Ready!</i>`
+        );
+      }
+      return;
+    }
+
+    if (cbData === "check_status") {
+      await answerTelegramCallback(botToken, cbId, "📊 Đang kiểm tra trạng thái...", false);
+      await handleDashboardReport(env, config, "Thống Kê Nhanh");
+      return;
+    }
+
     const [action, rowId] = cbData.split(":");
     if (!action || !rowId) {
       await answerTelegramCallback(botToken, cbId, "Lệnh không hợp lệ.");
@@ -930,7 +952,54 @@ async function handleTelegramUpdate(update, env, config) {
     return;
   }
 
-  // 2. /ideate (hoặc /ideation, /idea, /generate, /sinh, /tao)
+  // 2. /ideate5 (hoặc /idea5, /sinh5, /tao5) - Tạo 5 ý tưởng HSK mới cùng lúc
+  if (command === "/ideate5" || command === "/idea5" || command === "/sinh5" || command === "/tao5") {
+    await sendTelegramMessage(
+      botToken,
+      chatId,
+      `⏳ <b>Đang sinh 5 bộ ý tưởng từ vựng HSK 1 - HSK 3 mới...</b>\n<i>(Xoay vòng Multi-AI: 6 Google AI Studio + 4 Agnes AI + Cloudflare AI - Khử trùng lặp 100%)</i>`
+    );
+
+    try {
+      const res = await executeIdeateBatchWithTimeout(env, config, 5, 90000);
+
+      const summaryLines = (res.topics || []).map((t, idx) => {
+        const rId = res.startId + idx;
+        const wordStr = (t.words || []).map(w => w.hanzi).join(", ");
+        return `🔹 <b>#${rId}: ${t.topic}</b> (<code>${t.level}</code>)\n   📝 <i>Từ vựng: ${wordStr}</i>`;
+      }).join("\n\n");
+
+      let fallbackWarning = "";
+      if (res.isFallbackBank) {
+        fallbackWarning = `\n\n⚠️ <b>Lưu ý:</b> <i>Do API AI chạm rate-limit, hệ thống đã bổ sung từ Ngân Hàng HSK Chuẩn dự phòng.</i>`;
+      }
+
+      const msg = `🎉 <b>ĐÃ TẠO THÀNH CÔNG 5 BỘ Ý TƯỞNG MỚI!</b>\n\n` +
+        `🆔 <b>Dải Dòng:</b> <code>#${res.startId} ➔ #${res.endId}</code> (Tổng: 5 dòng)\n` +
+        `🤖 <b>AI Sử Dụng:</b> <code>${res.provider}</code> (<i>${res.durationSeconds || 0}s</i>)\n` +
+        `📊 <b>Trạng thái:</b> <code>Pending</code> (Đã lưu Google Sheet)\n\n` +
+        summaryLines +
+        fallbackWarning +
+        `\n\n👇 <i>Bạn có thể bấm Render Toàn Bộ ngay bên dưới:</i>`;
+
+      const replyMarkup = {
+        inline_keyboard: [
+          [
+            { text: "🎬 /renderall Ngay", callback_data: "renderall_batch" },
+            { text: "📊 Xem /status", callback_data: "check_status" }
+          ]
+        ]
+      };
+
+      await sendTelegramMessage(botToken, chatId, msg, { reply_markup: replyMarkup });
+    } catch (err) {
+      const errMsg = formatIdeateErrorTelegramMessage(err, err.durationSeconds || 0);
+      await sendTelegramMessage(botToken, chatId, errMsg);
+    }
+    return;
+  }
+
+  // 2b. /ideate (hoặc /ideation, /idea, /generate, /sinh, /tao) - Tạo 1 ý tưởng
   if (command === "/ideate" || command === "/ideation" || command === "/idea" || command === "/generate" || command === "/sinh" || command === "/tao") {
     await sendTelegramMessage(
       botToken,
@@ -989,18 +1058,100 @@ async function handleTelegramUpdate(update, env, config) {
     return;
   }
 
-  // 3. /render: Kích hoạt pipeline render toàn bộ các dòng "Pending" (hoặc dòng cụ thể)
+  // 3. /renderall (hoặc /render_all): Render TOÀN BỘ các dòng Pending sang Video, không bỏ sót dòng nào
+  if (command === "/renderall" || command === "/render_all") {
+    const gsheet = new GoogleSheetsClient(
+      config.gcpClientEmail,
+      config.gcpPrivateKey,
+      config.spreadsheetId,
+      config.sheetTabName
+    );
+
+    let pendingBatches = [];
+    try {
+      pendingBatches = await gsheet.getBatchesByStatus("Pending");
+    } catch (sheetErr) {
+      console.warn("Could not query pending batches:", sheetErr.message);
+    }
+
+    if (pendingBatches.length === 0) {
+      await sendTelegramMessage(
+        botToken,
+        chatId,
+        `⚠️ <b>Không tìm thấy dòng nào ở trạng thái Pending!</b>\n\n<i>Toàn bộ kho ý tưởng đều đã được render thành công sang 'Video' hoặc 'Ready'. Bạn có thể dùng <code>/ideate</code> hoặc <code>/ideate5</code> để tạo thêm ý tưởng mới.</i>`
+      );
+      return;
+    }
+
+    const listText = pendingBatches.map(b => `• <b>#${b.id}</b>: ${b.topic} (<code>${b.level}</code>)`).join("\n");
+    await sendTelegramMessage(
+      botToken,
+      chatId,
+      `⏳ <b>Đang kích hoạt Render TOÀN BỘ ${pendingBatches.length} dòng Pending trên GitHub Actions...</b>\n\n` +
+      `📋 <b>Danh sách hàng đợi kết xuất:</b>\n${listText}\n\n` +
+      `⚙️ <i>Pipeline: Manim 1080x1920 60fps ➔ Gắn bìa Cover 0.75s ➔ Upload GDrive ➔ Chuyển 'Video' ➔ Tự động Auto-QC sang 'Ready'!</i>`
+    );
+
+    try {
+      const ghRes = await triggerGitHubRenderWorkflow(env, { row_id: "" });
+      await sendTelegramMessage(
+        botToken,
+        chatId,
+        `✅ <b>Kích Hoạt /renderall Thành Công!</b>\n\n` +
+        `🚀 <b>GitHub Workflow:</b> ${ghRes.message}\n` +
+        `📊 <b>Số lượng:</b> <code>${pendingBatches.length} video</code> đang được kết xuất tuần tự trên GitHub Cloud Runners.\n` +
+        `<i>Sau khi render xong, Auto-QC Gatekeeper sẽ tự động rà soát và duyệt sang Ready!</i>`
+      );
+    } catch (err) {
+      await sendTelegramMessage(
+        botToken,
+        chatId,
+        `❌ <b>Lỗi kích hoạt /renderall:</b>\n<code>${err.message}</code>`
+      );
+    }
+    return;
+  }
+
+  // 3b. /render: Kích hoạt pipeline render (dòng cụ thể hoặc toàn bộ Pending)
   if (command === "/render") {
     const rawTarget = rawText.split(" ")[1] || "";
     const targetRowId = rawTarget.replace("#", "").trim();
 
-    await sendTelegramMessage(
-      botToken,
-      chatId,
-      targetRowId
-        ? `⏳ <b>Đang kích hoạt GitHub Actions để render riêng dòng #${targetRowId}...</b>`
-        : `⏳ <b>Đang kích hoạt GitHub Actions để render tất cả dòng Pending...</b>`
+    const gsheet = new GoogleSheetsClient(
+      config.gcpClientEmail,
+      config.gcpPrivateKey,
+      config.spreadsheetId,
+      config.sheetTabName
     );
+
+    if (targetRowId) {
+      await sendTelegramMessage(
+        botToken,
+        chatId,
+        `⏳ <b>Đang kích hoạt GitHub Actions để render riêng dòng #${targetRowId}...</b>`
+      );
+    } else {
+      let pendingBatches = [];
+      try {
+        pendingBatches = await gsheet.getBatchesByStatus("Pending");
+      } catch (e) {}
+
+      if (pendingBatches.length === 0) {
+        await sendTelegramMessage(
+          botToken,
+          chatId,
+          `⚠️ <b>Không tìm thấy dòng nào ở trạng thái Pending để render!</b>\n\n<i>Dùng <code>/ideate</code> hoặc <code>/ideate5</code> để tạo thêm chủ đề mới.</i>`
+        );
+        return;
+      }
+
+      const listText = pendingBatches.map(b => `• <b>#${b.id}</b>: ${b.topic} (<code>${b.level}</code>)`).join("\n");
+      await sendTelegramMessage(
+        botToken,
+        chatId,
+        `⏳ <b>Đang kích hoạt GitHub Actions để render tất cả ${pendingBatches.length} dòng Pending:</b>\n\n${listText}`
+      );
+    }
 
     try {
       const ghRes = await triggerGitHubRenderWorkflow(env, { row_id: targetRowId });
@@ -1009,7 +1160,7 @@ async function handleTelegramUpdate(update, env, config) {
         chatId,
         `✅ <b>Kích Hoạt GitHub Actions Thành Công!</b>\n\n` +
         `🚀 <b>Tiến trình:</b> ${ghRes.message}\n` +
-        `<i>Sau khi video render xong và lưu vào GDrive, hệ thống sẽ bắn video kèm nút kiểm duyệt (Approve/Reset/Delete) trực tiếp vào bot này.</i>`
+        `<i>Sau khi video render xong và lưu vào GDrive, hệ thống sẽ gửi video kèm nút kiểm duyệt trực tiếp vào bot.</i>`
       );
     } catch (err) {
       await sendTelegramMessage(
@@ -1021,22 +1172,53 @@ async function handleTelegramUpdate(update, env, config) {
     return;
   }
 
-  // 3b. /qc: Kích hoạt Auto-QC Gatekeeper kiểm tra tất cả dòng "Video" -> "Ready"
-  if (command === "/qc" || command === "/autoqc") {
+  // 3c. /qcall (hoặc /qc_all, /qc, /autoqc): Kích hoạt Auto-QC Gatekeeper rà soát TOÀN BỘ dòng "Video" -> "Ready"
+  if (command === "/qcall" || command === "/qc_all" || command === "/qc" || command === "/autoqc") {
+    const gsheet = new GoogleSheetsClient(
+      config.gcpClientEmail,
+      config.gcpPrivateKey,
+      config.spreadsheetId,
+      config.sheetTabName
+    );
+
+    let videoBatches = [];
+    try {
+      videoBatches = await gsheet.getBatchesByStatus("Video");
+    } catch (sheetErr) {
+      console.warn("Could not query video batches:", sheetErr.message);
+    }
+
+    if (videoBatches.length === 0) {
+      await sendTelegramMessage(
+        botToken,
+        chatId,
+        `⚠️ <b>Không tìm thấy video nào ở trạng thái Video cần QC!</b>\n\n<i>Tất cả video hiện tại đều đã được duyệt sang 'Ready' (sẵn sàng đăng) hoặc đã được 'Published'.</i>`
+      );
+      return;
+    }
+
+    const listText = videoBatches.map(b => `• <b>#${b.id}</b>: ${b.topic} (<code>${b.level}</code>)`).join("\n");
     await sendTelegramMessage(
       botToken,
       chatId,
-      `⏳ <b>Đang kích hoạt Auto-QC Gatekeeper trên GitHub Actions...</b>\n<i>(Kiểm tra chữ Giản thể, bố cục tràn khung & âm thanh của các video chưa duyệt)</i>`
+      `🛡️ <b>Đang kích hoạt Auto-QC Gatekeeper rà soát TOÀN BỘ ${videoBatches.length} dòng Video...</b>\n\n` +
+      `📋 <b>Danh sách video đang thẩm định:</b>\n${listText}\n\n` +
+      `🔍 <i>Tiêu chuẩn kiểm định:\n` +
+      `• Nhận diện chữ Hán & Pinyin trên từng frame (OpenCV).\n` +
+      `• Kiểm tra độ tương phản và hiển thị ảnh bìa 0.75s đầu video.\n` +
+      `• Kiểm tra luồng âm thanh phát âm và nhạc nền chuông báo (FFprobe).\n` +
+      `➔ Video đạt chuẩn 100% sẽ được tự động đổi sang 'Ready'!</i>`
     );
 
     try {
-      const ghRes = await triggerGitHubQCWorkflow(env);
+      const ghRes = await triggerGitHubQCWorkflow(env, { row_id: "" });
       await sendTelegramMessage(
         botToken,
         chatId,
         `✅ <b>Kích Hoạt Auto-QC Thành Công!</b>\n\n` +
-        `🚀 <b>Tiến trình:</b> ${ghRes.message}\n` +
-        `<i>Hệ thống sẽ tải các video 'Video', mổ xẻ kiểm tra và tự động đổi sang 'Ready' (nếu đạt) hoặc 'Pending' (nếu lỗi). Kết quả chi tiết sẽ báo về bot!</i>`
+        `🚀 <b>GitHub Workflow:</b> ${ghRes.message}\n` +
+        `📊 <b>Số lượng:</b> <code>${videoBatches.length} video</code> đang được kiểm định chi tiết trên GitHub Cloud Runners.\n` +
+        `<i>Kết quả rà soát chi tiết sẽ được tự động báo cáo về bot!</i>`
       );
     } catch (err) {
       await sendTelegramMessage(
@@ -1564,6 +1746,83 @@ export async function executeIdeateWithTimeout(env, config, timeoutMs = 75000) {
 }
 
 /**
+ * Handle Ideation for Multiple Batches (e.g. 5 rows with status "Pending")
+ */
+export async function handleIdeateBatch(env, config, count = 5) {
+  const gsheet = new GoogleSheetsClient(
+    config.gcpClientEmail,
+    config.gcpPrivateKey,
+    config.spreadsheetId,
+    config.sheetTabName
+  );
+
+  // 1. Get vocabulary history for smart anti-duplication
+  let vocabHistory = {};
+  let currentMaxId = 0;
+
+  try {
+    vocabHistory = await gsheet.getVocabHistory();
+    const allRows = await gsheet.getSheetValues(`${config.sheetTabName}!A2:A500`);
+    currentMaxId = allRows.length;
+  } catch (e) {
+    console.warn(`[GSheet Warning] Could not fetch sheet history (${e.message}). Proceeding with empty history.`);
+  }
+
+  // 2. Generate count topics via Multi-AI rotation
+  const { topics: generatedTopics, provider: providerUsed, isFallbackBank, diagnostics } = await generateBatchesWithMultiAI(
+    env,
+    config,
+    vocabHistory,
+    count
+  );
+
+  // 3. Format rows with Status = "Pending"
+  const sheetRows = formatTopicsToSheetRows(generatedTopics, providerUsed, currentMaxId + 1);
+  await gsheet.appendRows(sheetRows);
+
+  return {
+    success: true,
+    count: generatedTopics.length,
+    startId: currentMaxId + 1,
+    endId: currentMaxId + generatedTopics.length,
+    topics: generatedTopics,
+    provider: providerUsed,
+    isFallbackBank: isFallbackBank || false,
+    diagnostics: diagnostics || null
+  };
+}
+
+/**
+ * Execute batch ideation with Global Timeout (default 90s for multiple ideas)
+ */
+export async function executeIdeateBatchWithTimeout(env, config, count = 5, timeoutMs = 90000) {
+  const startTime = Date.now();
+  let timer;
+
+  const timeoutPromise = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      const err = new Error(`GLOBAL_TIMEOUT: Quá thời gian 90 giây chờ phản hồi tạo ${count} ý tưởng từ các mô hình AI.`);
+      err.isTimeout = true;
+      reject(err);
+    }, timeoutMs);
+  });
+
+  try {
+    const res = await Promise.race([
+      handleIdeateBatch(env, config, count),
+      timeoutPromise
+    ]);
+    clearTimeout(timer);
+    res.durationSeconds = Math.round((Date.now() - startTime) / 1000);
+    return res;
+  } catch (err) {
+    clearTimeout(timer);
+    err.durationSeconds = Math.round((Date.now() - startTime) / 1000);
+    throw err;
+  }
+}
+
+/**
  * Format detailed diagnostic error report for Telegram
  */
 export function formatIdeateErrorTelegramMessage(err, durationSeconds = 0) {
@@ -1743,9 +2002,10 @@ export async function handlePublishingCron(env, config, targetLevel = null) {
     for (const errBatch of errorBatches) {
       // Retry lần 1
       let res = await publishBatchToBuffer(env, errBatch);
-      // Nếu vẫn còn lỗi -> Retry lần 2
+      // Nếu vẫn còn lỗi -> Chờ 4s và Retry lần 2
       if (res.finalStatus === "Error") {
-        console.log(`[PUBLISHING-CRON] Error Batch #${errBatch.id} still partial, retrying attempt 2...`);
+        console.log(`[PUBLISHING-CRON] Error Batch #${errBatch.id} still partial, retrying attempt 2 after 4s delay...`);
+        await new Promise(r => setTimeout(r, 4000));
         res = await publishBatchToBuffer(env, errBatch);
       }
 

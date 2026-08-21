@@ -225,11 +225,20 @@ export function getHelpMessage() {
 🔹 <code>/ideate</code>:
    👉 Tạo <b>1 bộ ý tưởng mới</b> (1 dòng) với trạng thái <b>Pending</b> (kèm nút Render / Cancel).
 
-🔹 <code>/fix</code> hoặc <code>/heal</code>:
-   👉 <b>AI Auto-Healing</b>: Tự động sửa các dòng <b>Failed</b> (chuyển Phồn thể ➔ Giản thể, chuẩn hóa Pinyin & tái tạo Metadata) ➔ Đổi sang <b>Pending</b>.
+🔹 <code>/ideate5</code> (hoặc <code>/idea5</code>, <code>/sinh5</code>):
+   👉 Tạo ngay <b>5 bộ ý tưởng HSK mới</b> bất kỳ thời điểm nào (khử trùng 100%, lưu vào Sheet với trạng thái <b>Pending</b>).
+
+🔹 <code>/renderall</code>:
+   👉 <b>Render toàn diện</b>: Tự động dò và render <b>TẤT CẢ</b> các dòng <b>Pending</b> sang <b>Video</b>, không để sót bất kỳ dòng Pending nào.
 
 🔹 <code>/render [id]</code>:
-   👉 Kích hoạt GitHub Action render tất cả dòng <b>Pending</b> (hoặc dòng cụ thể) ➔ Gắn bìa Cover 0.75s ➔ Set trạng thái <b>Video</b>.
+   👉 Kích hoạt GitHub Action render dòng cụ thể (hoặc tất cả Pending) ➔ Gắn bìa Cover 0.75s ➔ Set trạng thái <b>Video</b>.
+
+🔹 <code>/qcall</code> (hoặc <code>/qc</code>):
+   👉 <b>Auto-QC Gatekeeper</b>: Rà soát <b>TOÀN BỘ</b> các dòng có <b>Video</b>, kiểm tra từng frame chữ Hán, ảnh bìa & âm thanh ➔ Tự động duyệt sang <b>Ready</b>.
+
+🔹 <code>/fix</code> hoặc <code>/heal</code>:
+   👉 <b>AI Auto-Healing</b>: Tự động sửa các dòng <b>Failed</b> (chuyển Phồn thể ➔ Giản thể, chuẩn hóa Pinyin & tái tạo Metadata) ➔ Đổi sang <b>Pending</b>.
 
 🔹 <code>/resetall</code>:
    👉 Reset toàn bộ các dòng <b>Video</b> về <b>Pending</b> để render lại video có ảnh bìa mới.
@@ -239,9 +248,6 @@ export function getHelpMessage() {
 
 🔹 <code>/approve [id]</code>:
    👉 Duyệt thủ công 1 dòng sang <b>Ready</b> (Sẵn sàng đăng).
-
-🔹 <code>/qc</code>:
-   👉 Kích hoạt <b>Auto-QC Gatekeeper</b>: Kiểm tra chữ Hán, độ tương phản ảnh bìa 0.75s & âm thanh ➔ Tự động duyệt <b>Video</b> ➔ <b>Ready</b>.
 
 🔹 <code>/publish</code>:
    👉 Đăng đúng <b>1 video duy nhất</b> (ưu tiên retry dòng <b>Error</b>, sau đó đăng dòng <b>Ready</b>).

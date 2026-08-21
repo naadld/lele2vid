@@ -562,21 +562,40 @@ export async function generateBatchesWithMultiAI(env, config, vocabHistory = {},
       const key = shuffledGeminiKeys[i];
       const keyShort = `${key.substring(0, 6)}...${key.substring(key.length - 4)}`;
       try {
-        console.log(`[AI-Pool] Trying Google AI Studio (Key ${i + 1}/${shuffledGeminiKeys.length}: ${keyShort})...`);
+        console.log(`[AI-Pool] Trying Google AI Studio (Key ${i + 1}/${shuffledGeminiKeys.length}: ${keyShort}) for count=${count}...`);
         const res = await callGeminiAPI(key, config.geminiModel, systemPrompt, userPrompt, config);
         if (res && Array.isArray(res.data) && res.data.length > 0) {
-          const candidate = res.data[0];
-          const gateCheck = validateTopicUniquenessAndQuality(candidate, vocabHistory);
-          if (gateCheck.isValid) {
-            resultTopics = [candidate];
+          const validCandidates = [];
+          const tempHistory = {
+            recentTopics: [...(vocabHistory.recentTopics || [])],
+            pastBatches: [...(vocabHistory.pastBatches || [])]
+          };
+
+          for (const candidate of res.data) {
+            const gateCheck = validateTopicUniquenessAndQuality(candidate, tempHistory);
+            if (gateCheck.isValid) {
+              validCandidates.push(candidate);
+              tempHistory.recentTopics.push(candidate.topic);
+              tempHistory.pastBatches.push({
+                id: "temp",
+                topic: candidate.topic,
+                words: (candidate.words || []).map(w => w.hanzi)
+              });
+              if (validCandidates.length >= count) break;
+            } else {
+              console.warn(`🛑 [Gatekeeper Rejected] Candidate violated uniqueness: ${gateCheck.errors.join("; ")}`);
+            }
+          }
+
+          if (validCandidates.length > 0) {
+            resultTopics = validCandidates;
             const gwTag = res.viaGateway ? " (AI Gateway)" : "";
             providerUsed = `Google AI Studio${gwTag} (${res.modelUsed} - Key #${i + 1})`;
             anyAiSucceeded = true;
-            console.log(`✨ Successfully generated and PASSED Gatekeeper with ${providerUsed}!`);
+            console.log(`✨ Successfully generated and PASSED Gatekeeper with ${validCandidates.length}/${count} topics from ${providerUsed}!`);
             break;
           } else {
-            console.warn(`🛑 [Gatekeeper Rejected] Google AI Studio output violated uniqueness: ${gateCheck.errors.join("; ")}`);
-            diagnostics.gemini.push(`Key #${i + 1} (${keyShort}): Vi phạm Gatekeeper (${gateCheck.errors.join(", ")})`);
+            diagnostics.gemini.push(`Key #${i + 1} (${keyShort}): Không có chủ đề nào vượt qua Gatekeeper`);
           }
         }
       } catch (err) {
@@ -587,28 +606,47 @@ export async function generateBatchesWithMultiAI(env, config, vocabHistory = {},
     }
   }
 
-  // 2. Try Agnes AI Keys if Gemini not successful
-  if (!resultTopics && config.agnesApiKeys && config.agnesApiKeys.length > 0) {
+  // 2. Try Agnes AI Keys if Gemini not successful or incomplete
+  if ((!resultTopics || resultTopics.length < count) && config.agnesApiKeys && config.agnesApiKeys.length > 0) {
     const shuffledAgnesKeys = [...config.agnesApiKeys].sort(() => 0.5 - Math.random());
 
     for (let i = 0; i < shuffledAgnesKeys.length; i++) {
       const key = shuffledAgnesKeys[i];
       const keyShort = `${key.substring(0, 6)}...${key.substring(key.length - 4)}`;
       try {
-        console.log(`[AI-Pool] Trying Agnes AI (Key ${i + 1}/${shuffledAgnesKeys.length}: ${keyShort})...`);
+        console.log(`[AI-Pool] Trying Agnes AI (Key ${i + 1}/${shuffledAgnesKeys.length}: ${keyShort}) for count=${count}...`);
         const res = await callAgnesAPI(key, config.agnesBaseUrl, config.agnesModel, systemPrompt, userPrompt);
         if (res && Array.isArray(res.data) && res.data.length > 0) {
-          const candidate = res.data[0];
-          const gateCheck = validateTopicUniquenessAndQuality(candidate, vocabHistory);
-          if (gateCheck.isValid) {
-            resultTopics = [candidate];
+          const validCandidates = [];
+          const tempHistory = {
+            recentTopics: [...(vocabHistory.recentTopics || [])],
+            pastBatches: [...(vocabHistory.pastBatches || [])]
+          };
+
+          for (const candidate of res.data) {
+            const gateCheck = validateTopicUniquenessAndQuality(candidate, tempHistory);
+            if (gateCheck.isValid) {
+              validCandidates.push(candidate);
+              tempHistory.recentTopics.push(candidate.topic);
+              tempHistory.pastBatches.push({
+                id: "temp",
+                topic: candidate.topic,
+                words: (candidate.words || []).map(w => w.hanzi)
+              });
+              if (validCandidates.length >= count) break;
+            } else {
+              console.warn(`🛑 [Gatekeeper Rejected] Agnes AI candidate violated uniqueness: ${gateCheck.errors.join("; ")}`);
+            }
+          }
+
+          if (validCandidates.length > 0) {
+            resultTopics = validCandidates;
             providerUsed = `Agnes AI (${res.modelUsed} - Key #${i + 1})`;
             anyAiSucceeded = true;
-            console.log(`✨ Successfully generated and PASSED Gatekeeper with ${providerUsed}!`);
+            console.log(`✨ Successfully generated and PASSED Gatekeeper with ${validCandidates.length}/${count} topics from ${providerUsed}!`);
             break;
           } else {
-            console.warn(`🛑 [Gatekeeper Rejected] Agnes AI output violated uniqueness: ${gateCheck.errors.join("; ")}`);
-            diagnostics.agnes.push(`Key #${i + 1} (${keyShort}): Vi phạm Gatekeeper (${gateCheck.errors.join(", ")})`);
+            diagnostics.agnes.push(`Key #${i + 1} (${keyShort}): Không có chủ đề nào vượt qua Gatekeeper`);
           }
         }
       } catch (err) {
@@ -620,22 +658,37 @@ export async function generateBatchesWithMultiAI(env, config, vocabHistory = {},
   }
 
   // 3. Try Cloudflare Workers AI if Gemini and Agnes are unavailable
-  if (!resultTopics && env && env.AI) {
+  if ((!resultTopics || resultTopics.length < count) && env && env.AI) {
     const cfModel = config.aiModel || "@cf/meta/llama-3.3-70b-instruct";
     try {
-      console.log(`[AI-Pool] Trying Cloudflare Workers AI (${cfModel})...`);
+      console.log(`[AI-Pool] Trying Cloudflare Workers AI (${cfModel}) for count=${count}...`);
       const cfRes = await callCloudflareAI(env, cfModel, systemPrompt, userPrompt);
       if (cfRes && Array.isArray(cfRes.data) && cfRes.data.length > 0) {
-        const candidate = cfRes.data[0];
-        const gateCheck = validateTopicUniquenessAndQuality(candidate, vocabHistory);
-        if (gateCheck.isValid) {
-          resultTopics = [candidate];
+        const validCandidates = [];
+        const tempHistory = {
+          recentTopics: [...(vocabHistory.recentTopics || [])],
+          pastBatches: [...(vocabHistory.pastBatches || [])]
+        };
+
+        for (const candidate of cfRes.data) {
+          const gateCheck = validateTopicUniquenessAndQuality(candidate, tempHistory);
+          if (gateCheck.isValid) {
+            validCandidates.push(candidate);
+            tempHistory.recentTopics.push(candidate.topic);
+            tempHistory.pastBatches.push({
+              id: "temp",
+              topic: candidate.topic,
+              words: (candidate.words || []).map(w => w.hanzi)
+            });
+            if (validCandidates.length >= count) break;
+          }
+        }
+
+        if (validCandidates.length > 0) {
+          resultTopics = validCandidates;
           providerUsed = `Cloudflare Workers AI (${cfRes.modelUsed})`;
           anyAiSucceeded = true;
-          console.log(`✨ Successfully generated and PASSED Gatekeeper with ${providerUsed}!`);
-        } else {
-          console.warn(`🛑 [Gatekeeper Rejected] Cloudflare AI output violated uniqueness: ${gateCheck.errors.join("; ")}`);
-          diagnostics.cloudflare.push(`CF AI (${cfModel}): Vi phạm Gatekeeper (${gateCheck.errors.join(", ")})`);
+          console.log(`✨ Successfully generated and PASSED Gatekeeper with ${validCandidates.length}/${count} topics from ${providerUsed}!`);
         }
       }
     } catch (err) {
@@ -645,9 +698,9 @@ export async function generateBatchesWithMultiAI(env, config, vocabHistory = {},
     }
   }
 
-  // 4. Fallback to Curated Vocab Bank (Filtered against recent topics and pair overlaps)
-  if (!resultTopics || resultTopics.length === 0) {
-    console.log("ℹ️ Filtering Built-in High Quality Vocab Bank for unique topics...");
+  // 4. Fallback or Supplement with Curated Vocab Bank if needed
+  if (!resultTopics || resultTopics.length < count) {
+    console.log(`ℹ️ Supplementing ${count - (resultTopics?.length || 0)} topics from Built-in High Quality Vocab Bank...`);
     const recentTopics = (vocabHistory.recentTopics || []).map(t => t.toLowerCase().trim());
     const pastBatches = vocabHistory.pastBatches || [];
 
@@ -670,8 +723,15 @@ export async function generateBatchesWithMultiAI(env, config, vocabHistory = {},
 
     const chosenBank = validBankTopics.length > 0 ? validBankTopics : BUILTIN_VOCAB_BANK;
     const shuffledBank = [...chosenBank].sort(() => 0.5 - Math.random());
-    resultTopics = shuffledBank.slice(0, count);
-    providerUsed = "Fallback VOCAB_BANK (Single Topic Verified)";
+    const neededCount = count - (resultTopics?.length || 0);
+    const bankSupplement = shuffledBank.slice(0, neededCount);
+
+    if (!resultTopics || resultTopics.length === 0) {
+      resultTopics = bankSupplement;
+      providerUsed = "Fallback VOCAB_BANK (Single Topic Verified)";
+    } else {
+      resultTopics = [...resultTopics, ...bankSupplement];
+    }
   }
 
   // Auto-enrich each word with hidden_pinyin

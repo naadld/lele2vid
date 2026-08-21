@@ -9,18 +9,27 @@ import { getVietnamTimestamp } from "./google_sheets.js";
 const BUFFER_GRAPHQL_ENDPOINT = "https://api.buffer.com";
 
 /**
- * Convert standard Google Drive view link to direct streaming MP4 download link
- * Using drive.usercontent.google.com which returns HTTP 200 with video/mp4
+ * Convert standard Google Drive view link to direct streaming MP4 download links
+ * Returns array of viable direct download / streaming URLs
  */
-export function convertGDriveToDirectUrl(gdriveUrl) {
-  if (!gdriveUrl || typeof gdriveUrl !== "string") return "";
+export function getGDriveDirectUrls(gdriveUrl) {
+  if (!gdriveUrl || typeof gdriveUrl !== "string") return [];
 
   const match = gdriveUrl.match(/\/d\/([a-zA-Z0-9_-]+)/) || gdriveUrl.match(/id=([a-zA-Z0-9_-]+)/);
   if (match && match[1]) {
     const fileId = match[1];
-    return `https://drive.usercontent.google.com/download?id=${fileId}&export=download&authuser=0`;
+    return [
+      `https://drive.usercontent.google.com/download?id=${fileId}&export=download&authuser=0`,
+      `https://lh3.googleusercontent.com/d/${fileId}`,
+      `https://drive.google.com/uc?export=download&id=${fileId}`
+    ];
   }
-  return gdriveUrl;
+  return [gdriveUrl];
+}
+
+export function convertGDriveToDirectUrl(gdriveUrl) {
+  const urls = getGDriveDirectUrls(gdriveUrl);
+  return urls.length > 0 ? urls[0] : (gdriveUrl || "");
 }
 
 /**
@@ -253,6 +262,33 @@ export async function createBufferGraphQLPost(token, channelId, text, videoUrl =
   return createPostResult;
 }
 
+const INTER_PLATFORM_DELAY_MS = 30000; // 30 seconds delay between platforms
+
+/**
+ * Publish video with fallback URL rotation and automatic exponential retry
+ */
+export async function createBufferGraphQLPostWithRetry(token, channelId, text, videoUrls = [], metadata = null, maxRetries = 3) {
+  const urlsToTry = Array.isArray(videoUrls) ? videoUrls : [videoUrls];
+  let lastError = null;
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const currentUrl = urlsToTry[attempt % urlsToTry.length] || "";
+    try {
+      const res = await createBufferGraphQLPost(token, channelId, text, currentUrl, metadata);
+      return res;
+    } catch (err) {
+      lastError = err;
+      console.warn(`Buffer Post attempt ${attempt + 1}/${maxRetries} failed for channel ${channelId} (URL: ${currentUrl.substring(0, 50)}...): ${err.message}`);
+      if (attempt < maxRetries - 1) {
+        // Wait 5s, 10s with backoff before retry to release Google Drive download concurrency locks
+        await new Promise(r => setTimeout(r, 5000 * (attempt + 1)));
+      }
+    }
+  }
+
+  throw lastError || new Error("Failed to create Buffer post after retries.");
+}
+
 /**
  * Check if a channel column is already marked as published
  */
@@ -293,7 +329,8 @@ export async function publishBatchToBuffer(env, batch) {
   }
 
   const meta = getBatchMetadata(batch.metadata, batch.topic, batch.level, batch.words);
-  const directVideoUrl = convertGDriveToDirectUrl(batch.videoUrl);
+  const directVideoUrls = getGDriveDirectUrls(batch.videoUrl);
+  const directVideoUrl = directVideoUrls[0] || "";
   const nowStr = getVietnamTimestamp();
 
   console.log(`Publishing Batch #${batch.id} (${batch.topic}) - Video: ${directVideoUrl ? "YES" : "NO"}...`);
@@ -306,7 +343,8 @@ export async function publishBatchToBuffer(env, batch) {
   const results = [];
   const errors = [];
 
-  for (const ch of channels) {
+  for (let i = 0; i < channels.length; i++) {
+    const ch = channels[i];
     const service = ch.service.toLowerCase();
 
     // 1. YouTube Shorts (Requires distinct title & categoryId: 27)
@@ -325,13 +363,18 @@ export async function publishBatchToBuffer(env, batch) {
             madeForKids: false
           }
         };
-        await createBufferGraphQLPost(token, ch.id, description, directVideoUrl, ytMetadata);
+        await createBufferGraphQLPostWithRetry(token, ch.id, description, directVideoUrls, ytMetadata);
         youtubeStatus = `Published (${nowStr})`;
         results.push({ channel: "YouTube", status: "success" });
       } catch (err) {
         console.error("YouTube Post Error:", err);
         youtubeStatus = `Error: ${err.message.substring(0, 60)}`;
         errors.push({ channel: "YouTube", error: err.message });
+      }
+      // Staggered delay 30s to allow Buffer/Google Drive to finish processing stream before next channel
+      if (i < channels.length - 1) {
+        console.log(`Waiting ${INTER_PLATFORM_DELAY_MS / 1000}s before next platform...`);
+        await new Promise(resolve => setTimeout(resolve, INTER_PLATFORM_DELAY_MS));
       }
     }
 
@@ -343,13 +386,23 @@ export async function publishBatchToBuffer(env, batch) {
       }
       try {
         const caption = meta.tiktok.caption;
-        await createBufferGraphQLPost(token, ch.id, caption, directVideoUrl, null);
+        const ttMetadata = {
+          tiktok: {
+            isAiGenerated: false
+          }
+        };
+        await createBufferGraphQLPostWithRetry(token, ch.id, caption, directVideoUrls, ttMetadata);
         tiktokStatus = `Published (${nowStr})`;
         results.push({ channel: "TikTok", status: "success" });
       } catch (err) {
         console.error("TikTok Post Error:", err);
         tiktokStatus = `Error: ${err.message.substring(0, 60)}`;
         errors.push({ channel: "TikTok", error: err.message });
+      }
+      // Staggered delay 30s to allow Buffer/Google Drive to finish processing stream before next channel
+      if (i < channels.length - 1) {
+        console.log(`Waiting ${INTER_PLATFORM_DELAY_MS / 1000}s before next platform...`);
+        await new Promise(resolve => setTimeout(resolve, INTER_PLATFORM_DELAY_MS));
       }
     }
 
@@ -366,7 +419,7 @@ export async function publishBatchToBuffer(env, batch) {
             type: "reel"
           }
         };
-        await createBufferGraphQLPost(token, ch.id, caption, directVideoUrl, fbMetadata);
+        await createBufferGraphQLPostWithRetry(token, ch.id, caption, directVideoUrls, fbMetadata);
         fbStatus = `Published (${nowStr})`;
         results.push({ channel: "Facebook", status: "success" });
       } catch (err) {
