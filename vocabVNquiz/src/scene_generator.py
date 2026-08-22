@@ -133,18 +133,20 @@ class {scene_name}(Scene):
             stroke_width=1.5
         ).move_to(DOWN * 6.3)
 
-        avatar_path = "{os.path.join(config.base_dir, 'assets/images/logo.png')}"
+        avatar_path = "{os.path.join(config.base_dir, 'assets/images/avatar.png')}"
+        if not os.path.exists(avatar_path):
+            avatar_path = "{os.path.join(config.base_dir, 'assets/images/logo.png')}"
+            
         if os.path.exists(avatar_path):
-            avatar_img = ImageMobject(avatar_path).set_height(0.85).move_to(footer_card.get_left() + RIGHT * 0.75)
-            self.add(avatar_img)
+            avatar_img = ImageMobject(avatar_path).set_height(0.95).move_to(footer_card.get_left() + RIGHT * 0.8)
         else:
-            avatar_img = Dot(radius=0.4, color=YELLOW_E).move_to(footer_card.get_left() + RIGHT * 0.75)
-            self.add(avatar_img)
+            avatar_img = Dot(radius=0.45, color=YELLOW_E).move_to(footer_card.get_left() + RIGHT * 0.8)
 
         footer_title = Text("lelehoctiengtrung", font=VIETNAMESE_FONT, font_size=32, color=WHITE, weight=BOLD)
         footer_title.next_to(avatar_img, RIGHT, buff=0.35)
 
         self.play(FadeIn(footer_card, shift=UP*0.3), FadeIn(footer_title, shift=UP*0.3), run_time=0.5)
+        self.add(avatar_img)
 
         # 4. Words Loop
         for idx, w in enumerate(words, start=1):
@@ -328,13 +330,14 @@ class {scene_name}(Scene):
             stroke_width=2.0
         ).move_to(UP * 0.3)
 
-        logo_path = "{os.path.join(config.base_dir, 'assets/images/logo.png')}"
+        logo_path = "{os.path.join(config.base_dir, 'assets/images/avatar.png')}"
+        if not os.path.exists(logo_path):
+            logo_path = "{os.path.join(config.base_dir, 'assets/images/logo.png')}"
+
         if os.path.exists(logo_path):
-            logo_img = ImageMobject(logo_path).set_height(1.4).move_to(end_card.get_top() + DOWN * 1.1)
-            self.add(logo_img)
+            logo_img = ImageMobject(logo_path).set_height(1.5).move_to(end_card.get_top() + DOWN * 1.15)
         else:
-            logo_img = Dot(radius=0.6, color=YELLOW_E).move_to(end_card.get_top() + DOWN * 1.1)
-            self.add(logo_img)
+            logo_img = Dot(radius=0.6, color=YELLOW_E).move_to(end_card.get_top() + DOWN * 1.15)
 
         end_title = Text(
             "BẠN ĐÚNG MẤY TỪ?",
@@ -367,6 +370,7 @@ class {scene_name}(Scene):
             FadeIn(end_sub, shift=UP*0.2),
             run_time=0.6
         )
+        self.add(logo_img)
         self.wait(2.5)
 '''
     return code

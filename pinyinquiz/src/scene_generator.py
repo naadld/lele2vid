@@ -147,19 +147,20 @@ class {scene_name}(Scene):
             stroke_width=1.5
         ).move_to(DOWN * 6.3)
 
-        avatar_path = "{os.path.join(config.base_dir, 'assets/images/logo.png')}"
+        avatar_path = "{os.path.join(config.base_dir, 'assets/images/avatar.png')}"
+        if not os.path.exists(avatar_path):
+            avatar_path = "{os.path.join(config.base_dir, 'assets/images/logo.png')}"
+            
         if os.path.exists(avatar_path):
-            avatar_img = ImageMobject(avatar_path).set_height(0.85)
-            avatar_bg = RoundedRectangle(corner_radius=0.2, width=0.9, height=0.9, fill_color="#0284c7", fill_opacity=0.3, stroke_width=0)
-            avatar_group = Group(avatar_bg, avatar_img).move_to(footer_card.get_left() + RIGHT * 0.75)
+            avatar_img = ImageMobject(avatar_path).set_height(0.95).move_to(footer_card.get_left() + RIGHT * 0.8)
         else:
-            avatar_group = Dot(radius=0.4, color=BLUE_D).move_to(footer_card.get_left() + RIGHT * 0.75)
+            avatar_img = Dot(radius=0.45, color=BLUE_D).move_to(footer_card.get_left() + RIGHT * 0.8)
 
         footer_title = Text("lelehoctiengtrung", font=VIETNAMESE_FONT, font_size=32, color=WHITE, weight=BOLD)
-        footer_title.next_to(avatar_group, RIGHT, buff=0.35)
+        footer_title.next_to(avatar_img, RIGHT, buff=0.35)
 
-        footer_base = Group(footer_card, avatar_group, footer_title)
-        self.play(FadeIn(footer_base, shift=UP*0.3), run_time=0.5)
+        self.play(FadeIn(footer_card, shift=UP*0.3), FadeIn(footer_title, shift=UP*0.3), run_time=0.5)
+        self.add(avatar_img)
 
         # 5. Words Loop
         for idx, w in enumerate(words, start=1):
@@ -352,21 +353,14 @@ class {scene_name}(Scene):
             stroke_width=2.0
         ).move_to(UP * 0.3)
 
-        logo_path = "{os.path.join(config.base_dir, 'assets/images/logo.png')}"
+        logo_path = "{os.path.join(config.base_dir, 'assets/images/avatar.png')}"
+        if not os.path.exists(logo_path):
+            logo_path = "{os.path.join(config.base_dir, 'assets/images/logo.png')}"
+
         if os.path.exists(logo_path):
-            logo_img = ImageMobject(logo_path).set_height(1.3)
-            logo_bg = RoundedRectangle(
-                corner_radius=0.3,
-                width=1.45,
-                height=1.45,
-                fill_color="#0b1120",
-                fill_opacity=1.0,
-                stroke_color="#38bdf8",
-                stroke_width=2.0
-            )
-            logo_badge = Group(logo_bg, logo_img)
+            logo_img = ImageMobject(logo_path).set_height(1.5).move_to(end_card.get_top() + DOWN * 1.15)
         else:
-            logo_badge = Dot(radius=0.6, color="#0284c7")
+            logo_img = Dot(radius=0.6, color="#0284c7").move_to(end_card.get_top() + DOWN * 1.15)
 
         end_title = Text("BẠN ĐOÁN ĐÚNG MẤY CÂU?", font=VIETNAMESE_FONT, font_size=34, color="#fbbf24", weight=BOLD)
         end_sub1 = Text("Comment số điểm bên dưới nhé! 👇", font=VIETNAMESE_FONT, font_size=25, color=WHITE)
@@ -376,13 +370,12 @@ class {scene_name}(Scene):
         end_text_group = VGroup(end_title, end_sub1, end_sub2, end_sub3).arrange(DOWN, buff=0.25)
         if end_text_group.width > 6.8:
             end_text_group.scale_to_fit_width(6.8)
-            
-        end_content = Group(logo_badge, end_text_group).arrange(DOWN, buff=0.35)
-        end_content.move_to(end_card.get_center())
+        end_text_group.next_to(logo_img, DOWN, buff=0.35)
         
-        self.play(FadeIn(end_card), FadeIn(end_content), run_time=0.5)
+        self.play(FadeIn(end_card), FadeIn(end_text_group), run_time=0.5)
+        self.add(logo_img)
         self.wait(2.5)
-        self.play(FadeOut(end_card), FadeOut(end_content), FadeOut(header_pill), FadeOut(header_mode), FadeOut(footer_base), run_time=0.5)
+        self.play(FadeOut(end_card), FadeOut(end_text_group), FadeOut(header_pill), FadeOut(header_mode), FadeOut(footer_card), FadeOut(footer_title), run_time=0.5)
 '''
     return code
 
