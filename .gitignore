@@ -81,3 +81,10 @@ knowledge_notebooks/
 *.png
 *.gif
 *.webp
+
+# Whitelist production runtime assets
+!**/assets/images/*.png
+!**/assets/images/*.jpg
+!**/assets/images/*.mp4
+!**/assets/audio/*.mp3
+!**/assets/fonts/*.ttf
