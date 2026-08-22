@@ -58,6 +58,28 @@ def send_telegram_alert_message(text: str, reply_markup: dict = None):
     except Exception as e:
         logger.warning(f"Telegram alert error: {e}")
 
+def send_telegram_video(video_path: str, caption: str, reply_markup: dict = None):
+    bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+    chat_id = os.getenv("TELEGRAM_CHAT_ID", "").strip() or "1187577977"
+
+    if not (bot_token and chat_id) or not os.path.exists(video_path):
+        return
+    try:
+        import requests
+        url = f"https://api.telegram.org/bot{bot_token}/sendVideo"
+        with open(video_path, "rb") as f_vid:
+            data = {
+                "chat_id": chat_id,
+                "caption": caption,
+                "parse_mode": "HTML",
+                "supports_streaming": True
+            }
+            if reply_markup:
+                data["reply_markup"] = json.dumps(reply_markup)
+            requests.post(url, data=data, files={"video": f_vid}, timeout=60)
+    except Exception as e:
+        logger.warning(f"Telegram video upload error: {e}")
+
 def process_batch(batch_row: dict, gsheet: GSheetManager, uploader: GDriveUploader, quality: str = "qh") -> bool:
     row_num = batch_row.get("_row_number")
     batch_id = batch_row.get("#", f"#{row_num}")
@@ -124,14 +146,17 @@ def process_batch(batch_row: dict, gsheet: GSheetManager, uploader: GDriveUpload
     gsheet.update_batch_status(row_num, "Video", video_link=gdrive_video_link, notes=f"Rendered at {get_vietnam_now_str()}")
     logger.info(f"✅ Finished rendering VocabVN Batch {batch_id} -> GDrive Link: {gdrive_video_link}")
 
-    # 9. Send Telegram Alert for Moderation
+    # 9. Send Telegram Video for Moderation
     caption = (
         f"🎬 <b>[VocabVNquiz Video Mới]</b> Batch <b>#{clean_id}</b>\n"
         f"📌 <b>Chủ đề:</b> {topic} ({level})\n"
         f"🔗 <a href='{gdrive_video_link}'>Xem Video trên Google Drive</a>\n"
         f"📅 <i>Thời gian: {get_vietnam_now_str()}</i>"
     )
-    send_telegram_alert_message(caption)
+    if os.path.exists(local_video_path):
+        send_telegram_video(local_video_path, caption)
+    else:
+        send_telegram_alert_message(caption)
     return True
 
 def main():
