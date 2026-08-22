@@ -305,7 +305,7 @@ def create_high_ctr_thumbnail(batch_data: Dict[str, Any], output_path: Optional[
     draw_text_with_shadow(
         draw,
         (width / 2, bottom_badge_y),
-        "PINYIN TRONG 5 GIÂY",
+        "PINYIN 5 GIÂY",
         font_bottom,
         fill="#ffffff",
         shadow_color="#4c0519",

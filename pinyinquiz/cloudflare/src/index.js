@@ -559,11 +559,11 @@ export default {
   },
 
   /**
-   * Cron Trigger Event Handler (Tự động hóa hoàn toàn 24/7 cho Pipeline 2.0)
-   * • "1 17 * * *"    : Sáng 00:01 Hàng Ngày GMT+7 (17:01 UTC Hàng Ngày): Sinh 5 kịch bản mới (ScriptNewIdeation.yml)
-   * • "0 0,6,12 * * *": Đăng bài Buffer 3 ca (07:00 Sáng, 13:00 Chiều, 19:00 Tối GMT+7 / 00:00, 06:00, 12:00 UTC)
-   * • "1 5 * * *"     : Báo cáo Dashboard giữa ngày (12:01 Trưa GMT+7 / 05:01 UTC)
-   * • "0 15 * * *"    : Báo cáo Dashboard cuối ngày (22:00 Đêm GMT+7 / 15:00 UTC)
+   * Cron Trigger Event Handler (Tự động hóa hoàn toàn 24/7 cho Pipeline 2.0 - Lịch Thứ 3 Hàng Tuần)
+   * • "1 17 * * 1"    : 00:01 Sáng Thứ 3 GMT+7 (17:01 UTC Thứ 2): Sinh 5 kịch bản PinyinQuiz mới (ScriptNewIdeation.yml)
+   * • "0 0,6,12 * * 2": Đăng bài Buffer 3 ca Thứ 3 (07:00 Sáng, 13:00 Chiều, 19:00 Tối GMT+7 / 00:00, 06:00, 12:00 UTC Thứ 3)
+   * • "1 5 * * 2"     : Báo cáo Dashboard giữa ngày Thứ 3 (12:01 Trưa GMT+7 / 05:01 UTC Thứ 3)
+   * • "0 15 * * 2"    : Báo cáo Dashboard cuối ngày Thứ 3 (22:00 Đêm GMT+7 / 15:00 UTC Thứ 3)
    */
   async scheduled(event, env, ctx) {
     const config = getConfig(env);
@@ -576,30 +576,30 @@ export default {
           const utcHours = nowUtc.getUTCHours();
           const utcMinutes = nowUtc.getUTCMinutes();
 
-          // 1. Daily 00:01 GMT+7 (17:01 UTC) Cron: Dispatch ScriptNewIdeation.yml (Batch 5 ideas)
+          // 1. Weekly Tuesday 00:01 GMT+7 (17:01 UTC Monday) Cron: Dispatch ScriptNewIdeation.yml (Batch 5 ideas)
           if (
+            event.cron === "1 17 * * 1" ||
             event.cron === "1 17 * * *" ||
-            event.cron === "1 17 * * 5" ||
             (utcHours === 17 && utcMinutes >= 0 && utcMinutes <= 10)
           ) {
-            console.log("[CRON] Daily 00:01 GMT+7 Cron: Triggering ScriptNewIdeation.yml (Batch 5)...");
+            console.log("[CRON] Weekly Tuesday 00:01 GMT+7 Cron: Triggering ScriptNewIdeation.yml (Batch 5)...");
             const ghRes = await triggerGitHubIdeationWorkflow(env, { mode: "batch", count: 5 });
             await sendTelegramMessage(
               config.telegramBotToken,
               config.telegramChatId,
-              `🏭 <b>[Lịch Tự Động 00:01 Sáng Hằng Ngày (GMT+7)]</b>\n\n` +
+              `🏭 <b>[Lịch Tự Động 00:01 Sáng Thứ 3 Hằng Tuần (GMT+7)]</b>\n\n` +
               `🚀 <b>Đã kích hoạt GitHub Actions:</b> <code>ScriptNewIdeation.yml</code> (Batch 5 kịch bản mới đa dạng HSK 1-2-3)\n` +
               `🔑 <i>Đã truyền danh sách Ephemeral Gemini API Keys qua TLS bảo mật (Zero-Secret).</i>\n` +
               `🧐 <i>Khi hoàn thành từng dòng, GitHub Actions sẽ gửi về Webhook Gatekeeper 1 để kiểm định độc lập.</i>`
             );
           }
-          // 2. 3x Daily Publishing: 07:00 (00:00 UTC), 13:00 (06:00 UTC), 19:00 (12:00 UTC) GMT+7
+          // 2. 3x Tuesday Publishing: 07:00 (00:00 UTC), 13:00 (06:00 UTC), 19:00 (12:00 UTC) GMT+7
           else if (
+            event.cron === "0 0,6,12 * * 2" ||
             event.cron === "0 0,6,12 * * *" ||
             event.cron === "0 0 * * *" ||
             event.cron === "0 6 * * *" ||
-            event.cron === "0 12 * * *" ||
-            event.cron === "0 0,6,14 * * *" // fallback compatibility
+            event.cron === "0 12 * * *"
           ) {
             let targetSlotLevel = null;
             if (utcHours >= 23 || utcHours <= 2) targetSlotLevel = "HSK 1";      // 07:00 VN (00:00 UTC) -> HSK 1
@@ -610,14 +610,14 @@ export default {
             await handlePublishingCron(env, config, targetSlotLevel);
           }
           // 3. Mid-day Report: 12:01 GMT+7 (05:01 UTC)
-          else if (event.cron === "1 5 * * *") {
-            await sendSystemDashboardReport(env, config, config.telegramBotToken, config.telegramChatId, "• BÁO CÁO GIỮA NGÀY 12:01");
+          else if (event.cron === "1 5 * * 2" || event.cron === "1 5 * * *") {
+            await sendSystemDashboardReport(env, config, config.telegramBotToken, config.telegramChatId, "• BÁO CÁO GIỮA NGÀY THỨ 3 (12:01)");
           }
           // 4. Night Report: 22:00 GMT+7 (15:00 UTC)
-          else if (event.cron === "0 15 * * *") {
-            await sendSystemDashboardReport(env, config, config.telegramBotToken, config.telegramChatId, "• BÁO CÁO TỔNG KẾT ĐÊM 22:00");
+          else if (event.cron === "0 15 * * 2" || event.cron === "0 15 * * *") {
+            await sendSystemDashboardReport(env, config, config.telegramBotToken, config.telegramChatId, "• BÁO CÁO TỔNG KẾT ĐÊM THỨ 3 (22:00)");
           }
-          // Legacy production cron support (0 12,18 * * *)
+          // Legacy production cron support
           else if (event.cron === "0 12,18 * * *" || event.cron === "0 18 * * *") {
             const label = (utcHours >= 16 || utcHours <= 2) ? "01:00 Sáng" : "19:00 Tối";
             await handleProductionCron(env, config, label);

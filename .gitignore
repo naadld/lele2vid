@@ -10,6 +10,8 @@ gitinore/
 configs/
 **/configs/
 *.json
+!**/package.json
+!package.json
 !**/data/sample_words.json
 *.pem
 *.key

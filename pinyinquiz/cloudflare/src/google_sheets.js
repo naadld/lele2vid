@@ -458,7 +458,7 @@ export class GoogleSheetsClient {
    */
   async updateSocialPublishStatus(rowNumber, finalStatus, { youtube = "", tiktok = "", facebook = "" }) {
     // 1. Col D: Status (Published or Error)
-    await this.updateRange(`${this.tabName}!D${rowNumber}`, [[finalStatus]]);
+    await this.updateRange(`${this.tabName}!D${rowNumber}:D${rowNumber}`, [[finalStatus]]);
     
     // 2. Col L, M, N: Youtube, Tiktok, Facebook
     const updates = [[

@@ -1,0 +1,68 @@
+name: VocabCN Script Ideation Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      count:
+        description: 'Number of ideas to generate'
+        required: false
+        default: '1'
+      level:
+        description: 'Target HSK Level'
+        required: false
+        default: 'HSK 1'
+      cf_webhook_url:
+        description: 'Cloudflare Worker Webhook URL'
+        required: false
+        default: 'https://lele-vocabcnquiz.hothihuong113.workers.dev/api/receive-ideas'
+
+concurrency:
+  group: vocabcn-ideation-pipeline
+  cancel-in-progress: false
+
+jobs:
+  ideation:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: vocabCNquiz/requirements.txt
+
+      - name: Setup Virtualenv & Dependencies
+        run: |
+          python -m venv ~/.venv
+          source ~/.venv/bin/activate
+          pip install --upgrade pip setuptools wheel
+          pip install -r vocabCNquiz/requirements.txt
+          echo "$HOME/.venv/bin" >> $GITHUB_PATH
+
+      - name: Setup Service Account Credentials
+        env:
+          GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+        run: |
+          mkdir -p vocabCNquiz/configs
+          if [ -n "$GCP_SERVICE_ACCOUNT_JSON" ]; then
+            echo "$GCP_SERVICE_ACCOUNT_JSON" > vocabCNquiz/configs/service_account.json
+            echo "Service account credentials configured."
+          fi
+
+      - name: Execute VocabCN Ideation
+        working-directory: vocabCNquiz
+        env:
+          PYTHONPATH: .
+          INPUT_COUNT: ${{ github.event.inputs.count }}
+          INPUT_LEVEL: ${{ github.event.inputs.level }}
+          INPUT_WEBHOOK: ${{ github.event.inputs.cf_webhook_url }}
+          GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+          GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
+        run: |
+          source ~/.venv/bin/activate
+          python scripts/generate_daily_batches.py --count ${INPUT_COUNT:-1} --level "${INPUT_LEVEL:-HSK 1}" --webhook_url "${INPUT_WEBHOOK}"
