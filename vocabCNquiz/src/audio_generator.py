@@ -35,9 +35,13 @@ def ensure_bell_sound() -> str:
     ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
     ding_mp3 = os.path.join(config.assets_audio_dir, "ding.mp3")
-    subprocess.run(["cp", bell_mp3, ding_mp3], check=True)
+    if os.path.abspath(bell_mp3) != os.path.abspath(ding_mp3):
+        import shutil
+        shutil.copy(bell_mp3, ding_mp3)
     root_bell = os.path.join(config.base_dir, "bell.mp3")
-    subprocess.run(["cp", bell_mp3, root_bell], check=True)
+    if os.path.abspath(bell_mp3) != os.path.abspath(root_bell):
+        import shutil
+        shutil.copy(bell_mp3, root_bell)
     return bell_mp3
 
 def ensure_tick_sound() -> str:
