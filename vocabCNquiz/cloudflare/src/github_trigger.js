@@ -26,7 +26,7 @@ function getEphemeralGeminiKeys(env) {
 export async function triggerGitHubIdeationWorkflow(env, options = {}) {
   const owner = env.GITHUB_REPO_OWNER || "naadld";
   const repo = env.GITHUB_REPO_NAME || "lele2vid";
-  const workflow = "ScriptNewIdeation.yml";
+  const workflow = env.GITHUB_IDEATION_WORKFLOW_FILE || "vocabcn_ideation.yml";
   const token = env.GITHUB_TOKEN;
 
   if (!token) {
@@ -129,7 +129,7 @@ export async function triggerGitHubRenderWorkflow(env, options = {}) {
 export async function triggerGitHubQCWorkflow(env, options = {}) {
   const owner = env.GITHUB_REPO_OWNER || "naadld";
   const repo = env.GITHUB_REPO_NAME || "lele2vid";
-  const workflow = "ProductQC.yml";
+  const workflow = env.GITHUB_QC_WORKFLOW_FILE || "vocabcn_qc.yml";
   const token = env.GITHUB_TOKEN;
 
   if (!token) {
