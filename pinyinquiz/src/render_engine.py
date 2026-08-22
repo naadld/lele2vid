@@ -68,12 +68,40 @@ def render_manim_scene(
         
     raw_video = matching_files[0]
     
-    if not output_filename:
-        output_filename = f"{scene_name}.mp4"
-    if not output_filename.endswith(".mp4"):
-        output_filename += ".mp4"
-        
     final_output_path = os.path.join(config.output_videos_dir, output_filename)
+
+    bg_video_path = os.path.join(config.base_dir, "assets", "images", "background.mp4")
+    if os.path.exists(bg_video_path):
+        logger.info(f"Compositing animated looping background: {bg_video_path}")
+        temp_comp = os.path.join(config.output_videos_dir, f"temp_comp_{output_filename}")
+        mux_cmd = [
+            "ffmpeg", "-y",
+            "-stream_loop", "-1", "-i", bg_video_path,
+            "-i", raw_video,
+            "-filter_complex",
+            "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1[bg];"
+            "[1:v]format=rgba,colorkey=0x000000:0.02:0.0[fg];"
+            "[bg][fg]overlay=shortest=1:format=auto[outv]",
+            "-map", "[outv]",
+            "-map", "1:a?",
+            "-c:v", "libx264",
+            "-pix_fmt", "yuv420p",
+            "-crf", "18",
+            "-preset", "medium",
+            "-c:a", "aac",
+            "-b:a", "192k",
+            temp_comp
+        ]
+        mux_res = subprocess.run(mux_cmd, capture_output=True, text=True)
+        if mux_res.returncode == 0 and os.path.exists(temp_comp) and os.path.getsize(temp_comp) > 1000:
+            shutil.move(temp_comp, final_output_path)
+            logger.info(f"✅ Video with Animated Background saved successfully: {final_output_path}")
+            return final_output_path
+        else:
+            logger.warning(f"Background composite failed ({mux_res.stderr}), falling back to direct video.")
+            if os.path.exists(temp_comp):
+                os.remove(temp_comp)
+
     shutil.copy2(raw_video, final_output_path)
     logger.info(f"Video saved successfully to: {final_output_path}")
     return final_output_path

@@ -8,9 +8,9 @@ account_id = "3591f5b61af3263ca14af7a1765cc954"
 [ai]
 binding = "AI"
 
-# Cron Triggers (UTC): 07:00 AM VN (00:00 UTC)
+# Cron Triggers (UTC): 07:00, 13:00, 19:00 VN Thứ 7 (00:00, 06:00, 12:00 UTC Thứ 7)
 [triggers]
-crons = ["0 0 * * *"]
+crons = ["0 0,6,12 * * 6"]
 
 [vars]
 SPREADSHEET_ID = "1b6LNl7JHRiCsjK1w9VuD86GLqAfmSOtDUOm5whrGdH0"

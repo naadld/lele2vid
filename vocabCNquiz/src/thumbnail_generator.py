@@ -135,10 +135,10 @@ def create_high_ctr_thumbnail(batch_data: Dict[str, Any], output_path: Optional[
     # 1. TOP: Level Badge
     top_badge_y = 360
     font_level = get_font(52, bold=True)
-    level_text = f"✨ {level} ✨"
+    level_text = f"{level.upper()}"
     
     bbox = draw.textbbox((width // 2, top_badge_y), level_text, font=font_level, anchor="mm")
-    pad_x, pad_y = 45, 20
+    pad_x, pad_y = 55, 20
     bx1, by1, bx2, by2 = bbox[0] - pad_x, bbox[1] - pad_y, bbox[2] + pad_x, bbox[3] + pad_y
 
     draw_rounded_rect(

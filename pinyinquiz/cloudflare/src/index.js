@@ -350,6 +350,38 @@ export default {
       }
     }
 
+    // 4g. Send Video to Telegram via Worker Bot
+    if (url.pathname === "/api/send-telegram-video" && request.method === "POST") {
+      try {
+        const formData = await request.formData();
+        const chatId = formData.get("chat_id") || config.telegramChatId || "1187577977";
+        const caption = formData.get("caption") || "";
+        const video = formData.get("video");
+
+        if (!video) {
+          return new Response(JSON.stringify({ error: "No video file provided" }), { status: 400 });
+        }
+
+        const tgForm = new FormData();
+        tgForm.append("chat_id", chatId);
+        tgForm.append("caption", caption);
+        tgForm.append("parse_mode", "HTML");
+        tgForm.append("supports_streaming", "true");
+        tgForm.append("video", video);
+
+        const tgRes = await fetch(`https://api.telegram.org/bot${config.telegramBotToken}/sendVideo`, {
+          method: "POST",
+          body: tgForm
+        });
+        const tgData = await tgRes.json();
+        return new Response(JSON.stringify(tgData, null, 2), {
+          headers: { "Content-Type": "application/json" }
+        });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+      }
+    }
+
     // 4f. Reset Row Status API Endpoint
     if ((url.pathname === "/api/reset" || url.pathname === "/api/reset-row") && (request.method === "POST" || request.method === "GET")) {
       try {

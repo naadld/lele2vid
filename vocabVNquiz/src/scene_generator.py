@@ -14,7 +14,7 @@ def generate_scene_code(
 ) -> str:
     """
     Generates standalone Python/Manim script code for VocabVNQuiz:
-    Hero Question: Vietnamese Meaning -> 5s Countdown -> Reveal Chinese Hanzi + Pinyin + Audio TTS.
+    Hero Question: Vietnamese Meaning -> 🇻🇳 ➔ 🇨🇳 -> 5s Countdown -> Reveal Chinese Hanzi + Pinyin + Audio TTS.
     """
     clean_topic = topic.replace('"', '\\"')
     
@@ -78,24 +78,7 @@ class {scene_name}(Scene):
             self.wait(0.75)
             self.remove(cover_img)
 
-        # 1. Background Image
-        bg_path = "{os.path.join(config.base_dir, 'assets/images/background.jpg')}"
-        if os.path.exists(bg_path):
-            bg_image = ImageMobject(bg_path)
-            bg_image.set_height(config.frame_height)
-            bg_image.set_width(config.frame_width)
-            self.add(bg_image)
-            
-        dark_overlay = Rectangle(
-            width=config.frame_width,
-            height=config.frame_height,
-            fill_color="#030712",
-            fill_opacity=0.50,
-            stroke_width=0
-        )
-        self.add(dark_overlay)
-
-        # 2. Top Header Pill
+        # 1. Top Header Pill
         pill_text = Text(
             topic_title.upper(),
             font=VIETNAMESE_FONT,
@@ -115,19 +98,19 @@ class {scene_name}(Scene):
         pill_text.move_to(pill_bg.get_center())
         header_pill = VGroup(pill_bg, pill_text)
 
-        # 3. Top Mode Box: "Đoán tiếng Trung trong 5s"
+        # 2. Top Mode Box: "TIẾNG TRUNG TRONG 5S"
         mode_card = RoundedRectangle(
             corner_radius=0.25,
             width=5.2,
             height=0.9,
             fill_color="#0b0f19",
             fill_opacity=0.88,
-            stroke_color="#334155",
+            stroke_color="#f59e0b",
             stroke_width=1.5
         ).next_to(pill_bg, DOWN, buff=0.22)
         
         mode_title = Text(
-            "Đoán tiếng Trung trong 5s",
+            "TIẾNG TRUNG TRONG 5S",
             font=VIETNAMESE_FONT,
             font_size=26,
             color="#fbbf24",
@@ -137,7 +120,7 @@ class {scene_name}(Scene):
         header_mode = VGroup(mode_card, mode_title)
         self.play(FadeIn(header_pill, shift=DOWN*0.3), FadeIn(header_mode, shift=DOWN*0.3), run_time=0.6)
 
-        # 4. Bottom Footer Floating Card: Logo + "lelehoctiengtrung"
+        # 3. Bottom Footer Floating Card: Logo + "lelehoctiengtrung"
         footer_card = RoundedRectangle(
             corner_radius=0.3,
             width=7.4,
@@ -150,26 +133,23 @@ class {scene_name}(Scene):
 
         avatar_path = "{os.path.join(config.base_dir, 'assets/images/logo.png')}"
         if os.path.exists(avatar_path):
-            avatar_img = ImageMobject(avatar_path).set_height(0.85)
-            avatar_bg = RoundedRectangle(corner_radius=0.2, width=0.9, height=0.9, fill_color="#d97706", fill_opacity=0.3, stroke_width=0)
-            avatar_group = Group(avatar_bg, avatar_img).move_to(footer_card.get_left() + RIGHT * 0.75)
+            avatar_img = ImageMobject(avatar_path).set_height(0.85).move_to(footer_card.get_left() + RIGHT * 0.75)
         else:
-            avatar_group = Dot(radius=0.4, color=YELLOW_E).move_to(footer_card.get_left() + RIGHT * 0.75)
+            avatar_img = Dot(radius=0.4, color=YELLOW_E).move_to(footer_card.get_left() + RIGHT * 0.75)
 
         footer_title = Text("lelehoctiengtrung", font=VIETNAMESE_FONT, font_size=32, color=WHITE, weight=BOLD)
-        footer_title.next_to(avatar_group, RIGHT, buff=0.35)
+        footer_title.next_to(avatar_img, RIGHT, buff=0.35)
 
-        footer_base = Group(footer_card, avatar_group, footer_title)
-        self.play(FadeIn(footer_base, shift=UP*0.3), run_time=0.5)
+        self.play(FadeIn(footer_card, shift=UP*0.3), FadeIn(avatar_img), FadeIn(footer_title, shift=UP*0.3), run_time=0.5)
 
-        # 5. Words Loop
+        # 4. Words Loop
         for idx, w in enumerate(words, start=1):
             hanzi = w["hanzi"]
             pinyin_full = w["pinyin"]
             meaning = w["meaning"]
             voice_file = w.get("voice", "")
 
-            # Word counter with emotional curve badge
+            # Word counter
             icon_suffix = " ⚡" if idx == 4 else (" 🔥" if idx == 5 else "")
             counter_color = "#fbbf24" if idx == 4 else ("#f87171" if idx == 5 else "#94a3b8")
             counter_text = Text(
@@ -189,44 +169,35 @@ class {scene_name}(Scene):
                 height=6.8,
                 fill_color="#090d16",
                 fill_opacity=0.88,
-                stroke_color="#334155",
-                stroke_width=1.5
+                stroke_color="#f59e0b",
+                stroke_width=1.8
             ).move_to(UP * 0.3)
+
+            # Flags: 🇻🇳 ➔ 🇨🇳 (Quốc kỳ to hơn dấu mũi tên)
+            flag_vn_path = "{os.path.join(config.base_dir, 'assets/images/flag_vn.png')}"
+            flag_cn_path = "{os.path.join(config.base_dir, 'assets/images/flag_cn.png')}"
+            
+            flag_vn = ImageMobject(flag_vn_path).set_height(0.85) if os.path.exists(flag_vn_path) else Dot(color=RED)
+            flag_cn = ImageMobject(flag_cn_path).set_height(0.85) if os.path.exists(flag_cn_path) else Dot(color=YELLOW)
+            arrow_icon = Text("➔", font="Arial", font_size=42, color="#f59e0b", weight=BOLD)
+            
+            flag_group = Group(flag_vn, arrow_icon, flag_cn).arrange(RIGHT, buff=0.40).move_to(center_card.get_top() + DOWN * 1.15)
 
             # 1. Question Hero: Nghĩa Tiếng Việt
             vn_text = Text(
                 meaning,
                 font=VIETNAMESE_FONT,
-                font_size=80,
+                font_size=78,
                 color=WHITE,
                 weight=BOLD
-            ).move_to(center_card.get_top() + DOWN * 1.5)
+            ).next_to(flag_group, DOWN, buff=0.45)
             if vn_text.width > 6.4:
                 vn_text.scale_to_fit_width(6.4)
-            
-            # 2. Gợi ý số chữ Hán
-            hint_str = f"[ Tiếng Trung nói thế nào? ]"
-            hint_text = Text(
-                hint_str,
-                font=VIETNAMESE_FONT,
-                font_size=32,
-                color="#94a3b8",
-                weight=SEMIBOLD
-            ).next_to(vn_text, DOWN, buff=0.35)
 
-            # 3. Placeholder chờ đoán
-            hz_placeholder = Text(
-                "?  ?  ?",
-                font=VIETNAMESE_FONT,
-                font_size=60,
-                color="#f59e0b",
-                weight=BOLD
-            ).next_to(hint_text, DOWN, buff=0.5)
-
-            # 4. Countdown 5 giây
+            # 2. Countdown 5 giây
             time_label = Text("TIME", font=VIETNAMESE_FONT, font_size=30, color="#94a3b8", weight=BOLD)
             timer_num = Text("5", font=VIETNAMESE_FONT, font_size=54, color=WHITE, weight=BOLD)
-            timer_group = VGroup(time_label, timer_num).arrange(RIGHT, buff=0.25).next_to(hz_placeholder, DOWN, buff=0.5)
+            timer_group = VGroup(time_label, timer_num).arrange(RIGHT, buff=0.25).next_to(vn_text, DOWN, buff=0.55)
 
             # Progress Bar Track
             bar_width = 5.4
@@ -248,63 +219,77 @@ class {scene_name}(Scene):
                 stroke_width=0
             ).move_to(bar_track.get_center())
 
-            quiz_mobjects = VGroup(center_card, vn_text, hint_text, hz_placeholder, timer_group, bar_track, active_bar)
-            self.play(FadeIn(quiz_mobjects, shift=UP*0.2), run_time=0.4)
+            # Intro question elements
+            self.play(
+                FadeIn(center_card, shift=UP*0.3),
+                FadeIn(flag_group),
+                FadeIn(vn_text, shift=UP*0.2),
+                FadeIn(timer_group),
+                FadeIn(bar_track),
+                FadeIn(active_bar),
+                run_time=0.5
+            )
 
-            # 5s countdown
-            tick_file = "{os.path.join(config.base_dir, 'assets/audio/tick.mp3')}"
-            total_seconds = 5
-            for s in range(total_seconds, 0, -1):
-                if os.path.exists(tick_file):
+            # Tick sound path
+            tick_sound = "{os.path.join(config.base_dir, 'assets/audio/tick.mp3')}"
+            bell_sound = "{os.path.join(config.base_dir, 'assets/audio/ding.mp3')}"
+
+            # Countdown 5..4..3..2..1 (5s total)
+            for c_sec in range(5, 0, -1):
+                if c_sec < 5:
+                    new_timer_num = Text(str(c_sec), font=VIETNAMESE_FONT, font_size=54, color="#fbbf24" if c_sec <= 2 else WHITE, weight=BOLD).move_to(timer_num.get_center())
+                    self.remove(timer_num)
+                    self.add(new_timer_num)
+                    timer_num = new_timer_num
+                
+                # Tick sound
+                if os.path.exists(tick_sound):
                     try:
-                        self.add_sound(tick_file)
+                        self.add_sound(tick_sound)
                     except Exception:
                         pass
                 
-                fraction_left = (s - 1) / total_seconds
-                new_bar_width = max(bar_width * fraction_left, 0.01)
-                
-                new_active_bar = RoundedRectangle(
+                # Shrink active bar
+                target_ratio = (c_sec - 1) / 5.0
+                target_w = max(0.01, bar_width * target_ratio)
+                new_bar = RoundedRectangle(
                     corner_radius=0.08,
-                    width=new_bar_width,
+                    width=target_w,
                     height=0.16,
-                    fill_color="#f59e0b" if s > 2 else "#f43f5e",
-                    fill_opacity=1.0 if s > 1 else 0.0,
+                    fill_color="#f59e0b",
+                    fill_opacity=1.0,
                     stroke_width=0
-                ).move_to(bar_track.get_center()).align_to(bar_track, LEFT)
+                ).align_to(bar_track, LEFT)
                 
-                display_num = str(s - 1) if s > 1 else "0"
-                new_timer_num = Text(display_num, font=VIETNAMESE_FONT, font_size=54, color=WHITE if s > 2 else "#f43f5e", weight=BOLD)
-                new_timer_num.move_to(timer_num.get_center())
-
                 self.play(
-                    Transform(active_bar, new_active_bar),
-                    Transform(timer_num, new_timer_num),
-                    run_time=0.9,
+                    Transform(active_bar, new_bar),
+                    run_time=1.0,
                     rate_func=linear
                 )
-                self.wait(0.1)
 
-            # HẾT 5s: Chuông báo kết thúc đếm ngược
-            bell_file = "{os.path.join(config.base_dir, 'assets/audio/ding.mp3')}"
-            if not os.path.exists(bell_file):
-                bell_file = "{config.bell_audio_path}"
-            if os.path.exists(bell_file):
+            # Bell chime at reveal
+            if os.path.exists(bell_sound):
                 try:
-                    self.add_sound(bell_file)
+                    self.add_sound(bell_sound)
                 except Exception:
                     pass
 
-            self.play(FadeOut(timer_group), FadeOut(bar_track), FadeOut(active_bar), FadeOut(hz_placeholder), FadeOut(hint_text), run_time=0.15)
+            # Fade out countdown
+            self.play(
+                FadeOut(timer_group),
+                FadeOut(bar_track),
+                FadeOut(active_bar),
+                run_time=0.2
+            )
 
-            # Hiện Đáp án Tiếng Trung: Chữ Hán to + Pinyin chuẩn
+            # Reveal Chinese: Hanzi Big + Pinyin
             ans_hanzi = Text(
                 hanzi,
                 font=CHINESE_FONT,
                 font_size=115,
                 color="#f59e0b",
                 weight=BOLD
-            ).move_to(center_card.get_center() + DOWN * 0.2)
+            ).move_to(center_card.get_center() + DOWN * 0.3)
             if ans_hanzi.width > 6.4:
                 ans_hanzi.scale_to_fit_width(6.4)
 
@@ -321,7 +306,6 @@ class {scene_name}(Scene):
             reveal_group = VGroup(ans_hanzi, ans_pinyin)
             self.play(FadeIn(reveal_group, shift=UP*0.2), run_time=0.45)
 
-            # Sau tiếng chuông 0.5s mới phát âm thanh mẫu
             self.wait(0.75)
 
             if voice_file and os.path.exists(voice_file):
@@ -330,12 +314,12 @@ class {scene_name}(Scene):
                 except Exception:
                     pass
 
-            # Giữ 2.2 giây để người xem đọc theo
             self.wait(2.2)
 
             # Clear card
             self.play(
                 FadeOut(center_card),
+                FadeOut(flag_group),
                 FadeOut(vn_text),
                 FadeOut(reveal_group),
                 FadeOut(counter_text),
@@ -355,19 +339,9 @@ class {scene_name}(Scene):
 
         logo_path = "{os.path.join(config.base_dir, 'assets/images/logo.png')}"
         if os.path.exists(logo_path):
-            logo_img = ImageMobject(logo_path).set_height(1.3)
-            logo_bg = RoundedRectangle(
-                corner_radius=0.3,
-                width=1.45,
-                height=1.45,
-                fill_color="#0f172a",
-                fill_opacity=0.9,
-                stroke_color="#f59e0b",
-                stroke_width=1.5
-            )
-            center_logo = Group(logo_bg, logo_img).move_to(end_card.get_top() + DOWN * 1.1)
+            logo_img = ImageMobject(logo_path).set_height(1.4).move_to(end_card.get_top() + DOWN * 1.1)
         else:
-            center_logo = Dot(radius=0.6, color=YELLOW_E).move_to(end_card.get_top() + DOWN * 1.1)
+            logo_img = Dot(radius=0.6, color=YELLOW_E).move_to(end_card.get_top() + DOWN * 1.1)
 
         end_title = Text(
             "BẠN ĐÚNG MẤY TỪ?",
@@ -375,7 +349,7 @@ class {scene_name}(Scene):
             font_size=42,
             color="#fbbf24",
             weight=BOLD
-        ).next_to(center_logo, DOWN, buff=0.35)
+        ).next_to(logo_img, DOWN, buff=0.35)
 
         end_cta = Text(
             "Bình luận số câu đúng bên dưới nhé! 👇",
@@ -393,8 +367,14 @@ class {scene_name}(Scene):
             weight=NORMAL
         ).next_to(end_cta, DOWN, buff=0.35)
 
-        end_mobjects = Group(end_card, center_logo, end_title, end_cta, end_sub)
-        self.play(FadeIn(end_mobjects, shift=UP*0.3), run_time=0.6)
+        self.play(
+            FadeIn(end_card, shift=UP*0.3),
+            FadeIn(logo_img),
+            FadeIn(end_title, shift=UP*0.2),
+            FadeIn(end_cta, shift=UP*0.2),
+            FadeIn(end_sub, shift=UP*0.2),
+            run_time=0.6
+        )
         self.wait(2.5)
 '''
     return code
